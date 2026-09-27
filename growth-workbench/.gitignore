@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.DS_Store
+*.pyc
+__pycache__/
+.env
+
+# 临时输出
+*_out.txt
+*_ascii.txt
+health.txt

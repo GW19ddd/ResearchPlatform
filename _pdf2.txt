@@ -1,0 +1,2 @@
+﻿status=200 type=application/pdf len=13128586
+magic=%PDF

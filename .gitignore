@@ -1,0 +1,53 @@
+# ---------- Node / 前端 ----------
+node_modules/
+web/node_modules/
+web/dist/
+web/.vite/
+*.tsbuildinfo
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---------- 本地数据 / 构建产物 ----------
+growth-workbench/data/backups/
+growth-workbench/data/*.db
+growth-workbench/data/*.db-*
+growth-workbench/data/*.pre-restore
+growth-workbench/export/
+growth-workbench/server/server.log
+*.log
+*.sqlite
+*.sqlite3
+
+# ---------- 调试临时文件 ----------
+growth-workbench/server/_*.json
+growth-workbench/server/_*.txt
+growth-workbench/server/_*.log
+growth-workbench/server/_*.py
+growth-workbench/.pytest_tmp/
+growth-workbench/server/workbench.db
+growth-workbench/server/server.err
+growth-workbench/web/_*.txt
+growth-workbench/web/build*.txt
+growth-workbench/web/dist*/
+
+# ---------- 从 GitHub 克隆的第三方 skill 仓库（含嵌套 .git，体积约 135M）
+# 应用内「设置 → 技能库 → 克隆仓库」可随时重新拉取，无需入库
+growth-workbench/server/skills/github/
+
+# ---------- WorkBuddy 工作区数据 ----------
+.workbuddy/
+.DS_Store
+Thumbs.db
+
+# ---------- 环境 / 密钥 ----------
+.env
+.env.*
+!.env.example

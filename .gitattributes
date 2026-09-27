@@ -1,0 +1,18 @@
+* text=auto
+
+*.py   text diff=python
+*.ts   text
+*.tsx  text
+*.js   text
+*.json text
+*.md   text
+*.css  text
+*.html text
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.db  binary
