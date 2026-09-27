@@ -87,20 +87,20 @@ export default function Points() {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-3 gap-3">
         <Card>
-          <div className="text-[12px] text-slate-500">余额</div>
-          <div className="mt-1 text-2xl font-medium text-slate-900">{s.balance}</div>
+          <div className="text-[12px] text-[color:var(--wb-text-soft)]">余额</div>
+          <div className="mt-1 text-2xl font-medium text-[color:var(--wb-text)]">{s.balance}</div>
         </Card>
         <Card>
-          <div className="text-[12px] text-slate-500">本周净分</div>
-          <div className={`mt-1 text-2xl font-medium ${s.week_net >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
+          <div className="text-[12px] text-[color:var(--wb-text-soft)]">本周净分</div>
+          <div className={`mt-1 text-2xl font-medium ${s.week_net >= 0 ? 'text-[color:var(--wb-text)]' : 'text-[color:var(--wb-danger)]'}`}>
             {s.week_net >= 0 ? '+' : ''}
             {s.week_net}
           </div>
         </Card>
         <Card>
-          <div className="text-[12px] text-slate-500">保护下限</div>
-          <div className="mt-1 text-2xl font-medium text-slate-900">{s.rules.weekly_net_floor}</div>
-          <div className="mt-1 text-[11px] text-slate-400">超出部分不计分</div>
+          <div className="text-[12px] text-[color:var(--wb-text-soft)]">保护下限</div>
+          <div className="mt-1 text-2xl font-medium text-[color:var(--wb-text)]">{s.rules.weekly_net_floor}</div>
+          <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">超出部分不计分</div>
         </Card>
       </div>
 
@@ -133,17 +133,17 @@ export default function Points() {
                 下注
               </Btn>
             </div>
-            <p className="text-[11px] text-slate-400">下注即扣分，达成返还 2 倍。</p>
+            <p className="text-[11.5px] text-[color:var(--wb-muted)]">下注即扣分，达成返还 2 倍。</p>
           </div>
           <div className="mt-3 flex flex-col gap-1">
             {bets.length === 0 ? (
               <Empty text="暂无押注" />
             ) : (
               bets.map((b) => (
-                <div key={b.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2">
+                <div key={b.id} className="flex items-center justify-between gap-2 rounded-lg border border-[color:var(--wb-border)] px-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12px] text-slate-700">{b.title}</div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="truncate text-[12px] text-[color:var(--wb-text)]">{b.title}</div>
+                    <div className="text-[11.5px] text-[color:var(--wb-muted)]">
                       {b.amount} 分 · {b.due_date || '无截止'}
                     </div>
                   </div>
@@ -166,7 +166,7 @@ export default function Points() {
         </Card>
 
         <Card title="奖励兑换">
-          {msg && <div className="mb-2 text-[12px] text-rose-600">{msg}</div>}
+          {msg && <div className="mb-2 text-[12px] text-[color:var(--wb-danger)]">{msg}</div>}
           <div className="flex gap-2">
             <Input placeholder="奖励名称" value={rewardForm.name} onChange={(v) => setRewardForm({ ...rewardForm, name: v })} />
             <Input className="w-24" type="number" value={rewardForm.cost} onChange={(v) => setRewardForm({ ...rewardForm, cost: Number(v) })} />
@@ -174,10 +174,10 @@ export default function Points() {
           </div>
           <div className="mt-3 flex flex-col gap-1">
             {rewards.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+              <div key={r.id} className="flex items-center justify-between rounded-lg border border-[color:var(--wb-border)] px-3 py-2">
                 <div>
-                  <div className="text-[12px] text-slate-700">{r.name}</div>
-                  <div className="text-[11px] text-slate-400">
+                  <div className="text-[12px] text-[color:var(--wb-text)]">{r.name}</div>
+                  <div className="text-[11.5px] text-[color:var(--wb-muted)]">
                     {r.cost} 分 · 已兑 {r.redeemed_count} 次
                   </div>
                 </div>
@@ -204,7 +204,7 @@ export default function Points() {
       <Card title="积分规则（可改）">
         <div className="grid gap-2 md:grid-cols-3">
           {Object.keys(RULE_LABELS).map((k) => (
-            <label key={k} className="flex items-center justify-between gap-2 text-[12px] text-slate-600">
+            <label key={k} className="flex items-center justify-between gap-2 text-[12px] text-[color:var(--wb-text-soft)]">
               {RULE_LABELS[k]}
               <Input
                 className="w-20"
@@ -223,11 +223,11 @@ export default function Points() {
         ) : (
           <div className="flex flex-col gap-1">
             {s.ledger.map((l: any) => (
-              <div key={l.id} className="flex items-center justify-between border-b border-slate-100 py-1 text-[12px] last:border-0">
-                <span className="text-slate-600">{l.reason}</span>
+              <div key={l.id} className="flex items-center justify-between border-b border-[color:var(--wb-border)] py-1 text-[12px] last:border-0">
+                <span className="text-[color:var(--wb-text-soft)]">{l.reason}</span>
                 <span className="flex items-center gap-2">
-                  <span className="text-[11px] text-slate-400">{String(l.created_at).slice(0, 16)}</span>
-                  <span className={l.delta >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                  <span className="text-[11.5px] text-[color:var(--wb-muted)]">{String(l.created_at).slice(0, 16)}</span>
+                  <span className={l.delta >= 0 ? 'text-emerald-600' : 'text-[color:var(--wb-danger)]'}>
                     {l.delta >= 0 ? '+' : ''}
                     {l.delta}
                   </span>

@@ -16,17 +16,21 @@
 
   --wb-text: #101828;
   --wb-text-soft: #475467;
-  --wb-muted: #8a94a6;
+  /* 次要文字色。原来是 #8a94a6，白底上只有 3.06:1，远低于 WCAG AA 的 4.5:1，
+     小字号的提示文字几乎看不清。这里压深到 4.97:1（白底）/ 4.60:1（页面底）。
+     改主题时别再调浅，这条线是硬底线。 */
+  --wb-muted: #667085;
 
   --wb-accent: #4f46e5;
   --wb-accent-soft: #eef2ff;
   --wb-accent-strong: #4338ca;
 
-  --wb-ok: #0f9d58;
+  /* 语义色同理：文字用途必须满足 4.5:1，软底上的小字也要过线 */
+  --wb-ok: #067a45;        /* 原 #0f9d58：白底 3.51:1，不达标 */
   --wb-ok-soft: #e7f6ee;
   --wb-warn: #b45309;
   --wb-warn-soft: #fef4e6;
-  --wb-danger: #d92d20;
+  --wb-danger: #c4271b;    /* 原 #d92d20：软底上 4.23:1，不达标 */
   --wb-danger-soft: #fdeceb;
   --wb-info: #026aa2;
   --wb-info-soft: #e8f4fb;
@@ -61,10 +65,12 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* 键盘用户才看到焦点环，鼠标点击不打扰 */
+/* 键盘用户才看到焦点环，鼠标点击不打扰。
+   用 outline 而不是 box-shadow：box-shadow 会被祖先的 overflow:hidden 裁掉（Card 就是），
+   而且在 Windows 高对比度模式下会被系统直接抹掉，键盘用户会彻底失去焦点位置。 */
 :focus-visible {
-  outline: none;
-  box-shadow: var(--wb-ring);
+  outline: 2px solid var(--wb-accent);
+  outline-offset: 1px;
   border-radius: var(--wb-radius-sm);
 }
 
@@ -145,6 +151,24 @@ table,
   }
 }
 
+/* 系统开了「减少动态效果」就别再晃了：入场动画改成直接出现，
+   呼吸灯（画布运行中的节点）保留但去掉位移动画。spinner 是状态指示不是装饰，留着。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .wb-spinner,
+  .wb-anim-spin {
+    animation-duration: 0.9s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
 .wb-anim-fade {
   animation: wb-fade-in 0.16s ease-out;
 }
@@ -163,6 +187,11 @@ table,
   border-top-color: transparent;
   animation: wb-spin 0.6s linear infinite;
   opacity: 0.7;
+}
+
+/* 忙碌状态的旋转图标（StatusTag busy） */
+.wb-anim-spin {
+  animation: wb-spin 0.9s linear infinite;
 }
 
 /* 画布上正在跑的节点：轻微呼吸，不动位置（拖拽中的节点不该跟着晃） */

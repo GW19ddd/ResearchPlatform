@@ -64,7 +64,7 @@ function ScorePicker({
   const v = Math.max(0, Math.min(5, Number(value) || 0))
   return (
     <div className="flex items-center gap-1.5">
-      <span className="w-10 shrink-0 text-[11px] text-slate-500">{label}</span>
+      <span className="w-10 shrink-0 text-[11.5px] text-[color:var(--wb-text-soft)]">{label}</span>
       <div className="flex gap-0.5">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
@@ -73,12 +73,12 @@ function ScorePicker({
             onClick={() => onChange(n)}
             title={`${label} ${n}`}
             className={`h-4 w-5 rounded-sm transition ${
-              n <= v ? 'bg-slate-700' : 'bg-slate-200 hover:bg-slate-300'
+              n <= v ? 'bg-[color:var(--wb-accent)]' : 'bg-[color:var(--wb-border-strong)] hover:bg-[color:var(--wb-muted)]'
             }`}
           />
         ))}
       </div>
-      <span className="text-[11px] text-slate-400">{v}</span>
+      <span className="text-[11.5px] text-[color:var(--wb-muted)]">{v}</span>
     </div>
   )
 }
@@ -375,7 +375,7 @@ export default function Ideas() {
     <div
       key={i.id}
       className={`rounded-lg border p-3 ${
-        multi && bulk.has(i.id) ? 'border-indigo-300 bg-indigo-50/40' : 'border-slate-200'
+        multi && bulk.has(i.id) ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)]' : 'border-[color:var(--wb-border)]'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -390,24 +390,24 @@ export default function Ideas() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => openDetail(i)}
-              className="text-left text-[13px] font-medium text-slate-900 hover:text-indigo-600 hover:underline"
+              className="text-left text-[13px] font-medium text-[color:var(--wb-text)] hover:text-[color:var(--wb-accent)] hover:underline"
             >
               {i.title}
             </button>
             <button
               onClick={() => setCat(cat === catOf(i) ? '' : catOf(i))}
-              className={`rounded px-1.5 py-0.5 text-[10px] ${
+              className={`rounded px-1.5 py-0.5 text-[11.5px] ${
                 catOf(i) === '未分类'
-                  ? 'bg-slate-100 text-slate-400'
-                  : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                  ? 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-muted)]'
+                  : 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)] hover:bg-[color:var(--wb-accent-soft)]'
               }`}
             >
               {catOf(i)}
             </button>
-            <span className="text-[10px] text-slate-400">综合 {scoreOf(i).toFixed(1)}</span>
+            <span className="text-[11.5px] text-[color:var(--wb-muted)]">综合 {scoreOf(i).toFixed(1)}</span>
           </div>
-          {i.one_liner && <div className="mt-0.5 text-[12px] text-slate-600">{i.one_liner}</div>}
-          {i.direction && <div className="mt-1 text-[11px] text-slate-400">{i.direction}</div>}
+          {i.one_liner && <div className="mt-0.5 text-[12px] text-[color:var(--wb-text-soft)]">{i.one_liner}</div>}
+          {i.direction && <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">{i.direction}</div>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <Pill tone={i.status === 'selected' ? 'green' : 'gray'}>
@@ -490,10 +490,10 @@ export default function Ideas() {
                   <button
                     key={c.name}
                     onClick={() => setForm({ ...form, category: c.name })}
-                    className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                    className={`rounded-full border px-2 py-0.5 text-[11.5px] ${
                       form.category === c.name
-                        ? 'border-slate-800 bg-slate-900 text-white'
-                        : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                        ? 'border-[color:var(--wb-accent-strong)] bg-[color:var(--wb-accent)] text-white'
+                        : 'border-[color:var(--wb-border)] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-border-strong)]'
                     }`}
                   >
                     {c.name}
@@ -502,7 +502,7 @@ export default function Ideas() {
             </div>
             <div className="grid grid-cols-2 gap-1">
               {['novelty', 'feasibility', 'impact', 'effort'].map((k) => (
-                <label key={k} className="flex items-center justify-between text-[11px] text-slate-500">
+                <label key={k} className="flex items-center justify-between text-[11.5px] text-[color:var(--wb-text-soft)]">
                   {SCORE_LABELS[k]}
                   <Input
                     className="w-12"
@@ -538,7 +538,7 @@ export default function Ideas() {
               onChange={(v) => setBrain({ ...brain, context: v })}
             />
             <div className="flex items-center gap-2">
-              <span className="text-[12px] text-slate-500">数量</span>
+              <span className="text-[12px] text-[color:var(--wb-text-soft)]">数量</span>
               <Input
                 className="w-16"
                 type="number"
@@ -585,7 +585,7 @@ export default function Ideas() {
               <div
                 key={i}
                 className={`rounded-lg border p-3 transition-colors ${
-                  picked.has(i) ? 'border-slate-800 bg-slate-50' : 'border-slate-200'
+                  picked.has(i) ? 'border-[color:var(--wb-accent-strong)] bg-[color:var(--wb-surface-alt)]' : 'border-[color:var(--wb-border)]'
                 }`}
               >
                 <label className="flex cursor-pointer items-start gap-2">
@@ -597,33 +597,33 @@ export default function Ideas() {
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[13px] font-medium text-slate-900">{c.title}</span>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[13px] font-medium text-[color:var(--wb-text)]">{c.title}</span>
+                      <span className="text-[11.5px] text-[color:var(--wb-muted)]">
                         新颖 {c.novelty} · 可行 {c.feasibility} · 影响 {c.impact} · 工作量 {c.effort}
                       </span>
                       {c.category && (
-                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-600">
+                        <span className="rounded bg-[color:var(--wb-accent-soft)] px-1.5 py-0.5 text-[11.5px] text-[color:var(--wb-accent)]">
                           {c.category}
                         </span>
                       )}
                     </div>
                     {c.one_liner && (
-                      <div className="mt-1 text-[12px] text-slate-700">{c.one_liner}</div>
+                      <div className="mt-1 text-[12px] text-[color:var(--wb-text)]">{c.one_liner}</div>
                     )}
                     {c.defect && (
-                      <div className="mt-1 text-[11px] text-slate-500">
+                      <div className="mt-1 text-[11.5px] text-[color:var(--wb-text-soft)]">
                         <b>解决缺陷：</b>
                         {c.defect}
                       </div>
                     )}
                     {c.mve && (
-                      <div className="mt-1 text-[11px] text-slate-500">
+                      <div className="mt-1 text-[11.5px] text-[color:var(--wb-text-soft)]">
                         <b>验证路径：</b>
                         {c.mve}
                       </div>
                     )}
                     {c.risk && (
-                      <div className="mt-1 text-[11px] text-rose-500/80">
+                      <div className="mt-1 text-[11.5px] text-[color:var(--wb-danger)]">
                         <b>风险：</b>
                         {c.risk}
                       </div>
@@ -706,15 +706,15 @@ export default function Ideas() {
                   <button
                     key={c.name}
                     onClick={() => setCat(cat === c.name ? '' : c.name)}
-                    className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                    className={`rounded-full border px-2 py-0.5 text-[11.5px] ${
                       cat === c.name
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                        : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                        ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent-strong)]'
+                        : 'border-[color:var(--wb-border)] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-border-strong)]'
                     }`}
                   >
                     {c.name} {c.count}
                     {c.avg_score ? (
-                      <span className="ml-1 text-slate-400">均分 {c.avg_score}</span>
+                      <span className="ml-1 text-[color:var(--wb-muted)]">均分 {c.avg_score}</span>
                     ) : null}
                   </button>
                 ))}
@@ -725,9 +725,9 @@ export default function Ideas() {
               <div className="flex flex-col gap-3">
                 {grouped.map((g) => (
                   <div key={g.name}>
-                    <div className="mb-1 flex items-center gap-2 text-[12px] font-medium text-slate-700">
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5">{g.name}</span>
-                      <span className="text-[11px] font-normal text-slate-400">
+                    <div className="mb-1 flex items-center gap-2 text-[12px] font-medium text-[color:var(--wb-text)]">
+                      <span className="rounded bg-[color:var(--wb-bg-subtle)] px-1.5 py-0.5">{g.name}</span>
+                      <span className="text-[11.5px] font-normal text-[color:var(--wb-muted)]">
                         {g.list.length} 个
                       </span>
                     </div>
@@ -744,10 +744,10 @@ export default function Ideas() {
 
       {detail && (
         <>
-          <div className="fixed inset-0 z-30 bg-slate-900/20" onClick={() => setDetail(null)} />
-          <div className="fixed right-0 top-0 z-40 flex h-full w-full max-w-[34rem] flex-col border-l border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
-              <div className="text-[13px] font-medium text-slate-800">编辑想法</div>
+          <div className="fixed inset-0 z-30 bg-[color:var(--wb-accent)]/20" onClick={() => setDetail(null)} />
+          <div className="fixed right-0 top-0 z-40 flex h-full w-full max-w-[34rem] flex-col border-l border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-2xl">
+            <div className="flex items-center justify-between gap-2 border-b border-[color:var(--wb-border)] px-4 py-3">
+              <div className="text-[13px] font-medium text-[color:var(--wb-text)]">编辑想法</div>
               <div className="flex items-center gap-2">
                 <Btn variant="primary" onClick={saveDetail} disabled={dbusy === 'save'}>
                   {dbusy === 'save' ? '保存中…' : '保存'}
@@ -761,12 +761,12 @@ export default function Ideas() {
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
               <div className="flex flex-col gap-3">
                 <div>
-                  <div className="mb-1 text-[11px] text-slate-400">标题</div>
+                  <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">标题</div>
                   <Input value={detail.title || ''} onChange={(v) => setField('title', v)} />
                 </div>
 
                 <div>
-                  <div className="mb-1 text-[11px] text-slate-400">一句话主张（要具体到可验证）</div>
+                  <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">一句话主张（要具体到可验证）</div>
                   <TextArea
                     rows={2}
                     value={detail.one_liner || ''}
@@ -776,14 +776,14 @@ export default function Ideas() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <div className="mb-1 text-[11px] text-slate-400">所属方向</div>
+                    <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">所属方向</div>
                     <Input
                       value={detail.direction || ''}
                       onChange={(v) => setField('direction', v)}
                     />
                   </div>
                   <div>
-                    <div className="mb-1 text-[11px] text-slate-400">分类</div>
+                    <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">分类</div>
                     <Select
                       value={catOf(detail) === '未分类' ? '' : catOf(detail)}
                       onChange={pickCategory}
@@ -793,7 +793,7 @@ export default function Ideas() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-[11px] text-slate-400">状态</div>
+                  <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">状态</div>
                   <Select
                     value={detail.status || 'captured'}
                     onChange={(v) => setField('status', v)}
@@ -802,7 +802,7 @@ export default function Ideas() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-[11px] text-slate-400">评分（点格子改分）</div>
+                  <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">评分（点格子改分）</div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                     {(['novelty', 'feasibility', 'impact', 'effort'] as const).map((k) => (
                       <ScorePicker
@@ -816,7 +816,7 @@ export default function Ideas() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-[11px] text-slate-400">
+                  <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">
                     备注（缺陷 / 验证路径 / 风险，支持 Markdown）
                   </div>
                   <TextArea
@@ -825,14 +825,14 @@ export default function Ideas() {
                     onChange={(v) => setField('notes', v)}
                   />
                   {detail.notes && (
-                    <div className="mt-2 rounded-lg border border-slate-200 px-3 py-2">
+                    <div className="mt-2 rounded-lg border border-[color:var(--wb-border)] px-3 py-2">
                       <MdBlock text={detail.notes} />
                     </div>
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1 border-t border-slate-200 pt-3">
-                  <span className="mr-1 text-[11px] text-slate-400">AI 质疑</span>
+                <div className="flex flex-wrap items-center gap-1 border-t border-[color:var(--wb-border)] pt-3">
+                  <span className="mr-1 text-[11.5px] text-[color:var(--wb-muted)]">AI 质疑</span>
                   {REVIEW_ROLES.map((r) => (
                     <Btn
                       key={r.value}
@@ -859,20 +859,20 @@ export default function Ideas() {
 
                 {dout && <AiMeta res={revTask.data || {}} />}
                 {dout && (
-                  <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <div className="rounded-lg bg-[color:var(--wb-surface-alt)] px-3 py-2">
                     <MdBlock text={dout} />
                   </div>
                 )}
 
                 {reviews.length > 0 && (
-                  <details className="rounded-lg border border-slate-200 px-3 py-2">
-                    <summary className="cursor-pointer text-[12px] text-slate-600">
+                  <details className="rounded-lg border border-[color:var(--wb-border)] px-3 py-2">
+                    <summary className="cursor-pointer text-[12px] text-[color:var(--wb-text-soft)]">
                       历史质疑（{reviews.length}）
                     </summary>
                     <div className="mt-2 flex flex-col gap-2">
                       {reviews.map((r: any) => (
-                        <div key={r.id} className="rounded-lg bg-slate-50 px-2.5 py-2">
-                          <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                        <div key={r.id} className="rounded-lg bg-[color:var(--wb-surface-alt)] px-2.5 py-2">
+                          <div className="flex items-center gap-2 text-[11.5px] text-[color:var(--wb-muted)]">
                             <Pill tone="blue">
                               {REVIEW_ROLES.find((x) => x.value === r.role)?.label || r.role}
                             </Pill>

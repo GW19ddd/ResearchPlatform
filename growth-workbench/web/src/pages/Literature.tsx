@@ -36,6 +36,7 @@ import {
   useBulk,
 } from '../components/BulkBar'
 import { toast } from '../components/toast'
+import { Icon } from '../components/Icon'
 import { del, get, patch, post } from '../lib/api'
 import { useAiTask, useIdemKey } from '../lib/hooks'
 import { usePersist } from '../lib/state'
@@ -278,9 +279,9 @@ export default function Literature() {
           {kids.length > 0 ? (
             <button
               onClick={() => toggleNode(n.path)}
-              className="w-3 shrink-0 text-[10px] text-[color:var(--wb-muted)] hover:text-[color:var(--wb-text)]"
+              className="w-3 shrink-0 text-[11.5px] text-[color:var(--wb-muted)] hover:text-[color:var(--wb-text)]"
             >
-              {open ? '▾' : '▸'}
+              <Icon name={open ? 'chevronDown' : 'chevronRight'} size={11} strokeWidth={2} />
             </button>
           ) : (
             <span className="w-3 shrink-0" />
@@ -294,7 +295,7 @@ export default function Literature() {
             }`}
           >
             <span className="truncate text-left">{n.name}</span>
-            <span className="ml-1 shrink-0 text-[10px] text-[color:var(--wb-muted)]">
+            <span className="ml-1 shrink-0 text-[11.5px] text-[color:var(--wb-muted)]">
               {n.total ?? n.count}
             </span>
           </button>
@@ -395,7 +396,7 @@ export default function Literature() {
             <div className="text-[13px] font-medium leading-snug text-[color:var(--wb-text)] transition group-hover:text-[color:var(--wb-accent)]">
               {l.title}
             </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-[color:var(--wb-muted)]">
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11.5px] text-[color:var(--wb-muted)]">
               <span className="max-w-[24rem] truncate">{l.authors || '作者未填'}</span>
               {l.year && <span>· {l.year}</span>}
               {l.venue && <span className="max-w-[16rem] truncate">· {l.venue}</span>}
@@ -408,7 +409,7 @@ export default function Literature() {
                 {cols.map((c) => (
                   <span
                     key={c}
-                    className="rounded-full bg-[color:var(--wb-bg-subtle)] px-2 py-[1px] text-[10px] text-[color:var(--wb-text-soft)]"
+                    className="rounded-full bg-[color:var(--wb-bg-subtle)] px-2 py-[1px] text-[11.5px] text-[color:var(--wb-text-soft)]"
                     title={c}
                   >
                     {c.split(' / ').pop()}
@@ -490,10 +491,12 @@ export default function Literature() {
                 setOut(null)
               }}
             >
-              ✦ 检索方案
+              <Icon name="sparkle" size={13} />
+              检索方案
             </Btn>
             <Btn variant="primary" onClick={() => setAddOpen(true)}>
-              ＋ 新增文献
+              <Icon name="plus" size={13} />
+              新增文献
             </Btn>
           </>
         }
@@ -553,11 +556,11 @@ export default function Literature() {
           {tree.length > 0 && (
             <div className="hidden w-52 shrink-0 self-start rounded-[10px] border border-[color:var(--wb-border)] p-2 lg:block">
               <div className="mb-1 flex items-center justify-between px-1">
-                <span className="text-[11px] text-[color:var(--wb-muted)]">Zotero 分类树</span>
+                <span className="text-[11.5px] text-[color:var(--wb-muted)]">Zotero 分类树</span>
                 {coll && (
                   <button
                     onClick={() => resetTo(() => setColl(''))}
-                    className="text-[11px] text-[color:var(--wb-accent)]"
+                    className="text-[11.5px] text-[color:var(--wb-accent)]"
                   >
                     清除
                   </button>
@@ -566,7 +569,7 @@ export default function Literature() {
               <div className="max-h-[32rem] overflow-y-auto">
                 <div className="flex flex-col gap-0.5">{tree.map(renderNode)}</div>
               </div>
-              <p className="mt-2 px-1 text-[10px] leading-relaxed text-[color:var(--wb-muted)]">
+              <p className="mt-2 px-1 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
                 点父分类会带上它下面所有子分类的文献
               </p>
             </div>
@@ -635,7 +638,7 @@ export default function Literature() {
                       <span className="rounded-full bg-[color:var(--wb-bg-subtle)] px-2 py-[1px]">
                         {g.name}
                       </span>
-                      <span className="text-[11px] font-normal text-[color:var(--wb-muted)]">
+                      <span className="text-[11.5px] font-normal text-[color:var(--wb-muted)]">
                         {g.list.length} 篇
                       </span>
                     </div>
@@ -722,7 +725,7 @@ export default function Literature() {
             value={form.url}
             onChange={(v) => setForm({ ...form, url: v })}
           />
-          <p className="text-[11px] leading-relaxed text-[color:var(--wb-muted)]">
+          <p className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
             批量入库走下面的「从 Zotero 同步」，这里适合随手补一条。
           </p>
         </div>
@@ -754,7 +757,7 @@ export default function Literature() {
             value={topic}
             onChange={setTopic}
           />
-          <p className="text-[11px] leading-relaxed text-[color:var(--wb-muted)]">
+          <p className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
             输出可直接粘贴到 Google Scholar / IEEE Xplore / arXiv 的布尔检索式、必追关键词与反向检索建议。
           </p>
           {kwTask.error && (

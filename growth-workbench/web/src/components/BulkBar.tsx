@@ -9,9 +9,10 @@
  */
 import { useState } from 'react'
 import { Btn } from './ui'
+import { Icon } from './Icon'
 
 const CHECK =
-  'h-[13px] w-[13px] shrink-0 cursor-pointer accent-[color:var(--wb-accent)]'
+  'h-[15px] w-[15px] shrink-0 cursor-pointer accent-[color:var(--wb-accent)]'
 
 // ---------------------------------------------------------------- 多选状态
 
@@ -69,7 +70,17 @@ export function SelectToggle({
       title={title || (on ? '退出多选' : '进入多选，可批量删除或导出')}
       className={on || active ? '!px-2' : undefined}
     >
-      {on ? '✓ 多选中' : '☑ 多选'}
+      {on ? (
+        <>
+          <Icon name="checkSquare" size={13} />
+          多选中
+        </>
+      ) : (
+        <>
+          <Icon name="checkSquare" size={13} />
+          多选
+        </>
+      )}
     </Btn>
   )
 }
@@ -90,6 +101,8 @@ export function RowCheck({
   onChange: (v: boolean) => void
   className?: string
 }) {
+  // 行内的复选框不套 HIT：行高是按 13px 校过的，撑成 24px 会把整行顶散。
+  // 它落在 WCAG 2.2 的「inline 目标」豁免里，画到 15px 已经比原来好点。
   return (
     <input
       type="checkbox"
@@ -135,20 +148,21 @@ export function BulkBar({
         <input
           type="checkbox"
           checked={all}
+          aria-label="全选"
           onChange={() => (count > 0 ? onClear() : onSelectAll())}
           className={CHECK}
         />
-        <span className="whitespace-nowrap text-[11.5px] text-[color:var(--wb-text-soft)]">
+        <span className="whitespace-nowrap text-[12px] text-[color:var(--wb-text-soft)]">
           全选
         </span>
       </label>
-      <span className="whitespace-nowrap text-[11.5px] text-[color:var(--wb-muted)]">
+      <span className="whitespace-nowrap text-[12px] text-[color:var(--wb-muted)]">
         已选 {count} / {total} {unit}
       </span>
       {count > 0 && !all && total > 0 && (
         <button
           onClick={onSelectAll}
-          className="whitespace-nowrap text-[11.5px] text-[color:var(--wb-accent)] underline underline-offset-2"
+          className="whitespace-nowrap text-[12px] text-[color:var(--wb-accent)] underline underline-offset-2"
         >
           选中全部 {total} {unit}
         </button>
@@ -156,7 +170,7 @@ export function BulkBar({
       {count > 0 && (
         <button
           onClick={onClear}
-          className="whitespace-nowrap text-[11.5px] text-[color:var(--wb-muted)] hover:text-[color:var(--wb-text)]"
+          className="whitespace-nowrap text-[12px] text-[color:var(--wb-muted)] hover:text-[color:var(--wb-text)]"
         >
           清空选择
         </button>

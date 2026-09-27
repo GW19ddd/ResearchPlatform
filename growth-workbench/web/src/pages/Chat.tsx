@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Btn, Card, Empty, Input, MdBlock, Select, TextArea } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { aiErrorOf } from '../components/AiError'
 import { del, get, patch, post } from '../lib/api'
 import { usePersist } from '../lib/state'
@@ -197,15 +198,17 @@ export default function Chat() {
               sessions.map((s) => (
                 <div
                   key={s.id}
-                  className={`group flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] ${
-                    sid === s.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  className={`flex items-center gap-1 rounded-[9px] px-2 py-1.5 text-[12px] transition ${
+                    sid === s.id
+                      ? 'bg-[color:var(--wb-accent)] text-white'
+                      : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
                   }`}
                 >
                   <button onClick={() => open(s.id)} className="min-w-0 flex-1 text-left">
                     <div className="truncate">{s.title || '新对话'}</div>
                     <div
-                      className={`text-[10px] ${
-                        sid === s.id ? 'text-slate-300' : 'text-slate-400'
+                      className={`text-[11.5px] ${
+                        sid === s.id ? 'text-white/75' : 'text-[color:var(--wb-muted)]'
                       }`}
                     >
                       {s.msg_count || 0} 条 · {roles.find((r) => r.value === s.role)?.label || '助手'}
@@ -213,9 +216,14 @@ export default function Chat() {
                   </button>
                   <button
                     onClick={() => remove(s.id)}
-                    className="shrink-0 text-[11px] text-slate-400 opacity-0 hover:text-rose-500 group-hover:opacity-100"
+                    aria-label="删除该会话"
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] opacity-55 transition hover:opacity-100 ${
+                      sid === s.id
+                        ? 'hover:bg-[color:var(--wb-surface)]/20'
+                        : 'hover:bg-[color:var(--wb-danger-soft)] hover:text-[color:var(--wb-danger)]'
+                    }`}
                   >
-                    ×
+                    <Icon name="trash" size={12} />
                   </button>
                 </div>
               ))
@@ -250,8 +258,8 @@ export default function Chat() {
             }
           >
             {showCtx && (
-              <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div className="text-[11px] text-slate-500">
+              <div className="mb-3 rounded-lg border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] p-3">
+                <div className="text-[11.5px] text-[color:var(--wb-text-soft)]">
                   勾选要塞进对话背景的工作台数据（会自动拼进 system prompt）：
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1">
@@ -265,10 +273,10 @@ export default function Chat() {
                             : [...ctxKeys, o.value]
                         )
                       }
-                      className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                      className={`rounded-full border px-2 py-0.5 text-[11.5px] ${
                         ctxKeys.includes(o.value)
-                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                          : 'border-slate-200 text-slate-500'
+                          ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent-strong)]'
+                          : 'border-[color:var(--wb-border)] text-[color:var(--wb-text-soft)]'
                       }`}
                     >
                       {o.label}
@@ -286,8 +294,8 @@ export default function Chat() {
             {!sid ? (
               <Empty text="左侧点「新建」开一轮对话，或直接选一个已有会话" />
             ) : msgs.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-300 px-3 py-6">
-                <div className="text-center text-[12px] text-slate-500">
+              <div className="rounded-lg border border-dashed border-[color:var(--wb-border-strong)] px-3 py-6">
+                <div className="text-center text-[12px] text-[color:var(--wb-text-soft)]">
                   当前角色：<b>{roles.find((r) => r.value === role)?.label || '科研助手'}</b>
                   {ctxKeys.length > 0 && ' · 已带入工作台上下文'}
                   <br />
@@ -301,7 +309,7 @@ export default function Chat() {
                         setInput(q)
                         setTimeout(() => send(false, q), 30)
                       }}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[12px] text-slate-600 hover:border-slate-400 hover:text-slate-900"
+                      className="rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3 py-1 text-[12px] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-border-strong)] hover:text-[color:var(--wb-text)]"
                     >
                       {q}
                     </button>
@@ -318,8 +326,8 @@ export default function Chat() {
                     <div
                       className={`max-w-[85%] rounded-lg px-3 py-2 text-[13px] ${
                         m.role === 'user'
-                          ? 'bg-slate-900 text-white'
-                          : 'border border-slate-200 bg-white text-slate-800'
+                          ? 'bg-[color:var(--wb-accent)] text-white'
+                          : 'border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text)]'
                       }`}
                     >
                       {m.role === 'user' ? (
@@ -328,7 +336,7 @@ export default function Chat() {
                         <MdBlock text={m.content} />
                       )}
                       {m.role === 'assistant' && m.model && (
-                        <div className="mt-1 text-[10px] text-slate-400">
+                        <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">
                           {m.model}
                           {m.tokens_out ? ` · ${m.tokens_out} tokens` : ''}
                         </div>
@@ -341,7 +349,7 @@ export default function Chat() {
             )}
 
             {err && (
-              <div className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-[12px] text-rose-600">
+              <div className="mt-2 rounded-lg bg-[color:var(--wb-danger-soft)] px-3 py-2 text-[12px] text-[color:var(--wb-danger)]">
                 {err}
               </div>
             )}
@@ -367,7 +375,7 @@ export default function Chat() {
                   <Btn onClick={() => send(true)} disabled={busy === 'send' || msgs.length === 0}>
                     重跑上一条
                   </Btn>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11.5px] text-[color:var(--wb-muted)]">
                     {mode === 'reason' ? '推理模式通常要等 20-40 秒' : '快模式一般几秒内回'}
                   </span>
                 </div>

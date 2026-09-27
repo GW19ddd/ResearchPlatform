@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Btn, Card, Input, LoadError, Loading, Pill, Select } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { del, get, post, put } from '../lib/api'
 import BackupCard from '../features/settings/BackupCard'
 import SuspectsCard from '../features/settings/SuspectsCard'
@@ -197,29 +198,36 @@ export default function Settings() {
           </div>
         }
       >
-        <p className="text-[12px] leading-relaxed text-slate-500">
+        <p className="text-[12px] leading-relaxed text-[color:var(--wb-text-soft)]">
           DeepSeek、OpenAI/Codex、Ollama、本地 Qwen、任意中转站——都只是列表里的一条记录，统一在这里增删改。
           选中的「默认」供应商处理所有任务，也可以用「用途」把轻量/推理任务分派给不同供应商。配置存本地数据库，保存即生效。
         </p>
 
         <div className="mt-3 flex flex-col gap-2">
           {cfg.providers.length === 0 && (
-            <p className="text-[12px] text-slate-400">还没有供应商，点右上角「新增供应商」。</p>
+            <p className="text-[12px] text-[color:var(--wb-muted)]">还没有供应商，点右上角「新增供应商」。</p>
           )}
           {cfg.providers.map((p: any) => {
             const isDefault = cfg.default_provider === p.id
             const isOpen = openProv.has(p.id)
             return (
-              <div key={p.id} className="rounded-lg border border-slate-200">
+              <div key={p.id} className="rounded-lg border border-[color:var(--wb-border)]">
                 {/* 收起态：一行摘要 */}
                 <div className="flex flex-wrap items-center gap-2 p-3">
                   <button
-                    className="text-[13px] font-medium text-slate-900 hover:underline"
+                    className="flex items-center gap-1 text-[13px] font-medium text-[color:var(--wb-text)] hover:underline"
                     onClick={() => toggleProv(p.id)}
+                    aria-expanded={isOpen}
                   >
-                    {isOpen ? '▾' : '▸'} {p.name}
+                    <Icon
+                      name={isOpen ? 'chevronDown' : 'chevronRight'}
+                      size={12}
+                      strokeWidth={2}
+                      className="text-[color:var(--wb-muted)]"
+                    />
+                    {p.name}
                   </button>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11.5px] text-[color:var(--wb-muted)]">
                     {types.find((t: any) => t.value === p.type)?.label || p.type} · {p.base_url}
                   </span>
                   {isDefault && <Pill tone="green">默认</Pill>}
@@ -236,14 +244,14 @@ export default function Settings() {
 
                 {/* 展开态：完整编辑 */}
                 {isOpen && (
-                  <div className="border-t border-slate-100 p-3">
+                  <div className="border-t border-[color:var(--wb-border)] p-3">
                     <div className="grid gap-2 md:grid-cols-2">
                       <label className="block">
-                        <span className="text-[11px] text-slate-500">名称</span>
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">名称</span>
                         <Input value={p.name} onChange={(v) => patchProvider(p.id, 'name', v)} />
                       </label>
                       <label className="block">
-                        <span className="text-[11px] text-slate-500">类型</span>
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">类型</span>
                         <Select
                           value={p.type}
                           onChange={(v) => patchProvider(p.id, 'type', v)}
@@ -251,11 +259,11 @@ export default function Settings() {
                         />
                       </label>
                       <label className="block md:col-span-2">
-                        <span className="text-[11px] text-slate-500">Base URL</span>
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">Base URL</span>
                         <Input value={p.base_url} onChange={(v) => patchProvider(p.id, 'base_url', v)} />
                       </label>
                       <label className="block md:col-span-2">
-                        <span className="text-[11px] text-slate-500">API Key（Ollama 可留空）</span>
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">API Key（Ollama 可留空）</span>
                         <Input
                           type="password"
                           value={p.api_key}
@@ -263,28 +271,28 @@ export default function Settings() {
                         />
                       </label>
                       <label className="block">
-                        <span className="text-[11px] text-slate-500">轻量任务模型</span>
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">轻量任务模型</span>
                         <Input
                           value={p.model_fast}
                           onChange={(v) => patchProvider(p.id, 'model_fast', v)}
                         />
                       </label>
                       <label className="block">
-                        <span className="text-[11px] text-slate-500">推理任务模型</span>
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">推理任务模型</span>
                         <Input
                           value={p.model_reason}
                           onChange={(v) => patchProvider(p.id, 'model_reason', v)}
                         />
                       </label>
                       <label className="block">
-                        <span className="text-[11px] text-slate-500">用途分派</span>
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">用途分派</span>
                         <Select
                           value={p.routing || 'all'}
                           onChange={(v) => patchProvider(p.id, 'routing', v)}
                           options={ROUTING}
                         />
                       </label>
-                      <label className="flex items-center gap-2 pt-4 text-[12px] text-slate-600">
+                      <label className="flex items-center gap-2 pt-4 text-[12px] text-[color:var(--wb-text-soft)]">
                         <input
                           type="checkbox"
                           checked={!!p.enabled}
@@ -301,11 +309,11 @@ export default function Settings() {
                         保存
                       </Btn>
                     </div>
-                    <p className="mt-2 text-[11px] text-slate-400">{HINTS[p.type] || ''}</p>
+                    <p className="mt-2 text-[11.5px] text-[color:var(--wb-muted)]">{HINTS[p.type] || ''}</p>
                     {msg[p.id] && (
                       <p
-                        className={`mt-1 text-[11px] ${
-                          msg[p.id].startsWith('连通正常') ? 'text-emerald-600' : 'text-slate-500'
+                        className={`mt-1 text-[11.5px] ${
+                          msg[p.id].startsWith('连通正常') ? 'text-emerald-600' : 'text-[color:var(--wb-text-soft)]'
                         }`}
                       >
                         {msg[p.id]}
@@ -332,13 +340,13 @@ export default function Settings() {
           </div>
         }
       >
-        <p className="text-[12px] leading-relaxed text-slate-500">
+        <p className="text-[12px] leading-relaxed text-[color:var(--wb-text-soft)]">
           填一次，画布里的 Dify 节点就能直接用。地址填 Dify 的 API 入口（本机 docker 部署一般是{' '}
-          <code className="rounded bg-slate-100 px-1">http://localhost/v1</code>）。
+          <code className="rounded bg-[color:var(--wb-bg-subtle)] px-1">http://localhost/v1</code>）。
         </p>
 
         <div className="mt-3 grid gap-2 md:grid-cols-2">
-          <label className="flex items-center gap-2 text-[12px] text-slate-600">
+          <label className="flex items-center gap-2 text-[12px] text-[color:var(--wb-text-soft)]">
             <input
               type="checkbox"
               checked={!!dify?.enabled}
@@ -347,7 +355,7 @@ export default function Settings() {
             启用 Dify 节点
           </label>
           <label className="block">
-            <span className="text-[11px] text-slate-500">API 地址</span>
+            <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">API 地址</span>
             <Input
               value={dify?.base_url || ''}
               onChange={(v) => setDify({ ...dify, base_url: v })}
@@ -374,7 +382,7 @@ export default function Settings() {
           </Btn>
           {difyMsg && (
             <span
-              className={`text-[11px] ${difyMsg.startsWith('地址不通') || difyMsg.includes('失败') ? 'text-rose-600' : 'text-slate-500'}`}
+              className={`text-[11.5px] ${difyMsg.startsWith('地址不通') || difyMsg.includes('失败') ? 'text-[color:var(--wb-danger)]' : 'text-[color:var(--wb-text-soft)]'}`}
             >
               {difyMsg}
             </span>
@@ -384,22 +392,22 @@ export default function Settings() {
         {/* 已保存的应用：列表 + 编辑态 */}
         <div className="mt-4 flex flex-col gap-2">
           {(dify?.apps || []).length === 0 && (
-            <p className="text-[12px] text-slate-400">
+            <p className="text-[12px] text-[color:var(--wb-muted)]">
               还没有应用。在 Dify 里发布 workflow → 右上角「访问 API」拿 Key → 点「新增应用」填进来。
             </p>
           )}
           {(dify?.apps || []).map((a: any, i: number) => {
             const editing = editApp === a.id
             return (
-              <div key={a.id} className="rounded-lg border border-slate-200 p-3">
+              <div key={a.id} className="rounded-lg border border-[color:var(--wb-border)] p-3">
                 {!editing ? (
                   /* 只读态 */
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[13px] font-medium text-slate-900">{a.name}</span>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[13px] font-medium text-[color:var(--wb-text)]">{a.name}</span>
+                    <span className="text-[11.5px] text-[color:var(--wb-muted)]">
                       {a.mode === 'chat' ? '对话应用' : '工作流'}
                     </span>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11.5px] text-[color:var(--wb-muted)]">
                       Key：{a.api_key_masked || '未填'}
                     </span>
                     <span className="flex-1" />
@@ -429,7 +437,7 @@ export default function Settings() {
                   <>
                     <div className="grid gap-2 md:grid-cols-3">
                       <label className="block">
-                        <span className="text-[11px] text-slate-500">应用名称</span>
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">应用名称</span>
                         <Input
                           value={a.name}
                           onChange={(v) => patchApp(i, 'name', v)}
@@ -437,7 +445,7 @@ export default function Settings() {
                         />
                       </label>
                       <label className="block">
-                        <span className="text-[11px] text-slate-500">类型</span>
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">类型</span>
                         <Select
                           value={a.mode || 'workflow'}
                           onChange={(v) => patchApp(i, 'mode', v)}
@@ -448,7 +456,7 @@ export default function Settings() {
                         />
                       </label>
                       <label className="block">
-                        <span className="text-[11px] text-slate-500">
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">
                           API Key{`（当前：${a.api_key_masked || '未填'}）`}
                         </span>
                         <Input
@@ -497,20 +505,20 @@ export default function Settings() {
 
       <Card title="调用统计">
         {usage.length === 0 ? (
-          <p className="text-[12px] text-slate-400">还没有调用记录</p>
+          <p className="text-[12px] text-[color:var(--wb-muted)]">还没有调用记录</p>
         ) : (
           <div className="flex flex-col gap-1">
             {usage.map((u: any) => (
-              <div key={u.provider} className="flex justify-between text-[12px] text-slate-600">
+              <div key={u.provider} className="flex justify-between text-[12px] text-[color:var(--wb-text-soft)]">
                 <span>{u.provider}</span>
-                <span className="text-slate-400">
+                <span className="text-[color:var(--wb-muted)]">
                   {u.n} 次 · 入 {u.tin || 0} / 出 {u.tout || 0} tokens
                 </span>
               </div>
             ))}
           </div>
         )}
-        <p className="mt-2 text-[11px] text-slate-400">
+        <p className="mt-2 text-[11.5px] text-[color:var(--wb-muted)]">
           统计范围：本地全部历史调用（自数据库建立起），按 provider 聚合，不区分成功与失败。
         </p>
       </Card>

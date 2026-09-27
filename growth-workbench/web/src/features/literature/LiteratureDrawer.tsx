@@ -169,7 +169,7 @@ export default function LiteratureDrawer({
           </span>
           {[item.authors, item.year, item.venue].filter(Boolean).join(' · ') && (
             <span
-              className="max-w-[20rem] shrink-0 truncate text-[11px] text-[color:var(--wb-muted)]"
+              className="max-w-[20rem] shrink-0 truncate text-[11.5px] text-[color:var(--wb-muted)]"
               title={[item.authors, item.year, item.venue].filter(Boolean).join(' · ')}
             >
               {[item.authors, item.year, item.venue].filter(Boolean).join(' · ')}
@@ -220,7 +220,7 @@ export default function LiteratureDrawer({
                 <Btn variant="primary" onClick={() => genNotes()} disabled={dbusy === 'all'}>
                   {dbusy === 'all' ? '生成中…' : notes.length ? '重新生成全部' : 'AI 生成笔记'}
                 </Btn>
-                <span className="text-[11px] text-[color:var(--wb-muted)]">
+                <span className="text-[11.5px] text-[color:var(--wb-muted)]">
                   按小节分开存，每节可单独重生成 / 编辑
                 </span>
               </div>
@@ -305,7 +305,7 @@ export default function LiteratureDrawer({
                 <details className="rounded-[10px] border border-[color:var(--wb-border)] px-3 py-2">
                   <summary className="cursor-pointer text-[12px] text-[color:var(--wb-text-soft)]">
                     摘要 · 备注
-                    <span className="ml-1 text-[10px] text-[color:var(--wb-muted)]">
+                    <span className="ml-1 text-[11.5px] text-[color:var(--wb-muted)]">
                       （Zotero 摘要 / 历史备注，不会出现在列表里）
                     </span>
                   </summary>
@@ -345,7 +345,7 @@ export default function LiteratureDrawer({
                     <Pill tone="red">未找到</Pill>
                   )}
                 </div>
-                <div className="mt-1 text-[11px] text-[color:var(--wb-muted)]">
+                <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">
                   {gstatus?.dir || '—'}
                   {gstatus?.url ? ` · ${gstatus.url}` : ''}
                 </div>
@@ -358,7 +358,7 @@ export default function LiteratureDrawer({
                 )}
 
                 <details className="mt-2">
-                  <summary className="cursor-pointer text-[11px] text-[color:var(--wb-text-soft)]">
+                  <summary className="cursor-pointer text-[11.5px] text-[color:var(--wb-text-soft)]">
                     配置（Gloss 目录 / 找 PDF 的目录）
                   </summary>
                   <div className="mt-2 flex flex-col gap-2">
@@ -371,7 +371,7 @@ export default function LiteratureDrawer({
                     <div className="flex items-center gap-2">
                       <Btn onClick={saveGlossCfg}>保存配置</Btn>
                       {gstatus?.pdf_dirs?.length > 0 && (
-                        <span className="text-[10px] text-[color:var(--wb-muted)]">
+                        <span className="text-[11.5px] text-[color:var(--wb-muted)]">
                           当前搜索：{gstatus.pdf_dirs.join(' , ')}
                         </span>
                       )}
@@ -403,14 +403,14 @@ export default function LiteratureDrawer({
                 </div>
                 {cands.length > 0 && (
                   <div className="flex flex-col gap-1">
-                    <div className="text-[11px] text-[color:var(--wb-muted)]">
+                    <div className="text-[11.5px] text-[color:var(--wb-muted)]">
                       按标题在本地找到的候选（点一下填到上面）：
                     </div>
                     {cands.map((c: any) => (
                       <button
                         key={c.path}
                         onClick={() => setPdfPath(c.path)}
-                        className={`truncate rounded-[8px] px-2 py-1 text-left text-[11px] ${
+                        className={`truncate rounded-[8px] px-2 py-1 text-left text-[11.5px] ${
                           pdfPath === c.path
                             ? 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
                             : 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-border)]'
@@ -439,12 +439,12 @@ export default function LiteratureDrawer({
                           已导入 Gloss：{gres.title}
                           {gres.paper_id ? `（id ${gres.paper_id}）` : ''}
                         </div>
-                        {gres.pdf && <div className="text-[11px]">{gres.pdf}</div>}
+                        {gres.pdf && <div className="text-[11.5px]">{gres.pdf}</div>}
                         <a
                           href={gres.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[11px] underline"
+                          className="text-[11.5px] underline"
                         >
                           再打开一次 Gloss
                         </a>

@@ -111,14 +111,14 @@ export function CanvasNode({ data, selected }: NodeProps<CNode>) {
         <span className="truncate font-medium leading-snug text-[color:var(--wb-text)]">
           {data.title || data.key}
         </span>
-        <span className={`shrink-0 rounded-full px-1.5 text-[10px] leading-[17px] ${style.chip}`}>
+        <span className={`shrink-0 rounded-full px-1.5 text-[11.5px] leading-[17px] ${style.chip}`}>
           {TYPE_LABEL[data.ntype]}
         </span>
       </div>
       <div className="mt-0.5 truncate text-[10.5px] text-[color:var(--wb-text-soft)]" title={subtitle(data)}>
         {subtitle(data)}
       </div>
-      <div className="mt-1.5 flex items-center gap-1 text-[10px]">
+      <div className="mt-1.5 flex items-center gap-1 text-[11.5px]">
         <span className={`rounded px-1.5 leading-[16px] ${chip.cls}`}>{chip.text}</span>
         <span className="ml-auto tabular-nums text-[color:var(--wb-muted)]">{data.key}</span>
       </div>

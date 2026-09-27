@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from 'react'
 import { Btn, Input, Loading, Pill, Spinner } from '../../components/ui'
+import { Icon } from '../../components/Icon'
 import PdfViewer from '../../components/PdfViewer'
 import { get, patch } from '../../lib/api'
 
@@ -89,7 +90,7 @@ export default function PdfModal({
       <div className="wb-anim-pop relative flex h-[94vh] w-[min(1500px,96vw)] flex-col overflow-hidden rounded-[16px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)]">
         {/* 标题栏 */}
         <header className="flex shrink-0 items-center gap-2 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[color:var(--wb-danger-soft)] text-[10px] font-semibold text-[color:var(--wb-danger)]">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[color:var(--wb-danger-soft)] text-[11.5px] font-semibold text-[color:var(--wb-danger)]">
             PDF
           </span>
           <div className="min-w-0 flex-1">
@@ -97,7 +98,7 @@ export default function PdfModal({
               {item.title}
             </div>
             {subtitle && (
-              <div className="truncate text-[11px] text-[color:var(--wb-muted)]">{subtitle}</div>
+              <div className="truncate text-[11.5px] text-[color:var(--wb-muted)]">{subtitle}</div>
             )}
           </div>
           {!loading && info?.ok && (
@@ -120,9 +121,9 @@ export default function PdfModal({
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="shrink-0 rounded-[8px] px-2 text-[17px] leading-none text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
           >
-            ×
+            <Icon name="close" size={17} />
           </button>
         </header>
 
@@ -182,7 +183,7 @@ export default function PdfModal({
               )}
 
               {info?.dirs?.length > 0 && (
-                <div className="text-[11px] leading-relaxed text-[color:var(--wb-muted)]">
+                <div className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
                   搜索目录：{info.dirs.join(' , ')}
                 </div>
               )}

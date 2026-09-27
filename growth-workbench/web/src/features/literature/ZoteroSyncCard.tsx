@@ -71,7 +71,7 @@ export default function ZoteroSyncCard({
       title="从 Zotero 同步"
       extra={
         <div className="flex items-center gap-2">
-          <span className="hidden text-[11px] text-[color:var(--wb-muted)] sm:inline">
+          <span className="hidden text-[11.5px] text-[color:var(--wb-muted)] sm:inline">
             按 DOI / 标题去重，已存在的条目自动跳过
           </span>
           <Btn size="sm" onClick={() => setOpen((v) => !v)}>
@@ -153,7 +153,7 @@ export default function ZoteroSyncCard({
           <Btn onClick={zLoadCollections} disabled={zbusy === 'coll'}>
             {zbusy === 'coll' ? '载入中…' : '载入分类'}
           </Btn>
-          <span className="text-[11px] text-[color:var(--wb-muted)]">
+          <span className="text-[11.5px] text-[color:var(--wb-muted)]">
             {collections.length > 0
               ? `已载入 ${collections.length} 个分类，可在上面「同步范围」里挑一个只同步它`
               : '本地模式需 Zotero 桌面端已启动，且开启「设置 → 高级 → 允许本机其他程序访问」'}
@@ -199,7 +199,7 @@ export default function ZoteroSyncCard({
                   {zres.total ? `，本次拉取 ${zres.total} 条` : ''}
                 </div>
                 {zres.samples?.length > 0 && (
-                  <ul className="mt-1 list-disc pl-4 text-[11px] opacity-80">
+                  <ul className="mt-1 list-disc pl-4 text-[11.5px] opacity-80">
                     {zres.samples.map((s: string, i: number) => (
                       <li key={i}>{s}</li>
                     ))}

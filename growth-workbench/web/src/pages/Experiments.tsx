@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Btn, Card, Empty, Input, MdBlock, Pill, Select, TextArea } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { AiError, AiMeta } from '../components/AiError'
 import {
   BulkBar,
@@ -226,17 +227,17 @@ export default function Experiments() {
                   onClick={() => (multi ? bulk.toggle(e.id) : setSel(e.id))}
                   className={`cursor-pointer rounded-lg border p-3 transition ${
                     multi && bulk.has(e.id)
-                      ? 'border-indigo-300 bg-indigo-50/40'
+                      ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)]'
                       : sel === e.id
-                        ? 'border-slate-900 bg-slate-50'
-                        : 'border-slate-200 hover:bg-slate-50'
+                        ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-surface-alt)]'
+                        : 'border-[color:var(--wb-border)] hover:bg-[color:var(--wb-surface-alt)]'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     {multi && (
                       <RowCheck checked={bulk.has(e.id)} onChange={() => bulk.toggle(e.id)} />
                     )}
-                    <div className="min-w-0 flex-1 text-[13px] font-medium text-slate-900">
+                    <div className="min-w-0 flex-1 text-[13px] font-medium text-[color:var(--wb-text)]">
                       {e.name}
                     </div>
                     <div className="flex items-center gap-1">
@@ -246,7 +247,7 @@ export default function Experiments() {
                     </div>
                   </div>
                   {e.hypothesis && (
-                    <div className="mt-1 line-clamp-2 text-[12px] text-slate-600">{e.hypothesis}</div>
+                    <div className="mt-1 line-clamp-2 text-[12px] text-[color:var(--wb-text-soft)]">{e.hypothesis}</div>
                   )}
                   {sel === e.id && (
                     <div className="mt-2 flex flex-wrap items-center gap-1">
@@ -276,7 +277,7 @@ export default function Experiments() {
       {current && (
         <Card
           title={`结果记录 · ${current.name}`}
-          extra={<span className="text-[12px] text-slate-500">成功率 {successRate}%</span>}
+          extra={<span className="text-[12px] text-[color:var(--wb-text-soft)]">成功率 {successRate}%</span>}
         >
           <div className="mb-3 grid grid-cols-4 gap-2">
             <Input placeholder="case 名" value={res.case_name} onChange={(v) => setRes({ ...res, case_name: v })} />
@@ -287,7 +288,7 @@ export default function Experiments() {
               onChange={(v) => setRes({ ...res, metrics_json: v })}
             />
             <div className="flex items-center gap-1">
-              <label className="flex items-center gap-1 text-[12px] text-slate-600">
+              <label className="flex items-center gap-1 text-[12px] text-[color:var(--wb-text-soft)]">
                 <input
                   type="checkbox"
                   checked={!!res.success}
@@ -311,7 +312,7 @@ export default function Experiments() {
                     {['case', '方法', '结果', '指标', '备注', ''].map((h) => (
                       <th
                         key={h}
-                        className="border-b border-slate-200 px-2 py-2 text-left font-medium text-slate-500"
+                        className="border-b border-[color:var(--wb-border)] px-2 py-2 text-left font-medium text-[color:var(--wb-text-soft)]"
                       >
                         {h}
                       </th>
@@ -321,28 +322,30 @@ export default function Experiments() {
                 <tbody>
                   {results.map((r) => (
                     <tr key={r.id}>
-                      <td className="border-b border-slate-100 px-2 py-1.5">{r.case_name}</td>
-                      <td className="border-b border-slate-100 px-2 py-1.5">{r.method || '—'}</td>
-                      <td className="border-b border-slate-100 px-2 py-1.5">
+                      <td className="border-b border-[color:var(--wb-border)] px-2 py-1.5">{r.case_name}</td>
+                      <td className="border-b border-[color:var(--wb-border)] px-2 py-1.5">{r.method || '—'}</td>
+                      <td className="border-b border-[color:var(--wb-border)] px-2 py-1.5">
                         <Pill tone={r.success ? 'green' : 'red'}>
                           {r.success ? '成功' : '失败'}
                         </Pill>
                       </td>
-                      <td className="border-b border-slate-100 px-2 py-1.5 font-mono text-[11px]">
+                      <td className="border-b border-[color:var(--wb-border)] px-2 py-1.5 font-mono text-[11.5px]">
                         {r.metrics_json || '—'}
                       </td>
-                      <td className="border-b border-slate-100 px-2 py-1.5 text-slate-500">
+                      <td className="border-b border-[color:var(--wb-border)] px-2 py-1.5 text-[color:var(--wb-text-soft)]">
                         {r.notes || '—'}
                       </td>
-                      <td className="border-b border-slate-100 px-2 py-1.5">
+                      <td className="border-b border-[color:var(--wb-border)] px-2 py-1.5">
                         <button
-                          className="text-slate-300 hover:text-rose-500"
+                          aria-label="删除该结果"
+                          title="删除该结果"
+                          className="flex h-6 w-6 items-center justify-center rounded-[7px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-danger-soft)] hover:text-[color:var(--wb-danger)]"
                           onClick={async () => {
                             await del(`/results/${r.id}`)
                             if (sel !== null) loadResults(sel)
                           }}
                         >
-                          ×
+                          <Icon name="trash" size={12} />
                         </button>
                       </td>
                     </tr>
@@ -365,7 +368,7 @@ export default function Experiments() {
 
           {current.conclusion && (
             <div className="mt-3">
-              <div className="mb-1 text-[12px] text-slate-500">AI 结论</div>
+              <div className="mb-1 text-[12px] text-[color:var(--wb-text-soft)]">AI 结论</div>
               <MdBlock text={current.conclusion} />
             </div>
           )}

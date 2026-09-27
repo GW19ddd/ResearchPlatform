@@ -60,14 +60,14 @@ export default function Advisor() {
   return (
     <div className="flex flex-col gap-4">
       {pending.filter((p) => p.overdue).length > 0 && (
-        <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3">
-          <div className="text-[13px] font-medium text-rose-800">
+        <div className="rounded-xl border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-4 py-3">
+          <div className="text-[13px] font-medium text-[color:var(--wb-danger)]">
             有 {pending.filter((p) => p.overdue).length} 项对导师的承诺已逾期
           </div>
           {pending
             .filter((p) => p.overdue)
             .map((p) => (
-              <div key={p.id} className="mt-1 text-[12px] text-rose-700">
+              <div key={p.id} className="mt-1 text-[12px] text-[color:var(--wb-danger)]">
                 · {p.my_commitment || '（空）'}（截止 {p.due_date}）
               </div>
             ))}
@@ -94,7 +94,7 @@ export default function Advisor() {
               value={form.my_commitment}
               onChange={(v) => setForm({ ...form, my_commitment: v })}
             />
-            <label className="flex items-center justify-between text-[12px] text-slate-600">
+            <label className="flex items-center justify-between text-[12px] text-[color:var(--wb-text-soft)]">
               截止日期
               <Input
                 className="w-40"
@@ -162,11 +162,11 @@ export default function Advisor() {
         ) : (
           <div className="flex flex-col gap-2">
             {notes.map((n) => (
-              <div key={n.id} className="rounded-lg border border-slate-200 p-3">
+              <div key={n.id} className="rounded-lg border border-[color:var(--wb-border)] p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Pill tone="blue">{n.scene}</Pill>
-                    <span className="text-[11px] text-slate-400">{n.date}</span>
+                    <span className="text-[11.5px] text-[color:var(--wb-muted)]">{n.date}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     {n.status === 'open' ? (
@@ -193,10 +193,10 @@ export default function Advisor() {
                   </div>
                 </div>
                 {n.advisor_said && (
-                  <div className="mt-2 text-[12px] text-slate-600">导师：{n.advisor_said}</div>
+                  <div className="mt-2 text-[12px] text-[color:var(--wb-text-soft)]">导师：{n.advisor_said}</div>
                 )}
                 {n.my_commitment && (
-                  <div className="mt-1 text-[12px] font-medium text-slate-900">
+                  <div className="mt-1 text-[12px] font-medium text-[color:var(--wb-text)]">
                     我的承诺：{n.my_commitment}
                   </div>
                 )}

@@ -7,6 +7,7 @@ import {
 } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Icon, IconName } from './Icon'
 
 /* ============================================================
    设计系统层：所有页面共用的视觉原语。
@@ -76,6 +77,7 @@ export function Btn({
   className = '',
   size = 'md',
   title,
+  ariaLabel,
 }: {
   children: ReactNode
   onClick?: () => void
@@ -86,6 +88,8 @@ export function Btn({
   className?: string
   size?: 'sm' | 'md'
   title?: string
+  /** 纯图标按钮必须给可读名称，否则屏幕阅读器只会念出「按钮」 */
+  ariaLabel?: string
 }) {
   // whitespace-nowrap：中文没有词边界，窄容器里会退化成「一个字一行」
   const base =
@@ -109,6 +113,7 @@ export function Btn({
     <button
       type={type}
       title={title}
+      aria-label={ariaLabel}
       disabled={disabled || loading}
       onClick={onClick}
       className={`${base} ${sizes[size]} ${styles[variant]} ${className}`}
@@ -208,9 +213,11 @@ export function Select({
           </option>
         ))}
       </select>
-      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-[color:var(--wb-muted)]">
-        ▼
-      </span>
+      <Icon
+        name="chevronDown"
+        size={12}
+        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--wb-muted)]"
+      />
     </div>
   )
 }
@@ -232,15 +239,18 @@ export function Field({
   return (
     <label className={`block ${className}`}>
       {label && (
-        <span className="mb-1 block whitespace-nowrap text-[11.5px] font-medium text-[color:var(--wb-text-soft)]">
+        <span className="mb-1 block whitespace-nowrap text-[12px] font-medium text-[color:var(--wb-text-soft)]">
           {label}
         </span>
       )}
       {children}
       {error ? (
-        <span className="mt-1 block text-[11px] text-[color:var(--wb-danger)]">{error}</span>
+        <span className="mt-1 flex items-start gap-1 text-[11.5px] text-[color:var(--wb-danger)]">
+          <Icon name="alert" size={12} className="mt-[2px]" />
+          <span>{error}</span>
+        </span>
       ) : hint ? (
-        <span className="mt-1 block text-[11px] text-[color:var(--wb-muted)]">{hint}</span>
+        <span className="mt-1 block text-[11.5px] text-[color:var(--wb-muted)]">{hint}</span>
       ) : null}
     </label>
   )
@@ -268,7 +278,7 @@ export function Pill({
   }
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[1px] text-[11px] font-medium leading-[18px] ${
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[1px] text-[11.5px] font-medium leading-[18px] ${
         tones[tone] || tones.gray
       } ${className}`}
     >
@@ -350,14 +360,14 @@ export function StatCard({
         onClick ? 'cursor-pointer hover:shadow-[var(--wb-shadow-sm)]' : ''
       }`}
     >
-      <div className="text-[11.5px] text-[color:var(--wb-muted)]">{label}</div>
+      <div className="text-[12px] text-[color:var(--wb-muted)]">{label}</div>
       <div className="mt-0.5 flex items-baseline gap-1">
         <span className={`text-[20px] font-semibold leading-tight tabular-nums ${tones[tone]}`}>
           {value}
         </span>
-        {unit && <span className="text-[11.5px] text-[color:var(--wb-muted)]">{unit}</span>}
+        {unit && <span className="text-[12px] text-[color:var(--wb-muted)]">{unit}</span>}
       </div>
-      {hint && <div className="mt-0.5 text-[11px] text-[color:var(--wb-muted)]">{hint}</div>}
+      {hint && <div className="mt-0.5 text-[11.5px] text-[color:var(--wb-muted)]">{hint}</div>}
     </div>
   )
 }
@@ -389,7 +399,7 @@ export function Progress({
         />
       </div>
       {showLabel && (
-        <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-[color:var(--wb-muted)]">
+        <span className="w-9 shrink-0 text-right text-[11.5px] tabular-nums text-[color:var(--wb-muted)]">
           {Math.round(pct)}%
         </span>
       )}
@@ -443,7 +453,7 @@ export function ScoreBar({
   const v = Math.max(0, Math.min(max, Number(value) || 0))
   return (
     <div className="flex items-center gap-2">
-      <span className="w-10 shrink-0 text-[11px] text-[color:var(--wb-muted)]">{label}</span>
+      <span className="w-10 shrink-0 text-[11.5px] text-[color:var(--wb-muted)]">{label}</span>
       <div className="flex gap-[3px]">
         {Array.from({ length: max }, (_, i) => i + 1).map((i) => (
           <span
@@ -454,7 +464,7 @@ export function ScoreBar({
           />
         ))}
       </div>
-      <span className="text-[11px] tabular-nums text-[color:var(--wb-muted)]">{v}</span>
+      <span className="text-[11.5px] tabular-nums text-[color:var(--wb-muted)]">{v}</span>
     </div>
   )
 }
@@ -524,10 +534,10 @@ export function Modal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md px-1.5 text-[15px] leading-none text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
               aria-label="关闭"
             >
-              ×
+              <Icon name="close" size={15} />
             </button>
           </header>
         )}
@@ -572,10 +582,10 @@ export function Drawer({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-1.5 text-[16px] leading-none text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
             aria-label="关闭"
           >
-            ×
+            <Icon name="close" size={15} />
           </button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
@@ -635,7 +645,7 @@ export function SearchInput({
           : 'border-[color:var(--wb-border-strong)]'
       } ${className}`}
     >
-      <span className="text-[11px] text-[color:var(--wb-muted)]">⌕</span>
+      <Icon name="search" size={13} className="text-[color:var(--wb-muted)]" />
       <input
         ref={ref}
         value={value}
@@ -652,10 +662,10 @@ export function SearchInput({
             onChange('')
             ref.current?.focus()
           }}
-          className="text-[12px] leading-none text-[color:var(--wb-muted)] hover:text-[color:var(--wb-text)]"
-          aria-label="清空"
+          className="flex h-5 w-5 items-center justify-center rounded text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+          aria-label="清空搜索"
         >
-          ×
+          <Icon name="close" size={12} />
         </button>
       )}
     </div>
@@ -712,20 +722,22 @@ export function Pagination({
             options={sizes.map((n) => ({ value: String(n), label: `每页 ${n}` }))}
           />
         )}
-        <Btn size="sm" disabled={cur <= 1} onClick={() => onPage(1)} title="第一页">
-          «
+        <Btn size="sm" disabled={cur <= 1} onClick={() => onPage(1)} ariaLabel="第一页">
+          <Icon name="chevronsLeft" size={13} />
         </Btn>
         <Btn size="sm" disabled={cur <= 1} onClick={() => onPage(cur - 1)}>
-          ‹ 上一页
+          <Icon name="chevronLeft" size={13} />
+          上一页
         </Btn>
-        <span className="min-w-[4.5rem] text-center text-[11.5px] tabular-nums text-[color:var(--wb-text-soft)]">
+        <span className="min-w-[4.5rem] text-center text-[12px] tabular-nums text-[color:var(--wb-text-soft)]">
           {cur} / {pages}
         </span>
         <Btn size="sm" disabled={cur >= pages} onClick={() => onPage(cur + 1)}>
-          下一页 ›
+          下一页
+          <Icon name="chevronRight" size={13} />
         </Btn>
-        <Btn size="sm" disabled={cur >= pages} onClick={() => onPage(pages)} title="最后一页">
-          »
+        <Btn size="sm" disabled={cur >= pages} onClick={() => onPage(pages)} ariaLabel="最后一页">
+          <Icon name="chevronsRight" size={13} />
         </Btn>
       </div>
     </div>
@@ -749,22 +761,21 @@ export function StatusTag({
   children: ReactNode
   className?: string
 }) {
-  const map: Record<string, { cls: string; icon: string }> = {
-    gray: { cls: 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-text-soft)]', icon: '·' },
-    ok: { cls: 'bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]', icon: '✓' },
-    warn: { cls: 'bg-[color:var(--wb-warn-soft)] text-[color:var(--wb-warn)]', icon: '!' },
-    danger: { cls: 'bg-[color:var(--wb-danger-soft)] text-[color:var(--wb-danger)]', icon: '✕' },
-    info: { cls: 'bg-[color:var(--wb-info-soft)] text-[color:var(--wb-info)]', icon: 'i' },
-    busy: { cls: 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]', icon: '◌' },
+  const map: Record<string, { cls: string; icon: IconName }> = {
+    gray: { cls: 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-text-soft)]', icon: 'minus' },
+    ok: { cls: 'bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]', icon: 'check' },
+    warn: { cls: 'bg-[color:var(--wb-warn-soft)] text-[color:var(--wb-warn)]', icon: 'alert' },
+    danger: { cls: 'bg-[color:var(--wb-danger-soft)] text-[color:var(--wb-danger)]', icon: 'close' },
+    info: { cls: 'bg-[color:var(--wb-info-soft)] text-[color:var(--wb-info)]', icon: 'info' },
+    busy: { cls: 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]', icon: 'refresh' },
   }
   const t = map[tone] || map.gray
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[1px] text-[11px] font-medium leading-[18px] ${t.cls} ${className}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[1px] text-[11.5px] font-medium leading-[18px] ${t.cls} ${className}`}
     >
-      <span aria-hidden className={tone === 'busy' ? 'wb-spinner' : ''}>
-        {tone === 'busy' ? '' : t.icon}
-      </span>
+      {/* 忙碌态用旋转图标表达「进行中」，其余档位本身就是语义符号，aria-hidden 交给 Icon */}
+      <Icon name={t.icon} size={11} className={tone === 'busy' ? 'wb-anim-spin' : ''} />
       {children}
     </span>
   )
@@ -796,7 +807,7 @@ export function Details({
         className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11.5px] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]"
       >
         <span aria-hidden className="text-[color:var(--wb-muted)]">
-          {open ? '▾' : '▸'}
+          <Icon name={open ? 'chevronDown' : 'chevronRight'} size={11} strokeWidth={2} />
         </span>
         <span className="whitespace-nowrap">{summary}</span>
       </button>
@@ -828,9 +839,7 @@ export function LoadError({
   return (
     <div className="rounded-[12px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-4 py-5">
       <div className="flex items-start gap-2">
-        <span aria-hidden className="text-[13px] text-[color:var(--wb-danger)]">
-          ✕
-        </span>
+        <Icon name="alert" size={15} className="mt-[1px] text-[color:var(--wb-danger)]" />
         <div className="min-w-0 flex-1">
           <div className="text-[12.5px] font-medium text-[color:var(--wb-danger)]">
             {what}加载失败

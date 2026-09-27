@@ -32,7 +32,7 @@ export default function SkillPalette({
       <div className="border-b border-[color:var(--wb-border)] px-3 py-2">
         <div className="flex items-center justify-between">
           <div className="text-[12px] font-medium text-[color:var(--wb-text)]">技能库</div>
-          <div className="text-[11px] text-[color:var(--wb-muted)]">
+          <div className="text-[11.5px] text-[color:var(--wb-muted)]">
             {cats.reduce((n, c) => n + c.skills.length, 0)}
           </div>
         </div>
@@ -47,7 +47,7 @@ export default function SkillPalette({
             <button
               key={t.v}
               onClick={() => setSrcTab(t.v)}
-              className={`flex-1 rounded-[7px] px-1 py-0.5 text-[10px] transition ${
+              className={`flex-1 rounded-[7px] px-1 py-0.5 text-[11.5px] transition ${
                 srcTab === t.v
                   ? 'bg-[color:var(--wb-accent)] font-medium text-white'
                   : 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-border)]'
@@ -58,17 +58,17 @@ export default function SkillPalette({
           ))}
         </div>
         {srcTab !== 'builtin' && ghInfo.repos.length > 0 && (
-          <div className="mt-1 truncate text-[10px] text-[color:var(--wb-ok)]">
+          <div className="mt-1 truncate text-[11.5px] text-[color:var(--wb-ok)]">
             原版仓库：{ghInfo.repos.map((r: any) => `${r.name}(${r.count})`).join(' · ')}
           </div>
         )}
-        <div className="mt-0.5 text-[10px] text-[color:var(--wb-muted)]">拖到画布上</div>
+        <div className="mt-0.5 text-[11.5px] text-[color:var(--wb-muted)]">拖到画布上</div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {cats.map((c) => (
           <div key={c.name} className="mb-2">
-            <div className="px-1 py-1 text-[11px] font-medium text-[color:var(--wb-text-soft)]">
+            <div className="px-1 py-1 text-[11.5px] font-medium text-[color:var(--wb-text-soft)]">
               {c.name}
             </div>
             {c.skills.map((s) => (
@@ -80,7 +80,7 @@ export default function SkillPalette({
                   e.dataTransfer.effectAllowed = 'move'
                 }}
                 title={s.desc}
-                className="group mb-1 cursor-grab rounded-[9px] border border-[color:var(--wb-border)] px-2 py-1.5 text-[11px] leading-snug text-[color:var(--wb-text)] transition hover:border-[color:var(--wb-border-strong)] hover:bg-[color:var(--wb-surface-alt)] active:cursor-grabbing"
+                className="group mb-1 cursor-grab rounded-[9px] border border-[color:var(--wb-border)] px-2 py-1.5 text-[11.5px] leading-snug text-[color:var(--wb-text)] transition hover:border-[color:var(--wb-border-strong)] hover:bg-[color:var(--wb-surface-alt)] active:cursor-grabbing"
               >
                 <div className="flex items-center gap-1">
                   <span className="truncate font-medium">{s.name}</span>
@@ -90,12 +90,12 @@ export default function SkillPalette({
                     </span>
                   )}
                 </div>
-                <div className="truncate text-[10px] text-[color:var(--wb-muted)]">{s.desc}</div>
+                <div className="truncate text-[11.5px] text-[color:var(--wb-muted)]">{s.desc}</div>
                 {(s as any).source === 'github' && (
                   <div className="mt-1 hidden group-hover:block">
                     <button
                       onClick={() => onOpenSource(s.id, s.name)}
-                      className="rounded border border-[color:var(--wb-border-strong)] px-1 text-[10px] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-surface)]"
+                      className="rounded border border-[color:var(--wb-border-strong)] px-1 text-[11.5px] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-surface)]"
                     >
                       看 SKILL.md 原文
                     </button>
@@ -108,7 +108,7 @@ export default function SkillPalette({
       </div>
 
       <div className="border-t border-[color:var(--wb-border)] p-2">
-        <div className="mb-1 text-[11px] text-[color:var(--wb-muted)]">其他节点</div>
+        <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">其他节点</div>
         <div className="grid grid-cols-2 gap-1">
           {[
             { t: 'input', l: '输入' },
@@ -126,18 +126,18 @@ export default function SkillPalette({
             </Btn>
           ))}
         </div>
-        <p className="mt-1 text-[10px] leading-relaxed text-[color:var(--wb-muted)]">
+        <p className="mt-1 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
           「自定义」= 自己写 system 与指令，不依赖技能库，想怎么串就怎么串。
         </p>
         <div className="mt-2">
-          <div className="mb-1 text-[11px] text-[color:var(--wb-muted)]">
+          <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">
             导入 GitHub 技能仓库（原样克隆，不改写）
           </div>
           <Input
             value={cloneUrl}
             onChange={setCloneUrl}
             placeholder="https://github.com/user/repo"
-            className="!text-[11px]"
+            className="!text-[11.5px]"
           />
           <Btn
             className="mt-1 w-full"

@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Btn, Input, Loading, MdBlock, Modal, Select, StatusTag } from '../components/ui'
 import { AiError } from '../components/AiError'
 import { toast } from '../components/toast'
+import { Icon } from '../components/Icon'
 import { api, get, post } from '../lib/api'
 import { usePersist } from '../lib/state'
 import SkillPalette from '../features/canvas/SkillPalette'
@@ -572,9 +573,7 @@ export default function Canvas() {
       <div className="p-6">
         <div className="rounded-[12px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] p-4">
           <div className="flex items-start gap-2">
-            <span aria-hidden className="text-[13px] text-[color:var(--wb-danger)]">
-              ✕
-            </span>
+            <Icon name="alert" size={15} className="mt-[1px] text-[color:var(--wb-danger)]" />
             <div className="min-w-0">
               <div className="text-[13px] font-medium text-[color:var(--wb-danger)]">
                 画布加载失败
@@ -678,8 +677,9 @@ export default function Canvas() {
 
           {/* 第二行：一句话搭画布 */}
           <div className="flex flex-wrap items-center gap-2 border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
-            <span className="text-[11px] font-medium text-[color:var(--wb-accent)]">
-              ✦ 一句话搭画布
+            <span className="text-[11.5px] font-medium text-[color:var(--wb-accent)]">
+              <Icon name="sparkle" size={13} />
+              一句话搭画布
             </span>
             <Input
               value={autoTopic}
@@ -707,7 +707,7 @@ export default function Canvas() {
                 })),
               ]}
             />
-            <span className="ml-auto truncate text-[11px] text-[color:var(--wb-muted)]">
+            <span className="ml-auto truncate text-[11.5px] text-[color:var(--wb-muted)]">
               {nodes.length} 节点 / {edges.length} 连线 · 点节点看配置与输出
               {autoWhy ? ` · ${autoWhy}` : ''}
             </span>
@@ -848,11 +848,11 @@ export default function Canvas() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-[13px] font-medium text-[color:var(--wb-text)]">
                   <span className="truncate">{viewer.name}</span>
-                  <span className="shrink-0 rounded-full bg-[color:var(--wb-ok-soft)] px-2 py-[1px] text-[10px] text-[color:var(--wb-ok)]">
+                  <span className="shrink-0 rounded-full bg-[color:var(--wb-ok-soft)] px-2 py-[1px] text-[11.5px] text-[color:var(--wb-ok)]">
                     GitHub 原版 · 未改写
                   </span>
                 </div>
-                <div className="truncate text-[11px] text-[color:var(--wb-muted)]">
+                <div className="truncate text-[11.5px] text-[color:var(--wb-muted)]">
                   {viewer.repo} / {viewer.id} · {viewer.files.length} 个文件 · SKILL.md 原文{' '}
                   {viewer.body.length} 字
                 </div>
@@ -863,7 +863,7 @@ export default function Canvas() {
             <div className="flex min-h-0 flex-1">
               <div className="w-52 shrink-0 overflow-y-auto border-r border-[color:var(--wb-border)] p-2">
                 <div
-                  className={`mb-1 cursor-pointer rounded-[7px] px-2 py-1 text-[11px] ${
+                  className={`mb-1 cursor-pointer rounded-[7px] px-2 py-1 text-[11.5px] ${
                     !viewer.file
                       ? 'bg-[color:var(--wb-accent)] text-white'
                       : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
@@ -875,7 +875,7 @@ export default function Canvas() {
                 {viewer.files.map((f: any) => (
                   <div
                     key={f.path}
-                    className={`mb-0.5 cursor-pointer truncate rounded-[7px] px-2 py-1 text-[11px] ${
+                    className={`mb-0.5 cursor-pointer truncate rounded-[7px] px-2 py-1 text-[11.5px] ${
                       viewer.file === f.path
                         ? 'bg-[color:var(--wb-accent)] text-white'
                         : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'

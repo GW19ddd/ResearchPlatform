@@ -125,7 +125,7 @@ export default function SuspectsCard() {
                       onChange={() => toggle(k)}
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[color:var(--wb-muted)]">
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-[color:var(--wb-muted)]">
                         <span className="rounded bg-[color:var(--wb-bg-subtle)] px-1.5 py-[1px]">
                           {it.kind}
                         </span>
@@ -145,7 +145,7 @@ export default function SuspectsCard() {
               <Btn variant="danger" onClick={cleanup} disabled={!checked.size} loading={busy}>
                 删除勾选的 {checked.size} 条
               </Btn>
-              <span className="text-[11px] text-[color:var(--wb-muted)]">
+              <span className="text-[11.5px] text-[color:var(--wb-muted)]">
                 不确定就先留着 —— 删掉就找不回来了
               </span>
             </div>

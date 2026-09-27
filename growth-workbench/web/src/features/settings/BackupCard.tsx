@@ -129,7 +129,7 @@ export default function BackupCard() {
         </Btn>
       </div>
 
-      <div className="mt-2 text-[11px] text-[color:var(--wb-muted)]">
+      <div className="mt-2 text-[11.5px] text-[color:var(--wb-muted)]">
         <div>备份目录：{dir || '—'}</div>
         <div className="break-all">当前数据库：{live || '—'}</div>
       </div>
@@ -173,7 +173,7 @@ export default function BackupCard() {
                   {s.name}
                 </span>
                 <Pill>{kb(s.size)}</Pill>
-                <span className="text-[11px] text-[color:var(--wb-muted)]">
+                <span className="text-[11.5px] text-[color:var(--wb-muted)]">
                   {String(s.created_at || '').replace('T', ' ')}
                 </span>
               </div>

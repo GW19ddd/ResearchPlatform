@@ -170,7 +170,7 @@ export default function Heatmap({
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-[11px] text-[color:var(--wb-muted)]">
+      <div className="flex items-center justify-between text-[11.5px] text-[color:var(--wb-muted)]">
         <span>点一个格子看当天明细</span>
         <span className="flex items-center gap-1">
           少
@@ -206,14 +206,14 @@ export default function Heatmap({
                 )}
               </span>
               {kinds.length > 0 && (
-                <span className="min-w-0 truncate text-[11px] text-[color:var(--wb-muted)]">
+                <span className="min-w-0 truncate text-[11.5px] text-[color:var(--wb-muted)]">
                   {kinds.map(([k, v]) => `${k} ${v}`).join('、')}
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => setSelDate(null)}
-                className="ml-auto shrink-0 rounded-[6px] px-1.5 py-[1px] text-[11px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+                className="ml-auto shrink-0 rounded-[6px] px-1.5 py-[1px] text-[11.5px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
               >
                 关闭
               </button>
@@ -223,13 +223,13 @@ export default function Heatmap({
               {selected.labels?.length ? (
                 <ul className="flex flex-col gap-0.5">
                   {selected.labels.map((l, i) => (
-                    <li key={i} className="truncate text-[11px] text-[color:var(--wb-text-soft)]">
+                    <li key={i} className="truncate text-[11.5px] text-[color:var(--wb-text-soft)]">
                       · {l}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <div className="text-[11px] text-[color:var(--wb-muted)]">这天没有留下明细</div>
+                <div className="text-[11.5px] text-[color:var(--wb-muted)]">这天没有留下明细</div>
               )}
             </div>
           </div>

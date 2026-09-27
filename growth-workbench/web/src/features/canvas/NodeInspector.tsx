@@ -23,8 +23,8 @@ export type OutputTarget = 'idea' | 'literature' | 'paper'
 
 const FieldLabel = ({ children, hint }: { children: ReactNode; hint?: string }) => (
   <div className="mb-1 flex items-baseline gap-1.5">
-    <span className="text-[11px] font-medium text-[color:var(--wb-text-soft)]">{children}</span>
-    {hint && <span className="text-[10px] text-[color:var(--wb-muted)]">{hint}</span>}
+    <span className="text-[11.5px] font-medium text-[color:var(--wb-text-soft)]">{children}</span>
+    {hint && <span className="text-[11.5px] text-[color:var(--wb-muted)]">{hint}</span>}
   </div>
 )
 
@@ -116,7 +116,7 @@ export default function NodeInspector({
                 ]}
               />
               {skill?.desc && (
-                <div className="mt-1 text-[11px] leading-relaxed text-[color:var(--wb-muted)]">
+                <div className="mt-1 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
                   {skill.desc}
                 </div>
               )}
@@ -174,7 +174,7 @@ export default function NodeInspector({
                 placeholder={'例：把下面的进展整理成 3 条可汇报结论：\n\n{{upstream}}'}
                 onChange={(v) => setCfg({ prompt: v })}
               />
-              <div className="mt-1 text-[10px] leading-relaxed text-[color:var(--wb-muted)]">
+              <div className="mt-1 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
                 {PROMPT_HINT}
               </div>
             </div>
@@ -355,7 +355,7 @@ export default function NodeInspector({
         {output && !error ? (
           <div className="mb-3">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-[color:var(--wb-text-soft)]">输出</span>
+              <span className="text-[11.5px] font-medium text-[color:var(--wb-text-soft)]">输出</span>
               <div className="flex gap-1">
                 {onExpandOutput && (
                   <Btn size="sm" onClick={onExpandOutput} title="在大窗口里读完整输出">
@@ -374,7 +374,7 @@ export default function NodeInspector({
               </div>
             </div>
             {(meta?.provider || meta?.tokens_in) && (
-              <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-[color:var(--wb-muted)]">
+              <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11.5px] text-[color:var(--wb-muted)]">
                 {meta.provider && <Pill tone="blue">{meta.provider}</Pill>}
                 {meta.model && <span className="truncate">{meta.model}</span>}
                 {meta.tokens_in ? <span>in {meta.tokens_in}</span> : null}
@@ -385,7 +385,7 @@ export default function NodeInspector({
             <div className="max-h-[24rem] overflow-y-auto rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
               <MdBlock text={output} />
             </div>
-            <div className="mt-1 text-[10px] text-[color:var(--wb-muted)]">
+            <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">
               AI 生成内容，涉及文献、数字、引用处请人工核验
             </div>
           </div>

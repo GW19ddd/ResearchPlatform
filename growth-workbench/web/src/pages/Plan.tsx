@@ -11,6 +11,7 @@ import {
   Pill,
   TextArea,
 } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { AiError, AiMeta } from '../components/AiError'
 import { del, get, patch, post } from '../lib/api'
 import { useAiTask } from '../lib/hooks'
@@ -117,18 +118,18 @@ export default function Plan() {
               <Empty text="本周还没定成果" />
             ) : (
               week.outcomes.map((o: string, i: number) => (
-                <div key={i} className="flex items-start justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
-                  <span className="text-[12px] text-slate-700">
+                <div key={i} className="flex items-start justify-between gap-2 rounded-lg bg-[color:var(--wb-surface-alt)] px-3 py-2">
+                  <span className="text-[12px] text-[color:var(--wb-text)]">
                     {i + 1}. {o}
                   </span>
-                  <button className="text-slate-300 hover:text-rose-500" onClick={() => removeOutcome(i)}>
+                  <button className="text-[color:var(--wb-muted)] hover:text-[color:var(--wb-danger)]" onClick={() => removeOutcome(i)}>
                     ×
                   </button>
                 </div>
               ))
             )}
           </div>
-          <p className="mt-2 text-[11px] text-slate-400">
+          <p className="mt-2 text-[11.5px] text-[color:var(--wb-muted)]">
             只写 3 条。写「推进研究」这类无法验证的话，等于没写。
           </p>
         </Card>
@@ -151,18 +152,18 @@ export default function Plan() {
               <Empty text="暂无任务" />
             ) : (
               week.tasks.map((t: any) => (
-                <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+                <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-[color:var(--wb-surface-alt)]">
                   <label className="flex min-w-0 flex-1 items-center gap-2">
                     <input type="checkbox" checked={t.status === 'done'} onChange={() => toggleTask(t)} />
                     <span
-                      className={`truncate text-[12px] ${t.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-700'}`}
+                      className={`truncate text-[12px] ${t.status === 'done' ? 'text-[color:var(--wb-muted)] line-through' : 'text-[color:var(--wb-text)]'}`}
                     >
                       {t.title}
                     </span>
                   </label>
                   <Pill>{t.points} 分</Pill>
                   <button
-                    className="text-slate-300 hover:text-rose-500"
+                    className="text-[color:var(--wb-muted)] hover:text-[color:var(--wb-danger)]"
                     onClick={async () => {
                       await del(`/plan/tasks/${t.id}`)
                       load()
@@ -180,9 +181,9 @@ export default function Plan() {
       <Card title="周复盘">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <div className="mb-1 text-[12px] text-slate-500">完成了哪些成果</div>
+            <div className="mb-1 text-[12px] text-[color:var(--wb-text-soft)]">完成了哪些成果</div>
             {week.outcomes.map((o: string, i: number) => (
-              <label key={i} className="flex items-center gap-2 py-0.5 text-[12px] text-slate-700">
+              <label key={i} className="flex items-center gap-2 py-0.5 text-[12px] text-[color:var(--wb-text)]">
                 <input
                   type="checkbox"
                   checked={review.done.includes(o)}
@@ -194,9 +195,9 @@ export default function Plan() {
             {week.outcomes.length === 0 && <Empty text="先定本周成果" />}
           </div>
           <div>
-            <div className="mb-1 text-[12px] text-slate-500">没完成哪些</div>
+            <div className="mb-1 text-[12px] text-[color:var(--wb-text-soft)]">没完成哪些</div>
             {week.outcomes.map((o: string, i: number) => (
-              <label key={i} className="flex items-center gap-2 py-0.5 text-[12px] text-slate-700">
+              <label key={i} className="flex items-center gap-2 py-0.5 text-[12px] text-[color:var(--wb-text)]">
                 <input
                   type="checkbox"
                   checked={review.missed.includes(o)}
@@ -220,7 +221,7 @@ export default function Plan() {
             value={review.next_min_action}
             onChange={(v) => setReview({ ...review, next_min_action: v })}
           />
-          <label className="flex items-center justify-between text-[12px] text-slate-600">
+          <label className="flex items-center justify-between text-[12px] text-[color:var(--wb-text-soft)]">
             本周状态自评(1-5)
             <Input
               className="w-16"

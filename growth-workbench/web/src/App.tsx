@@ -12,41 +12,42 @@ import Settings from './pages/Settings'
 import Canvas from './pages/Canvas'
 import Chat from './pages/Chat'
 import { ToastHost } from './components/toast'
+import { Icon, IconName } from './components/Icon'
 import { usePersist } from './lib/state'
 
 /** 侧边栏按科研流程分段：输入 → 执行 → 复盘 → 激励 */
-const NAV_GROUPS: { group: string; items: { to: string; label: string; icon: string }[] }[] = [
+const NAV_GROUPS: { group: string; items: { to: string; label: string; icon: IconName }[] }[] = [
   {
     group: '输入',
     items: [
-      { to: '/ideas', label: '创新点', icon: '✦' },
-      { to: '/literature', label: '文献', icon: '❐' },
+      { to: '/ideas', label: '创新点', icon: 'sparkle' },
+      { to: '/literature', label: '文献', icon: 'book' },
     ],
   },
   {
     group: '执行',
     items: [
-      { to: '/experiments', label: '实验', icon: '⌗' },
-      { to: '/paper', label: '论文', icon: '▤' },
-      { to: '/canvas', label: '科研画布', icon: '⬡' },
+      { to: '/experiments', label: '实验', icon: 'beaker' },
+      { to: '/paper', label: '论文', icon: 'file' },
+      { to: '/canvas', label: '科研画布', icon: 'hexagon' },
     ],
   },
   {
     group: '复盘',
     items: [
-      { to: '/plan', label: '计划复盘', icon: '◷' },
-      { to: '/advisor', label: '导师', icon: '☏' },
+      { to: '/plan', label: '计划复盘', icon: 'clock' },
+      { to: '/advisor', label: '导师', icon: 'phone' },
     ],
   },
   {
     group: '激励',
-    items: [{ to: '/points', label: '积分', icon: '★' }],
+    items: [{ to: '/points', label: '积分', icon: 'star' }],
   },
   {
     group: '',
     items: [
-      { to: '/chat', label: '对话', icon: '❢' },
-      { to: '/settings', label: '设置', icon: '⚙' },
+      { to: '/chat', label: '对话', icon: 'message' },
+      { to: '/settings', label: '设置', icon: 'gear' },
     ],
   },
 ]
@@ -94,9 +95,9 @@ function Sidebar({
           onClick={onToggle}
           title={collapsed ? '展开侧边栏（快捷键 [）' : '收起侧边栏（快捷键 [）'}
           aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] border border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface-alt)] text-[11px] text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]`}
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] border border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface-alt)] text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
         >
-          {collapsed ? '»' : '«'}
+          <Icon name={collapsed ? 'chevronRight' : 'chevronLeft'} size={13} />
         </button>
       </div>
 
@@ -110,7 +111,7 @@ function Sidebar({
               {isActive && (
                 <span className="absolute left-0 top-1/2 h-4 w-[2.5px] -translate-y-1/2 rounded-r-full bg-[color:var(--wb-accent)]" />
               )}
-              <span className="w-3.5 text-center text-[11px] opacity-75">◆</span>
+              <Icon name="sun" size={15} />
               {!collapsed && <span className="truncate">今日</span>}
               {collapsed && <span className="sr-only">今日</span>}
             </>
@@ -123,7 +124,7 @@ function Sidebar({
               (collapsed ? (
                 gi > 0 && <div className="mx-1 my-2 border-t border-[color:var(--wb-border)]" />
               ) : (
-                <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wider text-[color:var(--wb-muted)]">
+                <div className="px-2.5 pb-1 pt-1.5 text-[11.5px] font-medium uppercase tracking-wider text-[color:var(--wb-muted)]">
                   {g.group}
                 </div>
               ))}
@@ -135,7 +136,7 @@ function Sidebar({
                       {isActive && (
                         <span className="absolute left-0 top-1/2 h-4 w-[2.5px] -translate-y-1/2 rounded-r-full bg-[color:var(--wb-accent)]" />
                       )}
-                      <span className="w-3.5 text-center text-[11px] opacity-70">{n.icon}</span>
+                      <Icon name={n.icon} size={15} />
                       {collapsed ? (
                         <span className="sr-only">{n.label}</span>
                       ) : (
@@ -227,9 +228,9 @@ export default function App() {
           type="button"
           onClick={() => setNavOpen(true)}
           aria-label="打开导航"
-          className="fixed bottom-4 left-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[15px] text-[color:var(--wb-text-soft)] shadow-[var(--wb-shadow-md)] lg:hidden"
+          className="fixed bottom-4 left-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text-soft)] shadow-[var(--wb-shadow-md)] lg:hidden"
         >
-          ☰
+          <Icon name="menu" size={18} />
         </button>
       )}
 

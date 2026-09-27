@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { Btn, Details } from './ui'
+import { Icon } from './Icon'
 
 /**
  * AI 调用结果的展示层。
@@ -66,9 +67,7 @@ export function AiError({
   return (
     <div className="rounded-[12px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-3.5 py-3">
       <div className="flex items-start gap-2">
-        <span aria-hidden className="mt-[1px] text-[13px] text-[color:var(--wb-danger)]">
-          ✕
-        </span>
+        <Icon name="alert" size={15} className="mt-[1px] text-[color:var(--wb-danger)]" />
         <div className="min-w-0 flex-1">
           <div className="text-[12.5px] font-medium text-[color:var(--wb-danger)]">
             {title || error.label || '调用失败'}
@@ -91,14 +90,14 @@ export function AiError({
           </div>
           {detail && (
             <Details summary="技术详情" className="mt-2 bg-[color:var(--wb-surface)]">
-              <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-[1.6]">
+              <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[11.5px] leading-[1.6]">
                 {detail}
               </pre>
             </Details>
           )}
         </div>
       </div>
-      <div className="mt-2 border-t border-[color:var(--wb-danger)]/20 pt-1.5 text-[11px] text-[color:var(--wb-muted)]">
+      <div className="mt-2 border-t border-[color:var(--wb-danger)]/20 pt-1.5 text-[11.5px] text-[color:var(--wb-muted)]">
         失败不会写入你的研究数据，输入内容原样保留。
       </div>
     </div>
@@ -117,6 +116,6 @@ export function AiMeta({ res }: { res: AiEnvelope }) {
   ].filter(Boolean)
   if (!bits.length) return null
   return (
-    <div className="mt-1.5 text-[11px] text-[color:var(--wb-muted)]">{bits.join(' · ')}</div>
+    <div className="mt-1.5 text-[11.5px] text-[color:var(--wb-muted)]">{bits.join(' · ')}</div>
   )
 }

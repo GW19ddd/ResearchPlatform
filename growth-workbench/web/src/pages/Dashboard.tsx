@@ -15,10 +15,11 @@ import Heatmap, { HeatDay } from '../components/Heatmap'
 import { get, post } from '../lib/api'
 import { usePersist } from '../lib/state'
 
-// recharts 把颜色写成 SVG 属性，var() 在属性里不生效，这里用令牌的十六进制值
+// recharts 把颜色写成 SVG 属性，var() 在属性里不生效，这里用令牌的十六进制值。
+// 改令牌时记得同步：C_SLEEP = --wb-ok，AXIS = --wb-muted，GRID = --wb-border。
 const C_FOCUS = '#4f46e5'
-const C_SLEEP = '#0f9d58'
-const AXIS = '#8a94a6'
+const C_SLEEP = '#067a45'
+const AXIS = '#667085'
 const GRID = '#e3e6ea'
 
 const HEAT_RANGES = [
@@ -197,7 +198,7 @@ export default function Dashboard() {
         extra={
           <div className="flex items-center gap-2">
             {heat && (
-              <span className="hidden text-[11px] text-[color:var(--wb-muted)] sm:inline">
+              <span className="hidden text-[11.5px] text-[color:var(--wb-muted)] sm:inline">
                 共 {heat.total} 次 · 活跃 {heat.active_days} 天 · 连续 {heat.streak} 天（最长{' '}
                 {heat.best_streak}）
               </span>
@@ -211,7 +212,7 @@ export default function Dashboard() {
         ) : (
           <Heatmap days={heat.days as HeatDay[]} max={heat.max} />
         )}
-        <p className="mt-2 text-[11px] text-[color:var(--wb-muted)]">
+        <p className="mt-2 text-[11.5px] text-[color:var(--wb-muted)]">
           统计范围：{heatRange} 天内的活跃记录。文献 / 创新点 / 实验 / 笔记 / 画布运行 / 对话 / 积分 /
           打卡，任何一天动了东西都会点亮；同一条目同一天只算一次。
           <br />
@@ -235,7 +236,7 @@ export default function Dashboard() {
           className="md:col-span-2"
           title="近 14 天状态"
           extra={
-            <span className="text-[11px] text-[color:var(--wb-muted)]">
+            <span className="text-[11.5px] text-[color:var(--wb-muted)]">
               左轴 专注（分钟）· 右轴 睡眠（小时）
               {clipped > 0 ? ` · ${clipped} 天离群已截断` : ''}
             </span>
@@ -245,7 +246,7 @@ export default function Dashboard() {
             <Empty text="还没有打卡记录" hint="右边打一次卡，这里就会有曲线" />
           ) : (
             <>
-              <div className="mb-1 text-[11px] text-[color:var(--wb-muted)]">
+              <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">
                 缺失数据不补 0：某天没填的项折线直接断开，悬停也能看到当天只填了哪一项。
               </div>
               <div style={{ height: 236 }}>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Icon, IconName } from './Icon'
 
 /**
  * 极简全局提示。用模块级 store 而不是 Context，
@@ -33,7 +34,7 @@ const TONES: Record<ToastTone, string> = {
   info: 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text)]',
 }
 
-const ICONS: Record<ToastTone, string> = { ok: '✓', error: '!', info: '·' }
+const ICONS: Record<ToastTone, IconName> = { ok: 'check', error: 'alert', info: 'info' }
 
 export function ToastHost() {
   const [list, setList] = useState<Item[]>(items)
@@ -51,7 +52,7 @@ export function ToastHost() {
           key={t.id}
           className={`wb-anim-pop pointer-events-auto flex max-w-[80vw] items-start gap-2 rounded-[10px] border px-3 py-2 text-[12.5px] shadow-[var(--wb-shadow-md)] ${TONES[t.tone]}`}
         >
-          <span className="mt-[1px] text-[11px] font-bold">{ICONS[t.tone]}</span>
+          <Icon name={ICONS[t.tone]} size={14} className="mt-[2px]" />
           <span className="break-words">{t.text}</span>
         </div>
       ))}

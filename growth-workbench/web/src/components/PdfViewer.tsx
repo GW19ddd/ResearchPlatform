@@ -4,6 +4,7 @@ import * as pdfjs from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 // 用 ?url 把 worker 作为静态资源带出来（Vite 会自动打包并给出地址）
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { Icon } from './Icon'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -225,23 +226,24 @@ export default function PdfViewer({ src }: { src: string }) {
   const ph = size1 && scale ? Math.round(size1.h * scale) : 0
 
   const smallBtn =
-    'rounded-[7px] px-1.5 py-[2px] text-[12px] text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-bg-subtle)] disabled:opacity-30'
+    'flex h-6 min-w-[24px] items-center justify-center rounded-[7px] px-1.5 text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-bg-subtle)] disabled:opacity-30'
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[color:var(--wb-bg-subtle)]">
       {/* 工具栏：翻页在左，缩放在右 */}
       <div className="flex shrink-0 items-center gap-3 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-1.5 text-[12px] text-[color:var(--wb-text-soft)]">
         <div className="flex items-center gap-1">
-          <button onClick={() => goPage(1)} disabled={page <= 1} className={smallBtn} title="第一页">
-            «
+          <button onClick={() => goPage(1)} disabled={page <= 1} className={smallBtn} title="第一页" aria-label="第一页">
+            <Icon name="chevronsLeft" size={14} />
           </button>
           <button
             onClick={() => goPage(page - 1)}
             disabled={page <= 1}
             className={smallBtn}
             title="上一页"
+            aria-label="上一页"
           >
-            ‹
+            <Icon name="chevronLeft" size={14} />
           </button>
           <input
             value={page}
@@ -258,20 +260,22 @@ export default function PdfViewer({ src }: { src: string }) {
             disabled={page >= numPages}
             className={smallBtn}
             title="下一页"
+            aria-label="下一页"
           >
-            ›
+            <Icon name="chevronRight" size={14} />
           </button>
           <button
             onClick={() => goPage(numPages)}
             disabled={page >= numPages}
             className={smallBtn}
             title="最后一页"
+            aria-label="最后一页"
           >
-            »
+            <Icon name="chevronsRight" size={14} />
           </button>
         </div>
 
-        <span className="hidden text-[11px] text-[color:var(--wb-muted)] sm:inline">
+        <span className="hidden text-[11.5px] text-[color:var(--wb-muted)] sm:inline">
           可选中复制 · 划词高亮请用「Gloss 旁注」
         </span>
 
@@ -318,7 +322,7 @@ export default function PdfViewer({ src }: { src: string }) {
                 ref={(el) => {
                   pageRefs.current[i] = el
                 }}
-                className="pdfjs-page relative shrink-0 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.4)]"
+                className="pdfjs-page relative shrink-0 bg-[color:var(--wb-surface)] shadow-[0_2px_10px_rgba(0,0,0,0.4)]"
                 style={pw && ph ? { width: pw, height: ph } : undefined}
               >
                 <div

@@ -71,29 +71,29 @@ export default function Paper() {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card>
-          <div className="text-[12px] text-slate-500">阶段进度</div>
-          <div className="mt-1 text-2xl font-medium text-slate-900">{ov.progress}%</div>
+          <div className="text-[12px] text-[color:var(--wb-text-soft)]">阶段进度</div>
+          <div className="mt-1 text-2xl font-medium text-[color:var(--wb-text)]">{ov.progress}%</div>
         </Card>
         <Card>
-          <div className="text-[12px] text-slate-500">字数</div>
+          <div className="text-[12px] text-[color:var(--wb-text-soft)]">字数</div>
           <div className="mt-1 flex items-baseline gap-1">
-            <span className="text-2xl font-medium tabular-nums text-slate-900">{ov.words}</span>
-            <span className="text-[11px] text-slate-400">字</span>
+            <span className="text-2xl font-medium tabular-nums text-[color:var(--wb-text)]">{ov.words}</span>
+            <span className="text-[11.5px] text-[color:var(--wb-muted)]">字</span>
           </div>
-          <div className="mt-1 text-[11px] text-slate-400">目标 {ov.target_words} 字</div>
+          <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">目标 {ov.target_words} 字</div>
         </Card>
         <Card>
-          <div className="text-[12px] text-slate-500">阻塞阶段</div>
+          <div className="text-[12px] text-[color:var(--wb-text-soft)]">阻塞阶段</div>
           <div className="mt-1 flex items-baseline gap-1">
-            <span className="text-2xl font-medium tabular-nums text-rose-600">
+            <span className="text-2xl font-medium tabular-nums text-[color:var(--wb-danger)]">
               {ov.blocked.length}
             </span>
-            <span className="text-[11px] text-slate-400">个</span>
+            <span className="text-[11.5px] text-[color:var(--wb-muted)]">个</span>
           </div>
         </Card>
         <Card>
-          <div className="text-[12px] text-slate-500">当前阶段</div>
-          <div className="mt-1 truncate text-[13px] font-medium text-slate-900">
+          <div className="text-[12px] text-[color:var(--wb-text-soft)]">当前阶段</div>
+          <div className="mt-1 truncate text-[13px] font-medium text-[color:var(--wb-text)]">
             {ov.current?.name || '—'}
           </div>
         </Card>
@@ -106,13 +106,13 @@ export default function Paper() {
               s.status === 'done'
                 ? 'border-emerald-300 bg-emerald-50'
                 : s.status === 'blocked'
-                ? 'border-rose-400 bg-rose-50'
+                ? 'border-rose-400 bg-[color:var(--wb-danger-soft)]'
                 : s.status === 'doing'
-                ? 'border-slate-900 bg-slate-50'
-                : 'border-slate-200 bg-white'
+                ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-surface-alt)]'
+                : 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]'
             return (
               <div key={s.id} className={`w-[150px] rounded-lg border p-2 ${tone}`}>
-                <div className="text-[12px] font-medium text-slate-900">{s.name}</div>
+                <div className="text-[12px] font-medium text-[color:var(--wb-text)]">{s.name}</div>
                 <div className="mt-1">
                   <Select
                     value={s.status}
@@ -121,7 +121,7 @@ export default function Paper() {
                   />
                 </div>
                 {s.status === 'blocked' && (
-                  <div className="mt-1 text-[11px] text-rose-600">已卡 {s.stuck_days} 天</div>
+                  <div className="mt-1 text-[11.5px] text-[color:var(--wb-danger)]">已卡 {s.stuck_days} 天</div>
                 )}
               </div>
             )
@@ -150,9 +150,9 @@ export default function Paper() {
         ) : (
           <div className="flex flex-col gap-2">
             {ov.stages.map((s: any) => (
-              <div key={s.id} className="rounded-lg border border-slate-200 p-3">
+              <div key={s.id} className="rounded-lg border border-[color:var(--wb-border)] p-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-[13px] font-medium text-slate-900">{s.name}</div>
+                  <div className="text-[13px] font-medium text-[color:var(--wb-text)]">{s.name}</div>
                   {s.status === 'blocked' && (
                     <Btn onClick={() => unblock(s.id, s.name)} loading={unblockTask.busy}>
                       AI 解锁方案
@@ -161,7 +161,7 @@ export default function Paper() {
                 </div>
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
                   <label className="block">
-                    <span className="text-[11px] text-slate-500">当前卡点</span>
+                    <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">当前卡点</span>
                     <Input
                       defaultValue={s.blocker || ''}
                       onBlur={(e) => updateStage(s.id, { blocker: e.target.value })}
@@ -169,7 +169,7 @@ export default function Paper() {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-[11px] text-slate-500">下一步动作</span>
+                    <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">下一步动作</span>
                     <Input
                       defaultValue={s.next_action || ''}
                       onBlur={(e) => updateStage(s.id, { next_action: e.target.value })}
@@ -192,9 +192,9 @@ export default function Paper() {
               const pct = s.target_words ? Math.min(100, Math.round((s.word_count / s.target_words) * 100)) : 0
               return (
                 <div key={s.id} className="flex items-center gap-3">
-                  <span className="w-28 shrink-0 text-[12px] text-slate-700">{s.name}</span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full bg-slate-700" style={{ width: `${pct}%` }} />
+                  <span className="w-28 shrink-0 text-[12px] text-[color:var(--wb-text)]">{s.name}</span>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color:var(--wb-bg-subtle)]">
+                    <div className="h-full bg-[color:var(--wb-accent)]" style={{ width: `${pct}%` }} />
                   </div>
                   <Input
                     className="w-20"
@@ -202,7 +202,7 @@ export default function Paper() {
                     defaultValue={s.word_count}
                     onBlur={(e) => updateSection(s.id, { word_count: Number(e.target.value) })}
                   />
-                  <span className="w-16 text-[11px] text-slate-400">/ {s.target_words}</span>
+                  <span className="w-16 text-[11.5px] text-[color:var(--wb-muted)]">/ {s.target_words}</span>
                   <Select
                     value={s.status}
                     onChange={(v) => updateSection(s.id, { status: v })}
