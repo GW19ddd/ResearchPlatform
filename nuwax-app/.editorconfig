@@ -1,0 +1,35 @@
+# EditorConfig — keep basic formatting consistent across editors
+
+# Stop searching parent folders
+root = true
+
+# Defaults for all files
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Markdown — preserve meaningful trailing spaces
+[*.md]
+trim_trailing_whitespace = false
+
+[*.json]
+indent_size = 2
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.{js,ts,jsx,tsx,vue}]
+indent_size = 2
+
+[*.{css,scss,sass,less}]
+indent_size = 2
+
+[*.html]
+indent_size = 2
+
+[*.{ini,conf,config}]
+indent_size = 2

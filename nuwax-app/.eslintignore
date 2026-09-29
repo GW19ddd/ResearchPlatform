@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.local
+
+# Config (often generated or tooling-specific)
+*.config.js
+*.config.ts
+vite.config.ts
+
+# Logs
+*.log
+
+# Environment files
+.env*
+
+# Caches
+.cache/
+.parcel-cache/
+
+# Coverage
+coverage/
+
+# Temp
+tmp/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Minified assets
+*.min.js
+*.min.css

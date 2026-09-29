@@ -1,0 +1,399 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   设计令牌：全站颜色 / 圆角 / 阴影 / 间距的唯一来源。
+   组件样式一律引用这些变量，改主题只需要动这一块。
+   ============================================================ */
+:root {
+  --wb-bg: #f5f6f8;
+  --wb-bg-subtle: #eef0f4;
+  --wb-surface: #ffffff;
+  --wb-surface-alt: #fafbfc;
+  --wb-border: #e3e6ea;
+  --wb-border-strong: #cfd4dc;
+
+  --wb-text: #101828;
+  --wb-text-soft: #475467;
+  /* 次要文字色。原来是 #8a94a6，白底上只有 3.06:1，远低于 WCAG AA 的 4.5:1，
+     小字号的提示文字几乎看不清。这里压深到 4.97:1（白底）/ 4.60:1（页面底）。
+     改主题时别再调浅，这条线是硬底线。 */
+  --wb-muted: #667085;
+
+  --wb-accent: #4f46e5;
+  --wb-accent-soft: #eef2ff;
+  --wb-accent-strong: #4338ca;
+
+  /* 语义色同理：文字用途必须满足 4.5:1，软底上的小字也要过线 */
+  --wb-ok: #067a45;        /* 原 #0f9d58：白底 3.51:1，不达标 */
+  --wb-ok-soft: #e7f6ee;
+  --wb-warn: #b45309;
+  --wb-warn-soft: #fef4e6;
+  --wb-danger: #c4271b;    /* 原 #d92d20：软底上 4.23:1，不达标 */
+  --wb-danger-soft: #fdeceb;
+  --wb-info: #026aa2;
+  --wb-info-soft: #e8f4fb;
+
+  --wb-radius-sm: 6px;
+  --wb-radius: 10px;
+  --wb-radius-lg: 14px;
+
+  --wb-shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --wb-shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --wb-shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --wb-shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12), 0 2px 8px rgba(16, 24, 40, 0.06);
+
+  --wb-ring: 0 0 0 3px rgba(79, 70, 229, 0.16);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--wb-bg);
+  color: var(--wb-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 键盘用户才看到焦点环，鼠标点击不打扰。
+   用 outline 而不是 box-shadow：box-shadow 会被祖先的 overflow:hidden 裁掉（Card 就是），
+   而且在 Windows 高对比度模式下会被系统直接抹掉，键盘用户会彻底失去焦点位置。 */
+:focus-visible {
+  outline: 2px solid var(--wb-accent);
+  outline-offset: 1px;
+  border-radius: var(--wb-radius-sm);
+}
+
+/* 细滚动条：默认滚动条在浅色界面上非常抢戏 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--wb-border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--wb-border-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--wb-muted);
+  background-clip: content-box;
+}
+
+/* 表格里的数据用等宽数字，跳动的数字不再左右抖 */
+table,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 热力图格子：划过只描边，不显示浮层（浮层会把下方内容顶得上下跳）。
+   描边是纯 CSS，不进 React state，鼠标在格子之间移动不会产生任何重排。 */
+.wb-heat-cell {
+  cursor: pointer;
+  transition: stroke 0.12s ease, stroke-width 0.12s ease;
+}
+.wb-heat-cell:hover {
+  stroke: var(--wb-border-strong);
+  stroke-width: 1.5;
+}
+.wb-heat-cell.is-sel,
+.wb-heat-cell.is-sel:hover {
+  stroke: var(--wb-accent);
+  stroke-width: 2;
+}
+
+@keyframes wb-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes wb-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes wb-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes wb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 系统开了「减少动态效果」就别再晃了：入场动画改成直接出现，
+   呼吸灯（画布运行中的节点）保留但去掉位移动画。spinner 是状态指示不是装饰，留着。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .wb-spinner,
+  .wb-anim-spin {
+    animation-duration: 0.9s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+.wb-anim-fade {
+  animation: wb-fade-in 0.16s ease-out;
+}
+.wb-anim-pop {
+  animation: wb-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.wb-anim-slide {
+  animation: wb-slide-in-right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wb-spinner {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  animation: wb-spin 0.6s linear infinite;
+  opacity: 0.7;
+}
+
+/* 忙碌状态的旋转图标（StatusTag busy） */
+.wb-anim-spin {
+  animation: wb-spin 0.9s linear infinite;
+}
+
+/* 画布上正在跑的节点：轻微呼吸，不动位置（拖拽中的节点不该跟着晃） */
+@keyframes wb-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(180, 83, 9, 0.28);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(180, 83, 9, 0);
+  }
+}
+.wb-anim-pulse {
+  animation: wb-pulse 1.4s ease-out infinite;
+}
+
+pre.markdown-block {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  background: var(--wb-surface-alt);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius);
+  padding: 12px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+/* ---- Markdown 渲染（react-markdown + remark-gfm）---- */
+.markdown-block {
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--wb-text-soft);
+  word-break: break-word;
+  max-height: 480px;
+  overflow: auto;
+}
+.markdown-block > *:first-child {
+  margin-top: 0;
+}
+.markdown-block > *:last-child {
+  margin-bottom: 0;
+}
+.markdown-block h1,
+.markdown-block h2,
+.markdown-block h3,
+.markdown-block h4 {
+  color: var(--wb-text);
+  font-weight: 600;
+  margin: 0.9em 0 0.4em;
+  line-height: 1.4;
+}
+.markdown-block h1 {
+  font-size: 15px;
+}
+.markdown-block h2 {
+  font-size: 14px;
+}
+.markdown-block h3,
+.markdown-block h4 {
+  font-size: 13px;
+}
+.markdown-block p {
+  margin: 0.5em 0;
+}
+.markdown-block ul,
+.markdown-block ol {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+.markdown-block ul {
+  list-style: disc;
+}
+.markdown-block ol {
+  list-style: decimal;
+}
+.markdown-block li {
+  margin: 0.15em 0;
+}
+.markdown-block li > ul,
+.markdown-block li > ol {
+  margin: 0.15em 0;
+}
+.markdown-block strong {
+  font-weight: 600;
+  color: var(--wb-text);
+}
+.markdown-block em {
+  font-style: italic;
+}
+.markdown-block del {
+  text-decoration: line-through;
+  color: var(--wb-muted);
+}
+.markdown-block a {
+  color: var(--wb-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown-block blockquote {
+  margin: 0.6em 0;
+  padding: 0.2em 0 0.2em 0.8em;
+  border-left: 3px solid var(--wb-border-strong);
+  color: var(--wb-muted);
+}
+.markdown-block hr {
+  margin: 0.9em 0;
+  border: 0;
+  border-top: 1px solid var(--wb-border);
+}
+.markdown-block code {
+  background: var(--wb-bg-subtle);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+}
+.markdown-block pre {
+  background: var(--wb-surface-alt);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius);
+  padding: 10px 12px;
+  margin: 0.6em 0;
+  overflow-x: auto;
+}
+.markdown-block pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+.markdown-block table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.6em 0;
+  font-size: 12px;
+}
+.markdown-block th,
+.markdown-block td {
+  border: 1px solid var(--wb-border);
+  padding: 5px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-block th {
+  background: var(--wb-surface-alt);
+  font-weight: 600;
+  color: var(--wb-text);
+}
+.markdown-block tbody tr:nth-child(even) {
+  background: var(--wb-surface-alt);
+}
+.markdown-block img {
+  max-width: 100%;
+}
+
+/* ---------- pdf.js 内置阅读器的文本层（透明覆盖，仅供选中/复制） ---------- */
+.pdfjs-page .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  z-index: 2;
+}
+.pdfjs-page .textLayer span,
+.pdfjs-page .textLayer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+}
+.pdfjs-page .textLayer ::selection {
+  background: rgba(79, 70, 229, 0.28);
+}
+.pdfjs-page .textLayer span::-moz-selection {
+  background: rgba(79, 70, 229, 0.28);
+}
+
+/* ============================================================
+   模版自带的 Radix / shadcn 组件令牌。
+   业务代码不使用这些变量（业务样式走上面的 --wb-* 令牌），
+   保留是为了模版内置的 src/components/ui/* 组件仍可正常工作。
+   ============================================================ */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222.2 84% 4.9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 221.2 83.2% 53.3%;
+  --radius: 0.5rem;
+}
