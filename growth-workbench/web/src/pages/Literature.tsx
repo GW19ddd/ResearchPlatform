@@ -41,6 +41,7 @@ import { del, get, patch, post } from '../lib/api'
 import { useAiTask, useIdemKey } from '../lib/hooks'
 import { usePersist } from '../lib/state'
 import LiteratureDrawer from '../features/literature/LiteratureDrawer'
+import LitSearchCard from '../features/literature/LitSearchCard'
 import MatrixTable from '../features/literature/MatrixTable'
 import PdfModal from '../features/literature/PdfModal'
 import ZoteroSyncCard from '../features/literature/ZoteroSyncCard'
@@ -663,6 +664,8 @@ export default function Literature() {
           </div>
         </div>
       </Card>
+
+      <LitSearchCard libTitles={items.map((i) => i.title)} onImported={load} />
 
       <ZoteroSyncCard collapsible={items.length > 0} onImported={reloadAll} />
 

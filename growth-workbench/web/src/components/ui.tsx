@@ -629,11 +629,13 @@ export function SearchInput({
   onChange,
   placeholder = '搜索…',
   className = '',
+  onKeyDown,
 }: {
   value: string
   onChange: (v: string) => void
   placeholder?: string
   className?: string
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
 }) {
   const ref = useRef<HTMLInputElement>(null)
   const [focused, setFocused] = useState(false)
@@ -651,6 +653,7 @@ export function SearchInput({
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         className="w-full bg-transparent py-[5px] text-[12.5px] outline-none placeholder:text-[color:var(--wb-muted)]"

@@ -18,6 +18,7 @@ from routers import (
     chat,
     dashboard,
     gloss,
+    litsearch,
     paper,
     plan,
     points,
@@ -141,6 +142,7 @@ app.include_router(zotero.router)
 app.include_router(chat.router)
 app.include_router(activity.router)
 app.include_router(gloss.router)
+app.include_router(litsearch.router)
 app.include_router(ai_guard.router)
 app.include_router(backup.router)
 

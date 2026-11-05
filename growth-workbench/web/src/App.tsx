@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Dashboard from './pages/Dashboard'
 import Ideas from './pages/Ideas'
 import Literature from './pages/Literature'
+import Navigator from './pages/Navigator'
 import Experiments from './pages/Experiments'
 import Paper from './pages/Paper'
 import Plan from './pages/Plan'
@@ -22,6 +23,7 @@ const NAV_GROUPS: { group: string; items: { to: string; label: string; icon: Ico
     items: [
       { to: '/ideas', label: '创新点', icon: 'sparkle' },
       { to: '/literature', label: '文献', icon: 'book' },
+      { to: '/navigator', label: '科研导航', icon: 'search' },
     ],
   },
   {
@@ -211,6 +213,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/ideas" element={<Ideas />} />
             <Route path="/literature" element={<Literature />} />
+            <Route path="/navigator" element={<Navigator />} />
             <Route path="/experiments" element={<Experiments />} />
             <Route path="/paper" element={<Paper />} />
             <Route path="/plan" element={<Plan />} />
