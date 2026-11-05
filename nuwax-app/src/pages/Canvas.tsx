@@ -452,6 +452,14 @@ export default function Canvas() {
         if (['done', 'failed', 'cancelled'].includes(detail.run?.status)) break
       }
 
+      // 运行结束（含取消/失败）：没轮到的节点从 running 拉回 idle。
+      // 不然它们会带着「运行中…」的脉冲动画永远转下去。
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.data.status === 'running' ? { ...n, data: { ...n.data, status: 'idle' } } : n,
+        ),
+      )
+
       await refreshOutputs(cid)
       if (detail?.run?.stale) {
         flash(detail.run.message || '上次运行没有留下结果，重跑一次', 'error')
@@ -604,13 +612,23 @@ export default function Canvas() {
         onOpenSource={openSource}
         onAddNode={addNode}
         onClone={async (url) => {
-          const r = await post<any>('/canvas/skills/github/clone', { url }, { silent: true })
-          flash(r.message || `已导入 ${r.skills_found} 个 skill`, 'ok')
-          const s = await get<any>('/canvas/skills')
-          setSkills(s.skills || [])
-          setCats(s.categories || [])
-          const g = await get<any>('/canvas/skills/github')
-          setGhInfo({ count: g.count || 0, repos: g.repos || [] })
+          // SkillPalette 那边只收 loading 状态不弹错（“提示由页面统一给出”），
+          // 页面必须接住异常，否则浏览器版克隆接口必然 400，用户点了没有任何反馈
+          try {
+            const r = await post<any>('/canvas/skills/github/clone', { url }, { silent: true })
+            flash(r.message || `已导入 ${r.skills_found} 个 skill`, 'ok')
+          } catch (e: any) {
+            flash(e?.message || '克隆失败', 'error')
+          }
+          try {
+            const s = await get<any>('/canvas/skills')
+            setSkills(s.skills || [])
+            setCats(s.categories || [])
+            const g = await get<any>('/canvas/skills/github')
+            setGhInfo({ count: g.count || 0, repos: g.repos || [] })
+          } catch {
+            /* 刷新失败不影响画布本体 */
+          }
         }}
       />
       )}

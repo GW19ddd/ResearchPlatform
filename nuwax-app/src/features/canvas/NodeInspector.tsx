@@ -109,7 +109,17 @@ export default function NodeInspector({
               <FieldLabel>技能</FieldLabel>
               <Select
                 value={d.skillId}
-                onChange={(v) => set((x) => ({ ...x, skillId: v, title: v ? x.title : x.title }))}
+                onChange={(v) =>
+                  set((x) => ({
+                    ...x,
+                    skillId: v,
+                    // 标题还是占位名（「技能节点」/空）时，选了技能顺手用技能名
+                    title:
+                      v && (!x.title || x.title === `${TYPE_LABEL.skill}节点`)
+                        ? (skills.find((s) => s.id === v)?.name ?? x.title)
+                        : x.title,
+                  }))
+                }
                 options={[
                   { value: '', label: '选择技能…' },
                   ...skills.map((s) => ({ value: s.id, label: s.name })),

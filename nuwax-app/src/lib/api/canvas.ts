@@ -46,6 +46,16 @@ function nodesOf(canvasId: number): NodeRow[] {
   return db.find('canvas_nodes', (n) => n.canvas_id === canvasId)
 }
 
+/**
+ * 节点出参视图：把 config_json 解析成 config 字段。
+ * 原后端 _nodes() 在返回前做 json.loads(config_json)，前端读的是 n.config；
+ * 移植时漏了这一步会导致：重载画布后所有节点配置显示为空，
+ * 且下一次保存会把空 config 写回库里 —— 配置数据真的丢失。
+ */
+function nodeView(n: NodeRow): NodeRow {
+  return { ...n, config: cfgOf(n) }
+}
+
 function edgesOf(canvasId: number): EdgeRow[] {
   return db.find('canvas_edges', (e) => e.canvas_id === canvasId)
 }
@@ -271,11 +281,49 @@ async function runTool(
       }
     }
     try {
-      const bodyStr = JSON.stringify(cfg.body || {}).replace(/\{\{upstream\}\}/g, upstreamText || '')
+      // body 在 UI 里是文本框输入的 JSON 字符串（也可能是对象）。
+      // 之前的写法是 JSON.stringify(cfg.body) —— 字符串会被再包一层引号，
+      // 对端收到的是双重编码的 JSON 字符串而不是对象。
+      // 正确顺序：字符串态做 {{upstream}} 注入（做 JSON 转义，防止上游文本里的
+      // 引号/换行把 JSON 结构弄坏）→ parse 回对象 → 交给 fetch 序列化。
+      const raw = (typeof cfg.body === 'string' ? cfg.body.trim() : JSON.stringify(cfg.body || {}))
+        .replace(/\{\{upstream\}\}/g, () =>
+          (upstreamText || '')
+            .replace(/\\/g, '\\\\')
+            .replace(/"/g, '\\"')
+            .replace(/\r/g, '')
+            .replace(/\n/g, '\\n')
+            .replace(/\t/g, '\\t'),
+        )
+      let bodyObj: any = {}
+      if (raw) {
+        try {
+          bodyObj = JSON.parse(raw)
+        } catch {
+          return {
+            text: `[HTTP 节点请求体不是合法 JSON]`,
+            meta: {
+              ...okMeta(t0),
+              provider: 'http:bad-body',
+              ok: false,
+              error: {
+                kind: 'tool_error',
+                label: '工具调用失败',
+                message: '请求体不是合法 JSON',
+                detail: String(cfg.body).slice(0, 200),
+                hint: '在右侧「请求体 JSON」里检查逗号、引号是否完整。',
+              },
+            },
+          }
+        }
+      }
+      const method = (cfg.method || 'POST').toUpperCase()
+      const emptyBody =
+        bodyObj && typeof bodyObj === 'object' && !Array.isArray(bodyObj) && Object.keys(bodyObj).length === 0
       const res = await fetch(url, {
-        method: (cfg.method || 'POST').toUpperCase(),
+        method,
         headers: { 'Content-Type': 'application/json', ...(cfg.headers || {}) },
-        body: bodyStr === '{}' ? undefined : bodyStr,
+        body: method === 'GET' || method === 'HEAD' || emptyBody ? undefined : JSON.stringify(bodyObj),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const text = (await res.text()).slice(0, 8000)
@@ -568,10 +616,19 @@ route('GET', '/canvas', () => {
   return { canvases: list, templates }
 })
 
+/** 按 key 找模板：先查内置，再查用户自存模板（save-as-template 存的就是这些） */
+function findTemplate(key: string): CanvasTemplate | null {
+  if (!key) return null
+  const builtin = getTemplate(key)
+  if (builtin) return builtin
+  const user = db.settingJson<CanvasTemplate[]>(USER_TPL_KEY, [])
+  return user.find((t) => t.key === key) ?? null
+}
+
 route('POST', '/canvas', (ctx) => {
   const name = String(pick(ctx.body, 'name', '新画布'))
   const templateKey = ctx.body?.template ? String(ctx.body.template) : ''
-  const tpl = templateKey ? getTemplate(templateKey) : null
+  const tpl = templateKey ? findTemplate(templateKey) : null
   const finalName = tpl && (name === '' || name === '新画布') ? tpl.name : name
 
   const canvas = db.insert('canvases', {
@@ -607,7 +664,7 @@ route('GET', '/canvas/:id', (ctx) => {
   const canvas = db.get('canvases', canvasId)
   if (!canvas) notFound('canvas')
 
-  const nodes = nodesOf(canvasId)
+  const nodes = nodesOf(canvasId).map(nodeView)
   const edges = edgesOf(canvasId)
   const runs = db
     .find('canvas_runs', (r) => r.canvas_id === canvasId)
