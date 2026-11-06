@@ -14,6 +14,7 @@ export default function SkillPalette({
   ghInfo,
   onOpenSource,
   onAddNode,
+  onPickSkill,
   onClone,
 }: {
   cats: { name: string; skills: Skill[] }[]
@@ -22,6 +23,7 @@ export default function SkillPalette({
   ghInfo: { count: number; repos: any[] }
   onOpenSource: (sid: string, sname: string) => void
   onAddNode: (ntype: string, skillId: string, x: number, y: number) => void
+  onPickSkill?: (sid: string) => void
   onClone: (url: string) => Promise<void>
 }) {
   const [cloneUrl, setCloneUrl] = useState('')
@@ -62,7 +64,7 @@ export default function SkillPalette({
             原版仓库：{ghInfo.repos.map((r: any) => `${r.name}(${r.count})`).join(' · ')}
           </div>
         )}
-        <div className="mt-0.5 text-[11.5px] text-[color:var(--wb-muted)]">拖到画布上</div>
+        <div className="mt-0.5 text-[11.5px] text-[color:var(--wb-muted)]">点一下添加，或拖到画布上</div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
@@ -79,8 +81,9 @@ export default function SkillPalette({
                   e.dataTransfer.setData('application/skill', s.id)
                   e.dataTransfer.effectAllowed = 'move'
                 }}
-                title={s.desc}
-                className="group mb-1 cursor-grab rounded-[9px] border border-[color:var(--wb-border)] px-2 py-1.5 text-[11.5px] leading-snug text-[color:var(--wb-text)] transition hover:border-[color:var(--wb-border-strong)] hover:bg-[color:var(--wb-surface-alt)] active:cursor-grabbing"
+                onClick={() => onPickSkill?.(s.id)}
+                title={`${s.desc}（点击添加到画布）`}
+                className="group mb-1 cursor-pointer rounded-[9px] border border-[color:var(--wb-border)] px-2 py-1.5 text-[11.5px] leading-snug text-[color:var(--wb-text)] transition hover:border-[color:var(--wb-border-strong)] hover:bg-[color:var(--wb-surface-alt)] active:cursor-grabbing"
               >
                 <div className="flex items-center gap-1">
                   <span className="truncate font-medium">{s.name}</span>
@@ -92,7 +95,7 @@ export default function SkillPalette({
                 </div>
                 <div className="truncate text-[11.5px] text-[color:var(--wb-muted)]">{s.desc}</div>
                 {(s as any).source === 'github' && (
-                  <div className="mt-1 hidden group-hover:block">
+                  <div className="mt-1 hidden group-hover:block" onClick={(e) => e.stopPropagation()}>
                       <Btn size="xs" variant="ghost" onClick={() => onOpenSource(s.id, s.name)}>
                         看 SKILL.md 原文
                       </Btn>

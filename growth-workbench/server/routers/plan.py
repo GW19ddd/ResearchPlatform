@@ -265,7 +265,7 @@ async def biweekly_summary():
 ## 五、给导师的一句话开场白
 
 要求：具体、有数字、不空话。数据缺失的地方直接写"未记录"。"""
-    env = await llm.complete_result(prompt, mode="reason", task="biweekly", max_tokens=4096)
+    env = await llm.complete_result(prompt, mode="fast", task="biweekly", max_tokens=4096)
     scope = {
         "since": since,
         "until": date.today().isoformat(),

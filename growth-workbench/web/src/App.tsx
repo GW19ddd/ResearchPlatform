@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { useEffect, useCallback, useRef, useState } from 'react'
 import Dashboard from './pages/Dashboard'
 import Ideas from './pages/Ideas'
@@ -10,7 +10,6 @@ import Plan from './pages/Plan'
 import Advisor from './pages/Advisor'
 import Points from './pages/Points'
 import Settings from './pages/Settings'
-import Canvas from './pages/Canvas'
 import Chat from './pages/Chat'
 import Login from './pages/Login'
 import { ToastHost } from './components/toast'
@@ -18,7 +17,9 @@ import Tour from './components/Tour'
 import { Icon, IconName } from './components/Icon'
 import { Avatar, Btn, IconBtn, Input, Modal } from './components/ui'
 import { usePersist } from './lib/state'
+import { get } from './lib/api'
 import { displayNameOf, useAuth } from './lib/auth'
+import SettingsPanel from './features/settings/SettingsPanel'
 
 /** 侧边栏按科研流程分段：输入 → 执行 → 复盘 → 激励 */
 const NAV_GROUPS: { group: string; items: { to: string; label: string; icon: IconName }[] }[] = [
@@ -35,7 +36,6 @@ const NAV_GROUPS: { group: string; items: { to: string; label: string; icon: Ico
     items: [
       { to: '/experiments', label: '实验', icon: 'beaker' },
       { to: '/paper', label: '论文', icon: 'file' },
-      { to: '/canvas', label: '科研画布', icon: 'hexagon' },
     ],
   },
   {
@@ -51,15 +51,60 @@ const NAV_GROUPS: { group: string; items: { to: string; label: string; icon: Ico
   },
   {
     group: '',
-    items: [
-      { to: '/chat', label: '对话', icon: 'message' },
-      { to: '/settings', label: '设置', icon: 'gear' },
-    ],
+    items: [{ to: '/chat', label: '对话 / 工作流', icon: 'message' }],
   },
 ]
 
 /** 头像色板：色相按 40° 分布，够区分又不至于跳脱 */
 const HUES = [240, 268, 300, 336, 12, 32, 152, 190]
+
+type NavBadge = { n: number; tone: 'accent' | 'warn' | 'neutral' }
+
+/**
+ * 侧边栏「未读 / 待处理」小气泡：数字全部来自 /dashboard 的真实统计，为 0 就不显示。
+ * 今日 = 待办任务 + 未结算赌约；文献 = 待读；实验 = 计划中；计划复盘 = 未闭合承诺。
+ */
+function navBadges(d: any): Record<string, NavBadge> {
+  const out: Record<string, NavBadge> = {}
+  if (!d) return out
+  const put = (to: string, n: number, tone: NavBadge['tone']) => {
+    if (n > 0) out[to] = { n, tone }
+  }
+  put('/', (d.open_tasks || 0) + (d.open_bets || 0), 'accent')
+  put('/literature', d.literature?.todo || 0, 'warn')
+  put('/experiments', d.experiments?.planned || 0, 'neutral')
+  put('/plan', d.commitments?.open || 0, 'warn')
+  return out
+}
+
+/** 数字气泡：展开态跟在文字右侧，折叠态缩成图标右上角的小角标 */
+function NavCount({ badge, collapsed }: { badge?: NavBadge; collapsed: boolean }) {
+  if (!badge) return null
+  const tone: Record<NavBadge['tone'], string> = {
+    accent: 'bg-[color:var(--wb-accent)] text-white',
+    warn: 'bg-[color:var(--wb-warn-soft)] text-[color:var(--wb-warn)]',
+    neutral: 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-muted)]',
+  }
+  const text = badge.n > 99 ? '99+' : String(badge.n)
+  if (collapsed) {
+    return (
+      <span
+        className={`absolute right-0 top-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full px-[3px] text-[9px] font-medium leading-none shadow-[var(--wb-shadow-xs)] ${tone[badge.tone]}`}
+        aria-label={`${badge.n} 项待处理`}
+      >
+        {text}
+      </span>
+    )
+  }
+  return (
+    <span
+      className={`ml-auto flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-medium leading-none ${tone[badge.tone]}`}
+      aria-label={`${badge.n} 项待处理`}
+    >
+      {text}
+    </span>
+  )
+}
 
 const itemCls = (active: boolean, collapsed: boolean) =>
   `group relative flex items-center rounded-[9px] text-[12.5px] transition-colors duration-150 ${
@@ -104,17 +149,20 @@ function useDismiss(open: boolean, close: () => void) {
 
 function Sidebar({
   collapsed,
+  badges,
   onToggle,
   onProfile,
   onTour,
+  onSettings,
 }: {
   collapsed: boolean
+  badges: Record<string, NavBadge>
   onToggle: () => void
   onProfile: () => void
   onTour: () => void
+  onSettings: () => void
 }) {
   const { user, logout } = useAuth()
-  const nav = useNavigate()
   const [menu, setMenu] = useState(false)
   const menuRef = useDismiss(menu, () => setMenu(false))
   const name = displayNameOf(user)
@@ -157,6 +205,7 @@ function Sidebar({
           <Icon name="sun" size={15} />
           {!collapsed && <span className="truncate">今日</span>}
           {collapsed && <span className="sr-only">今日</span>}
+          <NavCount badge={badges['/']} collapsed={collapsed} />
         </NavLink>
 
         {NAV_GROUPS.map((g, gi) => (
@@ -179,6 +228,7 @@ function Sidebar({
                 >
                   <Icon name={n.icon} size={15} />
                   {collapsed ? <span className="sr-only">{n.label}</span> : <span className="truncate">{n.label}</span>}
+                  <NavCount badge={badges[n.to]} collapsed={collapsed} />
                 </NavLink>
               ))}
             </div>
@@ -186,17 +236,24 @@ function Sidebar({
         ))}
       </nav>
 
-      {/* 新手引导入口：常驻底部，折叠态只留图标 */}
-      <div className="shrink-0 p-2">
+      {/* 底部工具：新手引导 + 左下角设置齿轮（常驻，折叠态只留图标） */}
+      <div
+        data-tour="tour-settings-entry"
+        className={`flex shrink-0 items-center gap-1 p-2 ${collapsed ? 'flex-col' : ''}`}
+      >
         {collapsed ? (
-          <div className="flex justify-center">
+          <>
             <IconBtn icon="info" size="md" ariaLabel="打开新手引导" title="新手引导" onClick={onTour} />
-          </div>
+            <IconBtn icon="gear" size="md" ariaLabel="打开设置" title="设置" onClick={onSettings} />
+          </>
         ) : (
-          <Btn variant="ghost" size="sm" className="w-full" onClick={onTour}>
-            <Icon name="info" size={14} />
-            新手引导
-          </Btn>
+          <>
+            <Btn variant="ghost" size="sm" className="min-w-0 flex-1" onClick={onTour}>
+              <Icon name="info" size={14} />
+              新手引导
+            </Btn>
+            <IconBtn icon="gear" size="md" ariaLabel="打开设置" title="设置" onClick={onSettings} />
+          </>
         )}
       </div>
 
@@ -261,7 +318,7 @@ function Sidebar({
               className={menuItem}
               onClick={() => {
                 setMenu(false)
-                nav('/settings')
+                onSettings()
               }}
             >
               <Icon name="gear" size={14} />
@@ -308,6 +365,7 @@ export default function App() {
   const [navOpen, setNavOpen] = useState(false)
   const [collapsed, setCollapsed] = usePersist('app.navCollapsed', false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const { loading, user, updateProfile, logout } = useAuth()
 
   const [nameDraft, setNameDraft] = useState('')
@@ -348,6 +406,29 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [setCollapsed])
 
+  // 侧边栏气泡：登录后拉一次 /dashboard；换页、窗口回焦、别的模块改了数据时重算
+  const [dash, setDash] = useState<any>(null)
+  useEffect(() => {
+    if (!hasUser) return
+    let alive = true
+    const loadCounts = () => {
+      get('/dashboard')
+        .then((d) => {
+          if (alive) setDash(d)
+        })
+        .catch(() => {})
+    }
+    loadCounts()
+    window.addEventListener('focus', loadCounts)
+    window.addEventListener('wb:data-changed', loadCounts)
+    return () => {
+      alive = false
+      window.removeEventListener('focus', loadCounts)
+      window.removeEventListener('wb:data-changed', loadCounts)
+    }
+  }, [hasUser, path])
+  const badges = navBadges(dash)
+
   if (loading) return <Splash />
   if (!user) return <Login />
 
@@ -373,9 +454,11 @@ export default function App() {
       <div className={`${navOpen ? 'fixed z-50 flex h-full' : 'hidden'} lg:relative lg:z-auto lg:flex`}>
         <Sidebar
           collapsed={navOpen ? false : collapsed}
+          badges={badges}
           onToggle={() => (navOpen ? setNavOpen(false) : setCollapsed((v) => !v))}
           onProfile={() => setProfileOpen(true)}
           onTour={() => setTourOpen(true)}
+          onSettings={() => setSettingsOpen(true)}
         />
       </div>
 
@@ -397,7 +480,8 @@ export default function App() {
             <Route path="/plan" element={<Plan />} />
             <Route path="/advisor" element={<Advisor />} />
             <Route path="/points" element={<Points />} />
-            <Route path="/canvas" element={<Canvas />} />
+            {/* 画布已并入「对话 / 工作流」分区；旧链接直接落到工作流 tab */}
+            <Route path="/canvas" element={<Chat initialTab="flow" />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
@@ -486,6 +570,7 @@ export default function App() {
       </Modal>
 
       <ToastHost />
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Tour open={tourOpen} onClose={closeTour} />
     </div>
   )

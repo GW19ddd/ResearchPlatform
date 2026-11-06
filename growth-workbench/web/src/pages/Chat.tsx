@@ -12,10 +12,11 @@
  * 后端零改动：复用 /chat/sessions 与消息接口。
  */
 import { useEffect, useRef, useState } from 'react'
-import { Btn, Card, Empty, IconBtn, Input, MdBlock, Modal, Pill, SearchInput, Select, TextArea } from '../components/ui'
+import { Btn, Card, Empty, IconBtn, Input, MdBlock, Modal, Pill, SearchInput, Segmented, Select, TextArea } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { del, get, patch, post } from '../lib/api'
 import { usePersist } from '../lib/state'
+import Canvas from './Canvas'
 
 /** 课题契约（对齐 DeepScientist Start Research 字段） */
 type Quest = {
@@ -41,10 +42,8 @@ const composeKickoff = (q: Quest) => {
   ].join('\n\n')
 }
 
-const MODES = [
-  { value: 'fast', label: 'Balanced（快）' },
-  { value: 'reason', label: 'Deep（推理·慢）' },
-]
+/** 全站统一走快模型，不再提供推理档 */
+const MODES = [{ value: 'fast', label: 'Balanced（快）' }]
 
 /** Quest 阶段（与后端 chat.STAGES 一致）：调研 → 计划 → 实验 → 成文 */
 const STAGES = [
@@ -184,15 +183,42 @@ function HeroScene() {
   )
 }
 
+const CHAT_TABS = [
+  { value: 'chat' as const, label: '对话 / Quest' },
+  { value: 'flow' as const, label: '工作流' },
+]
+
+/** 两个分区共用的顶栏：画布已并入对话，不再单独占一个导航项 */
+function ChatTabs({
+  tab,
+  setTab,
+}: {
+  tab: 'chat' | 'flow'
+  setTab: (v: 'chat' | 'flow') => void
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-3 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-6 py-2">
+      <Segmented value={tab} onChange={setTab} options={CHAT_TABS} />
+      <span className="truncate text-[11.5px] text-[color:var(--wb-muted)]">
+        {tab === 'chat'
+          ? '一题一 quest：填契约 → 受控推进 → 随时接管'
+          : '固定框式流水线：按顺序执行，结果可逐步回看'}
+      </span>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------- 页面
-export default function Chat() {
+export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = {}) {
   const [sessions, setSessions] = useState<any[]>([])
   const [sid, setSid] = usePersist<number | null>('chat.sid', null)
   const [detail, setDetail] = useState<any>(null)
   const [ctxOptions, setCtxOptions] = useState<{ value: string; label: string }[]>([])
   const [input, setInput] = usePersist('chat.input', '')
   const [busy, setBusy] = useState('')
-  const [mode, setMode] = usePersist('chat.mode', 'fast')
+  // 全站统一 fast：保留 setter 供选择器使用，档位不再随历史会话变化
+  const [, setMode] = usePersist('chat.mode', 'fast')
+  const mode = 'fast'
   const [ctxKeys, setCtxKeys] = usePersist<string[]>('chat.ctx', ['ideas'])
   const [questOpen, setQuestOpen] = useState(false)
   const [quest, setQuest] = usePersist<Quest>('ds.quest', EMPTY_QUEST)
@@ -204,6 +230,11 @@ export default function Chat() {
   const [skillQ, setSkillQ] = useState('')
   /** 空状态首页的分类（Codeg：默认选中「构思」） */
   const [homeCat, setHomeCat] = useState<string>('构思')
+  /** 对话 / 工作流两个分区；旧 /canvas 链接通过 initialTab 直接落到工作流 */
+  const [tab, setTab] = usePersist<'chat' | 'flow'>('chat.tab', 'chat')
+  useEffect(() => {
+    if (initialTab) setTab(initialTab)
+  }, [initialTab, setTab])
   const chipRef = useRef<HTMLDivElement>(null)
   const scrollChips = (dir: number) => chipRef.current?.scrollBy({ left: dir * 260, behavior: 'smooth' })
   const [autoLeft, setAutoLeft] = useState(0)
@@ -217,7 +248,7 @@ export default function Chat() {
     const d = await get(`/chat/sessions/${id}`)
     setDetail(d)
     setSid(id)
-    if (d?.mode) setMode(d.mode)
+    // 全站统一 fast：不再按会话里存的历史档位切换
     get(`/chat/sessions/${id}/findings`).then(setFindings).catch(() => {})
     scrollDown()
   }
@@ -482,6 +513,29 @@ export default function Chat() {
       {err}
     </div>
   )
+
+  /** 画布成果立项后切回「对话」并打开刚建的 quest */
+  const goChat = () => {
+    setTab('chat')
+    get('/chat/sessions')
+      .then((list: any) => {
+        setSessions(list || [])
+        const cur = Number(localStorage.getItem('wb:chat.sid') || 0)
+        if (cur && (list || []).some((s: any) => s.id === cur)) open(cur)
+      })
+      .catch(() => {})
+  }
+
+  if (tab === 'flow') {
+    return (
+      <div className="flex h-full flex-col">
+        <ChatTabs tab={tab} setTab={setTab} />
+        <div className="min-h-0 flex-1">
+          <Canvas onGoChat={goChat} />
+        </div>
+      </div>
+    )
+  }
 
   // ------------------------------------------------------------ Quest 工作区（Codeg 式：极简顶栏 + 居中问候/时间线 + 居中大输入框）
   if (sid && detail) {
@@ -874,7 +928,7 @@ export default function Chat() {
               </button>
               <span className="flex-1" />
               <span className="whitespace-nowrap text-[11px] text-[color:var(--wb-muted)]">
-                {mode === 'reason' ? 'Deep · 约 20-40s' : 'Balanced'}
+                Balanced
               </span>
               {busy === 'send' ? (
                 <button
@@ -904,6 +958,9 @@ export default function Chat() {
   // ------------------------------------------------------------ 启动面
   return (
     <div className="h-full overflow-y-auto">
+      <div className="sticky top-0 z-10">
+        <ChatTabs tab={tab} setTab={setTab} />
+      </div>
       <div className="mx-auto w-full max-w-[1240px] px-6 py-8 md:px-10 md:py-10">
         {/* Hero：研究工作区启动面 */}
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-[1.1fr_1fr]">
@@ -1001,7 +1058,7 @@ export default function Chat() {
                             <span className="text-[color:var(--wb-border-strong)]">·</span>
                             {STAGES.find((x) => x.value === s.stage)?.label || '调研'}
                             <span className="text-[color:var(--wb-border-strong)]">·</span>
-                            {s.mode === 'reason' ? 'Deep' : 'Balanced'}
+                            Balanced
                           </div>
                         </div>
                         <IconBtn

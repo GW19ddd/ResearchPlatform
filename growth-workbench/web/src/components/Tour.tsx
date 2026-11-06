@@ -106,9 +106,11 @@ export const TOUR_STEPS: TourStep[] = [
   {
     key: 'settings',
     title: '用 AI 之前：先配模型',
-    body: '在这里增删改模型供应商（DeepSeek / OpenAI-Codex / Ollama / 本机 Qwen / 任意中转站），可以测试连接、拉取模型，还能按任务分派快模型与推理模型。',
+    body: '平时点左下角的小齿轮就能打开设置面板。在「模型供应商」里增删改 DeepSeek / OpenAI-Codex / Ollama / 本机 Qwen / 任意中转站，可以测试连接、拉取模型。当前全站统一使用快模型。',
     path: '/settings',
     target: 'tour-settings-provider',
+    /** 设置页加载失败时，退回高亮左下角的设置齿轮 */
+    targets: ['tour-settings-entry'],
     tip: '配好并测试连通之后，画布和对话里的 AI 功能才会真正出结果。',
   },
   {

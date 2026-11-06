@@ -189,7 +189,7 @@ async def brainstorm(body: BrainstormIn):
 
 只输出 JSON 数组本身，不要任何解释、围栏或多余文字。"""
     data, env = await llm.complete_json_result(
-        prompt, mode="reason", task="brainstorm", max_tokens=4096
+        prompt, mode="fast", task="brainstorm", max_tokens=4096
     )
 
     def _score(v, default=3):
@@ -246,7 +246,7 @@ async def brainstorm(body: BrainstormIn):
 
 用 Markdown 分条输出，不要客套。"""
     md_env = await llm.complete_result(
-        md_prompt, mode="reason", task="brainstorm", max_tokens=4096
+        md_prompt, mode="fast", task="brainstorm", max_tokens=4096
     )
     if not md_env["ok"]:
         return {"ok": False, "candidates": [], "result": "", "error": md_env["error"],
@@ -289,7 +289,7 @@ async def review_idea(idea_id: int, body: ReviewIn):
 1. 致命问题（最可能被拒稿/做不出来的 3 条，写清楚为什么）
 2. 与已有工作最可能的撞车点，该去查什么关键词验证
 3. 补救建议：最小改动怎么让它站得住"""
-    env = await llm.complete_result(prompt, mode="reason", task="idea-review", max_tokens=3072)
+    env = await llm.complete_result(prompt, mode="fast", task="idea-review", max_tokens=3072)
     if not env["ok"]:
         # 失败就如实返回：不写 idea_reviews，避免错误文案被当成历史质疑意见
         return {"ok": False, "result": "", "saved": False, "error": env["error"]}
@@ -838,7 +838,7 @@ async def analyze_experiment(exp_id: int):
 3. 结果汇总表（Markdown 表格）
 4. 下一步该补的最小实验（具体、可在 1-2 天内做完）
 5. 这段结果可以直接写进论文 Results 的 2-3 句话"""
-    env = await llm.complete_result(prompt, mode="reason", task="exp-analysis", max_tokens=3072)
+    env = await llm.complete_result(prompt, mode="fast", task="exp-analysis", max_tokens=3072)
     if not env["ok"]:
         # 失败不写 experiments.conclusion —— 结论是科研成果，不是错误日志的垃圾桶
         return {"ok": False, "result": "", "saved": False, "error": env["error"]}

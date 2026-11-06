@@ -169,7 +169,7 @@ def test_canvas_run_is_async_and_cancelable(client):
 
 
 def test_canvas_cancel_stops_pending_nodes(client, monkeypatch):
-    """取消后剩下的节点不应该继续跑：6 个慢节点，取消后不该跑满 6 个。"""
+    """取消后剩下的节点不应该继续跑：6 个串行慢节点，取消后不该跑满 6 个。"""
     ran = {"n": 0}
 
     async def slow(prompt, **kw):
@@ -185,7 +185,10 @@ def test_canvas_cancel_stops_pending_nodes(client, monkeypatch):
          "config": {"prompt": f"处理第 {i} 步：{{{{upstream}}}}"}}
         for i in range(6)
     ]
-    client.post(f"/api/canvas/{cid}/save", json={"name": "取消画布", "nodes": nodes, "edges": []})
+    # 串成 6 层：取消只在「节点之间」生效（同层并发的节点已启动，拦不住）
+    edges = [{"source_key": f"n{i}", "target_key": f"n{i + 1}"} for i in range(5)]
+    client.post(f"/api/canvas/{cid}/save",
+                json={"name": "取消画布", "nodes": nodes, "edges": edges})
     r = client.post(f"/api/canvas/{cid}/run", json={})
     run_id = r.json()["run_id"]
     assert client.post(f"/api/canvas/runs/{run_id}/cancel").json()["ok"] is True

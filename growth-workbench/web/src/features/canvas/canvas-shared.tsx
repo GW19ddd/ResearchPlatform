@@ -63,6 +63,18 @@ export const TYPE_LABEL: Record<string, string> = {
   output: '输出',
 }
 
+/**
+ * 固定框布局的五类识别色（hex 字面量，只在这里定义，供内联 style 使用）。
+ * 全站禁止裸 Tailwind 调色板，这张表与 TYPE_STYLE 一样是 canvas-shared.tsx 内的例外。
+ */
+export const TYPE_ACCENT: Record<string, { line: string; soft: string; text: string }> = {
+  input: { line: '#7dd3fc', soft: 'rgba(56,189,248,0.13)', text: '#0369a1' },
+  prompt: { line: '#c4b5fd', soft: 'rgba(167,139,250,0.13)', text: '#6d28d9' },
+  skill: { line: '#a5b4fc', soft: 'rgba(129,140,248,0.13)', text: '#4338ca' },
+  tool: { line: '#6ee7b7', soft: 'rgba(52,211,153,0.13)', text: '#047857' },
+  output: { line: '#fcd34d', soft: 'rgba(251,191,36,0.15)', text: '#92400e' },
+}
+
 const STATUS_CHIP: Record<string, { cls: string; text: string }> = {
   running: { cls: 'bg-[color:var(--wb-warn-soft)] text-[color:var(--wb-warn)]', text: '运行中…' },
   done: { cls: 'bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]', text: '已完成' },
@@ -71,7 +83,7 @@ const STATUS_CHIP: Record<string, { cls: string; text: string }> = {
 }
 
 /** 节点副标题：一句话说清这个节点「拿什么当输入」 */
-function subtitle(data: CData): string {
+export function subtitle(data: CData): string {
   const c = data.config || {}
   switch (data.ntype) {
     case 'input':

@@ -307,12 +307,9 @@ export default function NodeInspector({
             <div>
               <FieldLabel>模式</FieldLabel>
               <Select
-                value={d.config.mode || skill?.mode || 'fast'}
+                value="fast"
                 onChange={(v) => setCfg({ mode: v })}
-                options={[
-                  { value: 'fast', label: 'fast 轻量' },
-                  { value: 'reason', label: 'reason 推理' },
-                ]}
+                options={[{ value: 'fast', label: 'fast 轻量（全站统一）' }]}
               />
             </div>
             <div>

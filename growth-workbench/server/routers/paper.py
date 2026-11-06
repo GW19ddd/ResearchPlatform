@@ -92,7 +92,7 @@ async def unblock(stage_id: int):
 2. 给出 3 条具体出路，每条标注耗时（小时）与风险
 3. 推荐一条，并写出今天下午就能开始的第一个动作（颗粒度到"打开什么、做什么、产出什么"）
 4. 如果这个阶段其实可以绕过或降级完成，说明怎么绕过"""
-    env = await llm.complete_result(prompt, mode="reason", task="unblock", max_tokens=3072)
+    env = await llm.complete_result(prompt, mode="fast", task="unblock", max_tokens=3072)
     if not env["ok"]:
         return {"ok": False, "result": "", "error": env["error"]}
     return {

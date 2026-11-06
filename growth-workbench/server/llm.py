@@ -317,7 +317,56 @@ async def _log_usage(p: dict, task: str, tin: Any, tout: Any):
         pass
 
 
+async def _dispatch_with_recovery(
+    p: dict, messages: list, mode: str, max_tokens: int, temperature: float
+) -> tuple[str, Any, Any, str]:
+    """推理模型偶发把输出预算全花在思维链上：finish_reason=length 且正文为空。
+
+    正常路径仍是一次调用，不增加延迟；只有这一种特定失败才自愈：
+      ① 输出预算翻倍重试，给最终回答留出空间
+      ② 仍拿不到正文就退到同一 provider 的非推理模型，保证「至少有结果」
+    返回 (内容, tokens_in, tokens_out, 实际 mode)；model 字段会如实反映降级。
+    """
+    eff = _effective_max_tokens(mode, max_tokens)
+    try:
+        content, tin, tout = await _dispatch(p, messages, mode, eff, temperature)
+        return content, tin, tout, mode
+    except LLMError as exc:
+        first = exc
+        if exc.kind != "empty_output" or "finish_reason=length" not in (exc.detail or ""):
+            raise
+
+    # ① 预算翻倍（DeepSeek reasoner 的 max_tokens 含 reasoning_tokens）
+    try:
+        content, tin, tout = await _dispatch(
+            p, messages, mode, max(eff * 2, 16384), temperature
+        )
+        if (content or "").strip():
+            return content, tin, tout, mode
+    except Exception:  # noqa: BLE001 —— 重试不成继续降级
+        pass
+
+    # ② 退到快模型；两个模型名相同就没必要再试
+    if mode == "reason" and _model_of(p, "fast") != _model_of(p, "reason"):
+        try:
+            content, tin, tout = await _dispatch(p, messages, "fast", eff, 0.3)
+            if (content or "").strip():
+                return content, tin, tout, "fast"
+        except Exception:  # noqa: BLE001
+            pass
+    raise first
+
+
 # ---------------------------------------------------------------- 对外 API
+
+# 全站统一使用快模型：所有 AI 入口（后台任务、画布节点、技能、对话、外部 skill run）
+# 一律走 fast 档，不再命中 deepseek-reasoner。调用点的 mode 参数保留，
+# 需要恢复「按任务分派 fast/reason」时把这里改成 False 即可，其它代码不用动。
+FORCE_FAST = True
+
+
+def _resolve_mode(mode: str) -> str:
+    return "fast" if FORCE_FAST else mode
 
 
 async def complete_result(
@@ -330,6 +379,7 @@ async def complete_result(
     messages: list[dict] | None = None,
 ) -> dict:
     """一次调用，返回带 ok / error 的信封。失败不抛，交由调用方决定如何展示。"""
+    mode = _resolve_mode(mode)
     p = None
     try:
         p = pick_provider(provider_id, mode)
@@ -338,12 +388,15 @@ async def complete_result(
             {"role": "system", "content": system},
             {"role": "user", "content": prompt},
         ]
-        content, tin, tout = await _dispatch(
-            p, msgs, mode, _effective_max_tokens(mode, max_tokens),
-            0.3 if mode == "fast" else 0.0,
+        content, tin, tout, used_mode = await _dispatch_with_recovery(
+            p, msgs, mode, max_tokens, 0.3 if mode == "fast" else 0.0
         )
         await _log_usage(p, task, tin, tout)
-        return ok_env(content, p, _model_of(p, mode), tin, tout)
+        env = ok_env(content, p, _model_of(p, used_mode), tin, tout)
+        # 降级过就打个标记：模型名已经变了，界面/日志还能知道这是自愈结果
+        if used_mode != mode:
+            env["degraded"] = True
+        return env
     except Exception as exc:  # noqa: BLE001 —— 任何失败都要变成信封，而不是 500
         return fail_env(exc, p)
 
@@ -408,6 +461,7 @@ async def stream_chat_events(
     信封规则不变：失败时不会产出 meta（调用方据此判断不落库）。
     openai 兼容与 ollama 走真流式；responses（Codex）各家流式差异大，整段返回后一次吐出。
     """
+    mode = _resolve_mode(mode)
     p = None
     try:
         p = pick_provider(provider_id, mode)

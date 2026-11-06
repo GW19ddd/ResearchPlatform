@@ -240,7 +240,7 @@ def test_prompt_node_injects_upstream_and_records_meta(client, monkeypatch):
     assert "要面向导师" in seen["prompt"], "{{input}} 没被替换"
     assert "{{" not in seen["prompt"], "还有没被替换的占位符"
     assert seen["system"] == "你是严格的审稿人"
-    assert seen["mode"] == "reason", "节点上指定的模式没传下去"
+    assert seen["mode"] == "fast", "全站统一 fast：节点即使写了 reason 也应归一化为 fast"
 
     row = query("SELECT * FROM canvas_node_outputs WHERE node_key='p'")[0]
     assert row["provider"] == "fake-provider"

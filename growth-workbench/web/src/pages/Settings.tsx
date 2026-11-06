@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Btn, Card, Input, LoadError, Loading, PageHeader, Pill, Select } from '../components/ui'
+import { Btn, Card, IconBtn, Input, LoadError, Loading, PageHeader, Pill, Select } from '../components/ui'
 import { Icon } from '../components/Icon'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { del, get, post, put } from '../lib/api'
 import BackupCard from '../features/settings/BackupCard'
 import SuspectsCard from '../features/settings/SuspectsCard'
 import AccountCard from '../features/settings/AccountCard'
+import ZoteroSyncCard from '../features/literature/ZoteroSyncCard'
 
 const ROUTING = [
   { value: 'all', label: '所有任务' },
@@ -18,7 +20,32 @@ const HINTS: Record<string, string> = {
   ollama: 'Ollama 原生接口，不需要 API Key。默认 http://localhost:11434，可点「拉取模型」自动填。',
 }
 
-export default function Settings() {
+/** 调用统计柱状图的浮层：白底圆角胶囊，悬停显示次数与 tokens（对齐参考图） */
+function UsageTip({ active, payload }: any) {
+  if (!active || !payload?.length) return null
+  const u = payload[0].payload
+  return (
+    <div className="rounded-[12px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3 py-2 shadow-[var(--wb-shadow-md)]">
+      <div className="text-[12px] font-medium text-[color:var(--wb-text)]">{u.provider}</div>
+      <div className="mt-0.5 text-[11.5px] text-[color:var(--wb-text-soft)]">
+        {u.n} 次 · 入 {u.tin || 0} / 出 {u.tout || 0} tokens
+      </div>
+    </div>
+  )
+}
+
+export type SettingsSection = 'all' | 'account' | 'model' | 'dify' | 'data' | 'zotero'
+
+export default function Settings({
+  embedded = false,
+  section = 'all',
+}: {
+  /** 嵌入设置面板时：不渲染页面标题，间距更紧凑 */
+  embedded?: boolean
+  /** 面板左侧分类；all = 独立设置页一次看全 */
+  section?: SettingsSection
+}) {
+  const show = (s: Exclude<SettingsSection, 'all'>) => section === 'all' || section === s
   const [cfg, setCfg] = useState<any>(null)
   const [types, setTypes] = useState<any[]>([])
   const [msg, setMsg] = useState<Record<string, string>>({})
@@ -188,14 +215,17 @@ export default function Settings() {
   if (!cfg) return <Loading text="正在加载设置…" />
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        eyebrow="偏好与数据"
-        title="设置"
-        desc="账户 / 模型供应商 / Dify / 备份恢复，全部存在本地"
-      />
-      <AccountCard />
+    <div className={embedded ? 'flex flex-col gap-3' : 'flex flex-col gap-4'}>
+      {!embedded && (
+        <PageHeader
+          eyebrow="偏好与数据"
+          title="设置"
+          desc="账户 / 模型供应商 / Dify / Zotero 同步 / 备份恢复，全部存在本地"
+        />
+      )}
+      {show('account') && <AccountCard />}
       {/* ============ ① API 设置（模型供应商） ============ */}
+      {show('model') && (
       <Card
         title="① API 设置 · 模型供应商"
         tourId="tour-settings-provider"
@@ -221,9 +251,9 @@ export default function Settings() {
             return (
               <div key={p.id} className="rounded-lg border border-[color:var(--wb-border)]">
                 {/* 收起态：一行摘要 */}
-                <div className="flex flex-wrap items-center gap-2 p-3">
+                <div className="flex items-center gap-2 px-3 py-2">
                   <button
-                    className="flex items-center gap-1 text-[13px] font-medium text-[color:var(--wb-text)] hover:underline"
+                    className="flex min-w-0 shrink-0 items-center gap-1 text-[12.5px] font-medium text-[color:var(--wb-text)] hover:underline"
                     onClick={() => toggleProv(p.id)}
                     aria-expanded={isOpen}
                   >
@@ -231,23 +261,32 @@ export default function Settings() {
                       name={isOpen ? 'chevronDown' : 'chevronRight'}
                       size={12}
                       strokeWidth={2}
-                      className="text-[color:var(--wb-muted)]"
+                      className="shrink-0 text-[color:var(--wb-muted)]"
                     />
-                    {p.name}
+                    <span className="max-w-[140px] truncate">{p.name}</span>
                   </button>
-                  <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+                  {isDefault && <Pill tone="green">默认</Pill>}
+                  {!p.enabled && <Pill tone="gray">停用</Pill>}
+                  <span className="hidden min-w-0 flex-1 truncate text-[11px] text-[color:var(--wb-muted)] md:block">
                     {types.find((t: any) => t.value === p.type)?.label || p.type} · {p.base_url}
                   </span>
-                  {isDefault && <Pill tone="green">默认</Pill>}
-                  {!p.enabled && <Pill tone="gray">已停用</Pill>}
-                  <span className="flex-1" />
-                  <Btn onClick={() => toggleProv(p.id)}>{isOpen ? '收起' : '编辑'}</Btn>
-                  <Btn onClick={() => makeDefault(p.id)} disabled={isDefault}>
+                  <span className="flex-1 md:hidden" />
+                  <Btn size="xs" onClick={() => makeDefault(p.id)} disabled={isDefault}>
                     设为默认
                   </Btn>
-                  <Btn variant="danger" onClick={() => remove(p.id)}>
-                    删除
-                  </Btn>
+                  <IconBtn
+                    icon={isOpen ? 'chevronUp' : 'pencil'}
+                    title={isOpen ? '收起配置' : '编辑配置'}
+                    ariaLabel={isOpen ? '收起配置' : `编辑 ${p.name}`}
+                    onClick={() => toggleProv(p.id)}
+                  />
+                  <IconBtn
+                    icon="trash"
+                    tone="danger"
+                    title="删除供应商"
+                    ariaLabel={`删除 ${p.name}`}
+                    onClick={() => remove(p.id)}
+                  />
                 </div>
 
                 {/* 展开态：完整编辑 */}
@@ -286,14 +325,14 @@ export default function Settings() {
                         />
                       </label>
                       <label className="block">
-                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">推理任务模型</span>
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">推理任务模型（当前停用）</span>
                         <Input
                           value={p.model_reason}
                           onChange={(v) => patchProvider(p.id, 'model_reason', v)}
                         />
                       </label>
                       <label className="block">
-                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">用途分派</span>
+                        <span className="text-[11.5px] text-[color:var(--wb-text-soft)]">用途分派（当前停用）</span>
                         <Select
                           value={p.routing || 'all'}
                           onChange={(v) => patchProvider(p.id, 'routing', v)}
@@ -334,8 +373,10 @@ export default function Settings() {
           })}
         </div>
       </Card>
+      )}
 
       {/* ============ ② Dify 设置 ============ */}
+      {show('dify') && (
       <Card
         title="② Dify 设置"
         extra={
@@ -407,20 +448,22 @@ export default function Settings() {
           {(dify?.apps || []).map((a: any, i: number) => {
             const editing = editApp === a.id
             return (
-              <div key={a.id} className="rounded-lg border border-[color:var(--wb-border)] p-3">
+              <div key={a.id} className="rounded-lg border border-[color:var(--wb-border)] px-3 py-2">
                 {!editing ? (
-                  /* 只读态 */
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[13px] font-medium text-[color:var(--wb-text)]">{a.name}</span>
-                    <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+                  /* 只读态：名称 + 图标动作，行高压到最紧 */
+                  <div className="flex items-center gap-2">
+                    <span className="min-w-0 max-w-[160px] truncate text-[12.5px] font-medium text-[color:var(--wb-text)]">
+                      {a.name}
+                    </span>
+                    <span className="shrink-0 text-[11px] text-[color:var(--wb-muted)]">
                       {a.mode === 'chat' ? '对话应用' : '工作流'}
                     </span>
-                    <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+                    <span className="hidden min-w-0 flex-1 truncate text-[11px] text-[color:var(--wb-muted)] lg:block">
                       Key：{a.api_key_masked || '未填'}
                     </span>
-                    <span className="flex-1" />
-                    <Btn onClick={() => setEditApp(a.id)}>编辑</Btn>
+                    <span className="flex-1 lg:hidden" />
                     <Btn
+                      size="xs"
                       onClick={async () => {
                         setDifyMsg('测试中…')
                         const r = await post(
@@ -436,9 +479,19 @@ export default function Settings() {
                     >
                       测试
                     </Btn>
-                    <Btn variant="danger" onClick={() => removeApp(i)}>
-                      删除
-                    </Btn>
+                    <IconBtn
+                      icon="pencil"
+                      title="编辑应用"
+                      ariaLabel={`编辑 ${a.name}`}
+                      onClick={() => setEditApp(a.id)}
+                    />
+                    <IconBtn
+                      icon="trash"
+                      tone="danger"
+                      title="删除应用"
+                      ariaLabel={`删除 ${a.name}`}
+                      onClick={() => removeApp(i)}
+                    />
                   </div>
                 ) : (
                   /* 编辑态 */
@@ -510,29 +563,69 @@ export default function Settings() {
           })}
         </div>
       </Card>
+      )}
 
-      <Card title="调用统计">
+      {show('model') && (
+      <Card
+        title="调用统计"
+        extra={
+          usage.length > 0 ? (
+            <Pill tone="gray">共 {usage.reduce((s: number, u: any) => s + (u.n || 0), 0)} 次</Pill>
+          ) : null
+        }
+      >
         {usage.length === 0 ? (
           <p className="text-[12px] text-[color:var(--wb-muted)]">还没有调用记录</p>
         ) : (
-          <div className="flex flex-col gap-1">
-            {usage.map((u: any) => (
-              <div key={u.provider} className="flex justify-between text-[12px] text-[color:var(--wb-text-soft)]">
-                <span>{u.provider}</span>
-                <span className="text-[color:var(--wb-muted)]">
-                  {u.n} 次 · 入 {u.tin || 0} / 出 {u.tout || 0} tokens
-                </span>
-              </div>
-            ))}
+          <div className="h-[196px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={usage} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="#e3e6ea" strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="provider"
+                  tick={{ fontSize: 11, fill: '#8a94a6' }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval={0}
+                  tickFormatter={(v: any) => (String(v).length > 8 ? `${String(v).slice(0, 8)}…` : String(v))}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#8a94a6' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={34}
+                  allowDecimals={false}
+                />
+                <Tooltip content={<UsageTip />} cursor={{ fill: 'rgba(79,70,229,0.06)' }} />
+                <Bar
+                  dataKey="n"
+                  name="调用次数"
+                  fill="#4f46e5"
+                  radius={[5, 5, 0, 0] as [number, number, number, number]}
+                  maxBarSize={48}
+                />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )}
         <p className="mt-2 text-[11.5px] text-[color:var(--wb-muted)]">
-          统计范围：本地全部历史调用（自数据库建立起），按 provider 聚合，不区分成功与失败。
+          按供应商聚合本地全部历史调用（含失败）；悬停柱子可看入 / 出 tokens。
         </p>
       </Card>
+      )}
 
-      <BackupCard />
-      <SuspectsCard />
+      {show('data') && (
+        <>
+          <BackupCard />
+          <SuspectsCard />
+        </>
+      )}
+
+      {show('zotero') && (
+        <ZoteroSyncCard
+          onImported={() => window.dispatchEvent(new Event('wb:data-changed'))}
+        />
+      )}
     </div>
   )
 }

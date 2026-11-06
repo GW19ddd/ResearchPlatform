@@ -20,6 +20,7 @@ import {
   Pagination,
   Pill,
   SearchInput,
+  Segmented,
   Select,
   StatCard,
 } from '../components/ui'
@@ -44,7 +45,6 @@ import LiteratureDrawer from '../features/literature/LiteratureDrawer'
 import LitSearchCard from '../features/literature/LitSearchCard'
 import MatrixTable from '../features/literature/MatrixTable'
 import PdfModal from '../features/literature/PdfModal'
-import ZoteroSyncCard from '../features/literature/ZoteroSyncCard'
 import { STATUS, collsOf, inCollection } from '../features/literature/literature-shared'
 
 const STATUS_DOT: Record<string, string> = {
@@ -54,6 +54,13 @@ const STATUS_DOT: Record<string, string> = {
 }
 
 const EMPTY_FORM = { title: '', authors: '', year: '', venue: '', url: '' }
+
+type LitTab = 'library' | 'search' | 'matrix'
+const TABS: { value: LitTab; label: string }[] = [
+  { value: 'library', label: '文献库' },
+  { value: 'search', label: '在线检索' },
+  { value: 'matrix', label: '对比矩阵' },
+]
 
 const LIT_COLS: ExportCol[] = [
   { key: 'title', label: '标题' },
@@ -91,6 +98,11 @@ export default function Literature() {
   const [page, setPage] = usePersist('lit.page', 1)
   const [pageSize, setPageSize] = usePersist('lit.pageSize', 20)
 
+  // 四个分区各占一个视图，点按钮切换，不再一页铺到底
+  // 兼容旧的持久化值（Zotero 同步已搬到设置里）：非法值一律回落到文献库
+  const [tab, setTab] = usePersist<LitTab>('lit.tab', 'library')
+  const activeTab: LitTab = TABS.some((t) => t.value === tab) ? tab : 'library'
+
   // Zotero 分类树浏览
   const [tree, setTree] = useState<any[]>([])
   const [coll, setColl] = usePersist('lit.coll', '')
@@ -126,6 +138,12 @@ export default function Literature() {
 
   const loadMatrix = async () => setMatrix(await get('/literature/matrix'))
 
+  /** 切到对比矩阵时重拉一次，避免在其他分区导入文献后看到旧矩阵 */
+  const switchTab = (v: LitTab) => {
+    setTab(v)
+    if (v === 'matrix') loadMatrix().catch(() => {})
+  }
+
   const reloadAll = async () => {
     await load()
     await loadMatrix()
@@ -146,6 +164,16 @@ export default function Literature() {
 
   useEffect(() => {
     boot()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 设置页里的 Zotero 同步是浮层，本页不会重新挂载，靠广播事件跟着刷新
+  useEffect(() => {
+    const refresh = () => {
+      reloadAll().catch(() => {})
+    }
+    window.addEventListener('wb:data-changed', refresh)
+    return () => window.removeEventListener('wb:data-changed', refresh)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -226,6 +254,11 @@ export default function Literature() {
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / Math.max(1, pageSize)))
   const cur = Math.min(Math.max(1, page), pageCount) // 删条目后页码可能越界，这里兜住
+  // 翻页 / 改筛选后列表滚回顶部，不然会莫名其妙停在上一次的中段
+  const listRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: 0 })
+  }, [cur, q, filter, coll])
   const paged = useMemo(
     () => filtered.slice((cur - 1) * pageSize, cur * pageSize),
     [filtered, cur, pageSize],
@@ -504,7 +537,15 @@ export default function Literature() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Segmented value={activeTab} onChange={switchTab} options={TABS} />
+        <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+          三个分区独立成屏，点按钮切换；Zotero 同步在「设置」里
+        </span>
+      </div>
+
+      {/* 概览条：不必撑满整行，四张卡收成紧凑一排 */}
+      <div className="grid grid-cols-2 gap-3 sm:max-w-[620px] sm:grid-cols-4">
         <StatCard label="文献总数" value={counts.total} unit="篇" tone="accent" />
         <StatCard label="待读" value={counts.todo} unit="篇" />
         <StatCard label="在读" value={counts.reading} unit="篇" tone="warn" />
@@ -517,6 +558,7 @@ export default function Literature() {
         />
       </div>
 
+      {activeTab === 'library' && (
       <Card
         title="文献库"
         tourId="tour-lit-library"
@@ -569,7 +611,7 @@ export default function Literature() {
                   </button>
                 )}
               </div>
-              <div className="max-h-[32rem] overflow-y-auto">
+              <div className="max-h-[32rem] overflow-y-auto overscroll-contain">
                 <div className="flex flex-col gap-0.5">{tree.map(renderNode)}</div>
               </div>
               <p className="mt-2 px-1 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
@@ -624,34 +666,40 @@ export default function Literature() {
               )}
             </div>
 
-            {filtered.length === 0 ? (
-              <Empty
-                text={items.length ? '没有命中的文献' : '还没有文献'}
-                hint={
-                  items.length
-                    ? '换个关键词或清空筛选'
-                    : '右上角「新增文献」，或从 Zotero 同步一批进来'
-                }
-              />
-            ) : groupBy ? (
-              <div className="flex flex-col gap-3">
-                {grouped.map((g) => (
-                  <div key={g.name}>
-                    <div className="mb-1 flex items-center gap-2 text-[12px] font-medium text-[color:var(--wb-text)]">
-                      <span className="rounded-full bg-[color:var(--wb-bg-subtle)] px-2 py-[1px]">
-                        {g.name}
-                      </span>
-                      <span className="text-[11.5px] font-normal text-[color:var(--wb-muted)]">
-                        {g.list.length} 篇
-                      </span>
+            {/* 列表独立滚动：滚轮只滚右侧，左侧分类树和整页都不跟着动 */}
+            <div
+              ref={listRef}
+              className="max-h-[32rem] overflow-y-auto overscroll-contain pr-1"
+            >
+              {filtered.length === 0 ? (
+                <Empty
+                  text={items.length ? '没有命中的文献' : '还没有文献'}
+                  hint={
+                    items.length
+                      ? '换个关键词或清空筛选'
+                      : '右上角「新增文献」，或从 Zotero 同步一批进来'
+                  }
+                />
+              ) : groupBy ? (
+                <div className="flex flex-col gap-3">
+                  {grouped.map((g) => (
+                    <div key={g.name}>
+                      <div className="mb-1 flex items-center gap-2 text-[12px] font-medium text-[color:var(--wb-text)]">
+                        <span className="rounded-full bg-[color:var(--wb-bg-subtle)] px-2 py-[1px]">
+                          {g.name}
+                        </span>
+                        <span className="text-[11.5px] font-normal text-[color:var(--wb-muted)]">
+                          {g.list.length} 篇
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-2">{g.list.map(renderItem)}</div>
                     </div>
-                    <div className="flex flex-col gap-2">{g.list.map(renderItem)}</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">{paged.map(renderItem)}</div>
-            )}
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">{paged.map(renderItem)}</div>
+              )}
+            </div>
 
             <div className="mt-3 border-t border-[color:var(--wb-border)] pt-2.5">
               <Pagination
@@ -666,27 +714,30 @@ export default function Literature() {
           </div>
         </div>
       </Card>
+      )}
 
-      <LitSearchCard libTitles={items.map((i) => i.title)} onImported={load} />
+      {activeTab === 'search' && (
+        <LitSearchCard libTitles={items.map((i) => i.title)} onImported={reloadAll} />
+      )}
 
-      <ZoteroSyncCard collapsible={items.length > 0} onImported={reloadAll} />
-
-      <MatrixTable
-        matrix={matrix}
-        onAddDim={async () => {
-          const name = window.prompt('新对比维度名称（例：是否开源、评测集、是否需要人工）')
-          if (!name) return
-          await post('/literature/matrix/dimension', { dim_name: name })
-          loadMatrix()
-        }}
-        onDropDim={async (name) => {
-          await del(`/literature/matrix/dimension/${encodeURIComponent(name)}`)
-          loadMatrix()
-        }}
-        onSaveCell={async (literature_id, dim_name, value) => {
-          await post('/literature/matrix', { literature_id, dim_name, dim_value: value })
-        }}
-      />
+      {activeTab === 'matrix' && (
+        <MatrixTable
+          matrix={matrix}
+          onAddDim={async () => {
+            const name = window.prompt('新对比维度名称（例：是否开源、评测集、是否需要人工）')
+            if (!name) return
+            await post('/literature/matrix/dimension', { dim_name: name })
+            loadMatrix()
+          }}
+          onDropDim={async (name) => {
+            await del(`/literature/matrix/dimension/${encodeURIComponent(name)}`)
+            loadMatrix()
+          }}
+          onSaveCell={async (literature_id, dim_name, value) => {
+            await post('/literature/matrix', { literature_id, dim_name, dim_value: value })
+          }}
+        />
+      )}
 
       {/* 录入 */}
       <Modal

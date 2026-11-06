@@ -193,7 +193,7 @@ def _scan() -> tuple:
                 "category": _category(item["repo"], name, str(meta.get("description") or "")),
                 "desc": str(meta.get("description") or "").strip(),
                 "icon": "⌘",
-                "mode": "reason" if len(body) > 9000 else "fast",
+                "mode": "fast",   # 全站统一快模型；长 SKILL.md 也不再切到推理档
                 "body_len": len(body),
                 "refs": files[:20],
                 "inputs": [
@@ -385,7 +385,15 @@ def build_prompt(skill_id: str, slots: dict | None, upstream: str, direct: str =
     parts = []
     parts.append("## 任务输入\n" + (task or "（未指定，请依据上游输出与 skill 规则自行判断该做什么）"))
     if (upstream or "").strip():
-        parts.append("## 上游节点输出\n" + upstream.strip()[:12000])
+        u = upstream.strip()
+        # 和画布内置节点保持一致：保头也保尾，别把上游的结尾结论切掉
+        if len(u) > 12000:
+            u = (
+                u[:7200]
+                + "\n\n…（上游输出过长，中间部分已省略；以下保留结尾）…\n\n"
+                + u[-4800:]
+            )
+        parts.append("## 上游节点输出\n" + u)
     atts = read_attachments(s["dir"], referenced_files(body, s["dir"]))
     if atts:
         buf = ["## 附属文件原文（SKILL.md 引用的文件，原文照贴）"]

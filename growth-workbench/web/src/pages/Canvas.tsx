@@ -15,13 +15,14 @@ import {
 } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Btn, Input, Loading, MdBlock, Modal, Select, StatusTag } from '../components/ui'
+import { Btn, Input, Loading, MdBlock, Modal, Segmented, Select, StatusTag } from '../components/ui'
 import { AiError } from '../components/AiError'
 import { toast } from '../components/toast'
 import { Icon } from '../components/Icon'
 import { api, get, post } from '../lib/api'
 import { usePersist } from '../lib/state'
 import SkillPalette from '../features/canvas/SkillPalette'
+import FixedFlow from '../features/canvas/FixedFlow'
 import NodeInspector, { type RunInfo } from '../features/canvas/NodeInspector'
 import TemplateManager, { type TemplateInfo } from '../features/canvas/TemplateManager'
 import { nodeTypes, TYPE_LABEL, type CData, type CNode, type Skill } from '../features/canvas/canvas-shared'
@@ -105,7 +106,7 @@ function Flow({
   )
 }
 
-export default function Canvas() {
+export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
   const nav = useNavigate()
   const [skills, setSkills] = useState<Skill[]>([])
   const [cats, setCats] = useState<{ name: string; skills: Skill[] }[]>([])
@@ -133,6 +134,9 @@ export default function Canvas() {
   const [runErr, setRunErr] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  /** 布局：固定框（默认，轻量）/ 自由画布（高级，可拖拽缩放） */
+  const [layout, setLayout] = usePersist<'fixed' | 'free'>('canvas.layout', 'fixed')
+  const [tipSeen, setTipSeen] = usePersist('canvas.tipSeen', false)
   // 面板折叠：宽屏要的是更大的画布，不是更长的正文
   const [leftOpen, setLeftOpen] = usePersist('canvas.leftOpen', true)
   const [rightOpen, setRightOpen] = usePersist('canvas.rightOpen', true)
@@ -326,6 +330,43 @@ export default function Canvas() {
 
   // ---------------------------------------------------------------- 节点操作
 
+  /** 固定框：按当前展示顺序生成链式连线。只在保存/运行时写入后端，不静默改写已加载的画布 */
+  const chainEdges = (ns: CNode[]): Edge[] =>
+    ns.slice(1).map((n, i) => ({
+      id: `e${i}`,
+      source: ns[i].id,
+      target: n.id,
+      animated: true,
+    }))
+
+  const effectiveEdges = (): Edge[] => (layout === 'fixed' ? chainEdges(nodes) : edges)
+
+  const switchLayout = (v: 'fixed' | 'free') => {
+    if (v === 'free' && layout === 'fixed') {
+      setEdges(chainEdges(nodes))
+      // 固定框里节点都堆在原点，切回自由画布时铺开，免得叠在一起
+      setNodes((nds: CNode[]) =>
+        nds.map((n, i) => ({
+          ...n,
+          position: { x: 80 + (i % 3) * 280, y: 80 + Math.floor(i / 3) * 180 },
+        })),
+      )
+    }
+    setLayout(v)
+  }
+
+  /** 固定框：上下移动步骤只改展示顺序，保存时由 effectiveEdges 生成新连线 */
+  const moveNode = (key: string, dir: -1 | 1) => {
+    setNodes((nds: CNode[]) => {
+      const i = nds.findIndex((n) => n.id === key)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= nds.length) return nds
+      const next = [...nds]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+  }
+
   const addNode = (ntype: string, skillId: string, x: number, y: number) => {
     const key = `n${keyRef.current++}`
     const sk = skills.find((s) => s.id === skillId)
@@ -381,7 +422,7 @@ export default function Canvas() {
           y: n.position.y,
           config: n.data.config,
         })),
-        edges: edges.map((e: Edge) => ({ source_key: e.source, target_key: e.target })),
+        edges: effectiveEdges().map((e: Edge) => ({ source_key: e.source, target_key: e.target })),
       })
       const l = await get<any>('/canvas')
       setCanvases(l.canvases || [])
@@ -504,8 +545,15 @@ export default function Canvas() {
       setCanvases(l.canvases || [])
       await loadCanvas(r.id)
       const fb = r.fallback ? '（AI 未编排成功，用了保底流水线）' : ''
-      flash(`已搭好「${r.name}」· ${r.nodes.length} 节点${fb}`, 'ok')
-      if (r.rationale) setAutoWhy(r.rationale)
+      // 编排器会剔掉不存在的 skill / 成环连线；别让用户以为 AI 提的节点全都搭上了
+      const dropped: string[] = Array.isArray(r.dropped) ? r.dropped : []
+      const dropMsg = dropped.length ? ` · 剔除 ${dropped.length} 个无效节点` : ''
+      flash(`已搭好「${r.name}」· ${r.nodes.length} 节点${fb}${dropMsg}`, 'ok')
+      setAutoWhy(
+        [r.rationale, dropped.length ? `已剔除：${dropped.join('；')}` : '']
+          .filter(Boolean)
+          .join(' · '),
+      )
     } catch (e: any) {
       flash(`搭建失败：${e?.message || e}`, 'error')
     }
@@ -584,8 +632,11 @@ export default function Canvas() {
         { ok: false },
       )
       localStorage.setItem('wb:chat.sid', String(s.id))
-      flash('已立项，正在跳转科研工作区…', 'ok')
-      setTimeout(() => nav('/chat'), 400)
+      flash('已立项，正在切到「对话」…', 'ok')
+      setTimeout(() => {
+        if (onGoChat) onGoChat()
+        else nav('/chat')
+      }, 400)
     } catch (e: any) {
       flash(e?.message || '立项失败', 'error')
     }
@@ -641,6 +692,7 @@ export default function Canvas() {
         ghInfo={ghInfo}
         onOpenSource={openSource}
         onAddNode={addNode}
+        onPickSkill={(sid) => addNode('skill', sid, 120, 120)}
         onClone={async (url) => {
           const r = await post<any>('/canvas/skills/github/clone', { url }, { silent: true })
           flash(r.message || `已导入 ${r.skills_found} 个 skill`, 'ok')
@@ -658,6 +710,14 @@ export default function Canvas() {
         <div className="shrink-0 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]" data-tour="tour-canvas-toolbar">
           {/* 第一行：画布本身的操作 */}
           <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+            <Segmented
+              value={layout}
+              onChange={switchLayout}
+              options={[
+                { value: 'fixed', label: '固定框' },
+                { value: 'free', label: '自由画布' },
+              ]}
+            />
             <Select
               value={cid ? String(cid) : ''}
               onChange={(v) => v && loadCanvas(Number(v))}
@@ -696,9 +756,11 @@ export default function Canvas() {
               删除画布
             </Btn>
             <span className="mx-1 hidden h-4 w-px bg-[color:var(--wb-border)] sm:block" />
-            <Btn onClick={() => fitRef.current?.()} title="把所有节点缩放到可视范围">
-              适合视图
-            </Btn>
+            {layout === 'free' && (
+              <Btn onClick={() => fitRef.current?.()} title="把所有节点缩放到可视范围">
+                适合视图
+              </Btn>
+            )}
             <Btn
               onClick={() => setLeftOpen(!leftOpen)}
               title={leftOpen ? '收起技能面板' : '展开技能面板'}
@@ -746,7 +808,9 @@ export default function Canvas() {
               ]}
             />
             <span className="ml-auto truncate text-[11.5px] text-[color:var(--wb-muted)]">
-              {nodes.length} 节点 / {edges.length} 连线 · 点节点看配置与输出
+              {nodes.length} {layout === 'fixed' ? '步骤' : '节点'} /{' '}
+              {layout === 'fixed' ? Math.max(0, nodes.length - 1) : edges.length} 连线 ·{' '}
+              {layout === 'fixed' ? '顺序即执行顺序' : '点节点看配置与输出'}
               {autoWhy ? ` · ${autoWhy}` : ''}
             </span>
           </div>
@@ -790,17 +854,39 @@ export default function Canvas() {
         )}
 
         <div className="min-h-0 flex-1">
-          <ReactFlowProvider>
-            <FitBridge fitRef={fitRef} />
-            <Flow
+          {layout === 'fixed' ? (
+            <FixedFlow
               nodes={nodes}
-              setNodes={setNodes}
-              edges={edges}
-              setEdges={setEdges}
+              sel={sel}
+              outputs={outputs}
+              metas={metas}
+              runErrors={runErrors}
+              running={running}
+              tipSeen={tipSeen}
+              onDismissTip={() => setTipSeen(true)}
               onSelect={setSel}
-              onDropSkill={(sid, x, y) => addNode('skill', sid, x, y)}
+              onAdd={(ntype, skillId) => addNode(ntype, skillId, 0, 0)}
+              onMove={moveNode}
+              onDelete={delNode}
+              onRun={(key) => run(key)}
+              onExpandOutput={(key) => {
+                setSel(key)
+                setBigOut(true)
+              }}
             />
-          </ReactFlowProvider>
+          ) : (
+            <ReactFlowProvider>
+              <FitBridge fitRef={fitRef} />
+              <Flow
+                nodes={nodes}
+                setNodes={setNodes}
+                edges={edges}
+                setEdges={setEdges}
+                onSelect={setSel}
+                onDropSkill={(sid, x, y) => addNode('skill', sid, x, y)}
+              />
+            </ReactFlowProvider>
+          )}
         </div>
       </div>
 

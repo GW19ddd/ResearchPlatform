@@ -29,7 +29,7 @@ from skill_registry import categories, delete_custom, get_skill, list_skills, re
 
 router = APIRouter(prefix="/api/canvas", tags=["canvas"])
 
-MAX_CTX_DEFAULT = 4000
+MAX_CTX_DEFAULT = 12000
 
 
 class CanvasCreate(BaseModel):
@@ -122,9 +122,25 @@ def _upstreams(node_key: str, edges: list[dict]) -> list[str]:
     return [e["source_key"] for e in edges if e["target_key"] == node_key]
 
 
+def _clip_upstream(text: str, limit: int) -> str:
+    """上游太长时保头又保尾：只切前半段会把结论、表格、下一步全丢掉。
+
+    科研流水线的价值在「下游接着上游的结论往下做」，结尾比中间更值钱。
+    """
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    head = int(limit * 0.6)
+    tail = limit - head
+    return (
+        text[:head]
+        + "\n\n…（上游输出过长，中间部分已省略；以下保留结尾）…\n\n"
+        + text[-tail:]
+    )
+
+
 def _render(tpl: str, slots: dict, upstream_text: str, direct: str, max_ctx: int) -> str:
-    if len(upstream_text) > max_ctx:
-        upstream_text = upstream_text[:max_ctx] + "\n\n…（上游输出过长已截断）"
+    upstream_text = _clip_upstream(upstream_text, max_ctx)
     out = tpl or ""
     out = out.replace("{{upstream}}", upstream_text or "（无上游输入）")
     out = out.replace("{{input}}", direct or "")
@@ -212,7 +228,7 @@ async def _run_tool(cfg: dict, upstream_text: str) -> tuple[str, str]:
 
 async def _run_llm(prompt: str, system: str, cfg: dict, task: str, meta: dict) -> tuple[str, dict]:
     """一次 LLM 调用 + 元信息回填。skill / prompt / 工具节点都走这里，避免三份重复。"""
-    mode = cfg.get("mode") or "fast"
+    mode = "fast"   # 全站统一快模型；llm 层二次归一化，历史节点里存的 reason 不再生效
     t0 = time.time()
     res = await llm.complete_result(
         prompt,
@@ -362,7 +378,7 @@ async def _exec_node(
         prompt = _render(skill.get("prompt", ""), slots, upstream_text, direct, max_ctx)
         system = skill.get("system") or llm.RESEARCH_SYSTEM
 
-    cfg = {**cfg, "mode": cfg.get("mode") or skill.get("mode") or "fast"}
+    cfg = {**cfg, "mode": "fast"}
     return await _run_llm(prompt, system, cfg, f"canvas:{skill_id}", meta)
 
 
@@ -512,7 +528,7 @@ async def api_skill_run(skill_id: str, body: SkillRunIn):
     sk = get_skill(skill_id)
     if not sk:
         raise HTTPException(404, f"没有这个技能：{skill_id}")
-    mode = body.mode or sk.get("mode") or "fast"
+    mode = body.mode or "fast"   # 技能库默认已全 fast；llm 层兜底统一为 fast
 
     if (sk.get("source") or "") == "github":
         from skill_fs import build_prompt as _gh_prompt
@@ -649,7 +665,9 @@ def _auto_prompt(topic: str, constraint: str, extra: str, max_nodes: int) -> str
    注意：[GitHub原版] 的技能输入槽统一是 task（这一步要它做什么），请把具体要求写进 task
 5. edges 必须是无环的链式或分叉结构，元素为 [源key, 目标key]
 6. 优先挑选标记为 [GitHub原版] 的技能（它们是社区真实维护的完整 skill），内置技能作为补充
-7. 只输出 JSON 本身"""
+7. 上游节点的真实输出会自动注入下游，inputs 里只填本节点自己的参数；
+   严禁预写「基于上一步的结论…」「根据 n2 的框架…」这类臆测内容，否则会和真实产出冲突
+8. 只输出 JSON 本身"""
 
 
 def _fallback_plan(topic: str, constraint: str) -> dict:
@@ -708,7 +726,7 @@ def _sanitize(plan: dict, topic: str, max_nodes: int) -> tuple[list[dict], list[
     raw_nodes = plan.get("nodes") if isinstance(plan.get("nodes"), list) else []
     nodes: list[dict] = []
     seen: set[str] = set()
-    for n in raw_nodes[: max_nodes + 2]:
+    for n in raw_nodes[:max_nodes]:
         if not isinstance(n, dict):
             continue
         sid = (n.get("skill_id") or "").strip()
