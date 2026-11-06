@@ -1023,80 +1023,110 @@ _CANCELLED: set[int] = set()
 _ACTIVE: set[int] = set()
 
 
+def _layers(order: list[dict], edges: list[dict]) -> list[list[dict]]:
+    """把拓扑序切成依赖层：同层节点互不依赖，可以并行跑。
+
+    order 已是拓扑序，按「上游最深层次 + 1」逐个定层即可，无需再 Kahn 一遍。
+    """
+    keys = {n["node_key"] for n in order}
+    layer_of: dict[str, int] = {}
+    for n in order:
+        k = n["node_key"]
+        ups = [u for u in _upstreams(k, edges) if u in keys]
+        layer_of[k] = max((layer_of[u] for u in ups), default=-1) + 1
+    layers: list[list[dict]] = []
+    for n in order:
+        d = layer_of[n["node_key"]]
+        while len(layers) <= d:
+            layers.append([])
+        layers[d].append(n)
+    return [x for x in layers if x]
+
+
+async def _exec_one(node: dict, run_id: int, by_key: dict, edges: list[dict], outputs: dict, ok_map: dict) -> bool:
+    """跑单个节点：组上游上下文 → 执行 → 落库。返回是否成功。"""
+    key = node["node_key"]
+    ups = _upstreams(key, edges)
+    ctx_parts = []
+    for u in ups:
+        if outputs.get(u):
+            title = by_key.get(u, {}).get("title") or u
+            ctx_parts.append(f"【{title}】\n{outputs[u]}")
+    upstream_text = "\n\n".join(ctx_parts)
+    upstream_ok = {u: ok_map.get(u, True) for u in ups if u in by_key or u in ok_map}
+    t0 = time.time()
+    try:
+        text, meta = await _exec_node(node, upstream_text, outputs, upstream_ok)
+    except Exception as exc:  # noqa: BLE001 —— 单个节点炸了不能让整张图失去记录
+        text = ""
+        meta = {
+            "provider": "",
+            "model": "",
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "ok": False,
+            "error": {
+                "kind": "unknown",
+                "label": "节点执行异常",
+                "message": f"{type(exc).__name__}: {redact(exc)}",
+                "detail": "",
+                "hint": "重试该节点；反复失败就换个 provider 或简化输入。",
+            },
+        }
+    outputs[key] = text
+    ok = bool(meta.get("ok", True))
+    ok_map[key] = ok
+    elapsed = meta.get("elapsed_ms") or int((time.time() - t0) * 1000)
+    execute(
+        """INSERT INTO canvas_node_outputs
+           (run_id, node_key, input_text, output_text, provider, model, tokens_in, tokens_out,
+            elapsed_ms, status, error_json, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            run_id,
+            key,
+            upstream_text[:4000],
+            text,
+            meta.get("provider", ""),
+            meta.get("model", ""),
+            int(meta.get("tokens_in", 0)),
+            int(meta.get("tokens_out", 0)),
+            int(elapsed),
+            "done" if ok else "error",
+            json.dumps(meta.get("error") or {}, ensure_ascii=False) if not ok else None,
+            now(),
+        ),
+    )
+    return ok
+
+
 async def _execute_run(run_id: int, canvas_id: int, order: list[dict], edges: list[dict],
                        outputs: dict):
-    """后台逐个跑节点。每跑完一个就把输出落库，前端轮询即可看到中间态。"""
+    """后台执行画布：按依赖层并行跑节点（同层 gather），跑完一个落库一个。
+
+    以前是整张图串行：六个节点两分钟起步；现在同层节点并发调用 LLM，
+    宽图（并行分支多）提速接近层数倍。前端轮询看到的中间态粒度不变。
+    """
     _ACTIVE.add(run_id)
     execute("UPDATE canvas_runs SET status='running' WHERE id=?", (run_id,))
     by_key = {n["node_key"]: n for n in order}
     failed = 0
     ok_map: dict[str, bool] = {}
-    for node in order:
-        key = node["node_key"]
-        if run_id in _CANCELLED:
-            execute(
-                "UPDATE canvas_runs SET status='cancelled', finished_at=? WHERE id=?",
-                (now(), run_id),
+    try:
+        for layer in _layers(order, edges):
+            if run_id in _CANCELLED:
+                execute(
+                    "UPDATE canvas_runs SET status='cancelled', finished_at=? WHERE id=?",
+                    (now(), run_id),
+                )
+                return
+            results = await asyncio.gather(
+                *[_exec_one(n, run_id, by_key, edges, outputs, ok_map) for n in layer]
             )
-            _CANCELLED.discard(run_id)
-            _ACTIVE.discard(run_id)
-            return
-        ups = _upstreams(key, edges)
-        ctx_parts = []
-        for u in ups:
-            if outputs.get(u):
-                title = by_key.get(u, {}).get("title") or u
-                ctx_parts.append(f"【{title}】\n{outputs[u]}")
-        upstream_text = "\n\n".join(ctx_parts)
-        upstream_ok = {u: ok_map.get(u, True) for u in ups if u in by_key or u in ok_map}
-        t0 = time.time()
-        try:
-            text, meta = await _exec_node(node, upstream_text, outputs, upstream_ok)
-        except Exception as exc:  # noqa: BLE001 —— 单个节点炸了不能让整张图失去记录
-            text = ""
-            meta = {
-                "provider": "",
-                "model": "",
-                "tokens_in": 0,
-                "tokens_out": 0,
-                "ok": False,
-                "error": {
-                    "kind": "unknown",
-                    "label": "节点执行异常",
-                    "message": f"{type(exc).__name__}: {redact(exc)}",
-                    "detail": "",
-                    "hint": "重试该节点；反复失败就换个 provider 或简化输入。",
-                },
-            }
-        outputs[key] = text
-        ok = bool(meta.get("ok", True))
-        ok_map[key] = ok
-        if not ok:
-            failed += 1
-        elapsed = meta.get("elapsed_ms") or int((time.time() - t0) * 1000)
-        execute(
-            """INSERT INTO canvas_node_outputs
-               (run_id, node_key, input_text, output_text, provider, model, tokens_in, tokens_out,
-                elapsed_ms, status, error_json, created_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (
-                run_id,
-                key,
-                upstream_text[:4000],
-                text,
-                meta.get("provider", ""),
-                meta.get("model", ""),
-                int(meta.get("tokens_in", 0)),
-                int(meta.get("tokens_out", 0)),
-                int(elapsed),
-                "done" if ok else "error",
-                json.dumps(meta.get("error") or {}, ensure_ascii=False) if not ok else None,
-                now(),
-            ),
-        )
-
-    _CANCELLED.discard(run_id)
-    _ACTIVE.discard(run_id)
+            failed += sum(1 for ok in results if not ok)
+    finally:
+        _CANCELLED.discard(run_id)
+        _ACTIVE.discard(run_id)
     execute(
         "UPDATE canvas_runs SET status=?, finished_at=? WHERE id=?",
         ("failed" if failed else "done", now(), run_id),

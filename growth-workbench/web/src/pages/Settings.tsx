@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Btn, Card, Input, LoadError, Loading, Pill, Select } from '../components/ui'
+import { Btn, Card, Input, LoadError, Loading, PageHeader, Pill, Select } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { del, get, post, put } from '../lib/api'
 import BackupCard from '../features/settings/BackupCard'
 import SuspectsCard from '../features/settings/SuspectsCard'
+import AccountCard from '../features/settings/AccountCard'
 
 const ROUTING = [
   { value: 'all', label: '所有任务' },
@@ -188,12 +189,19 @@ export default function Settings() {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader
+        eyebrow="偏好与数据"
+        title="设置"
+        desc="账户 / 模型供应商 / Dify / 备份恢复，全部存在本地"
+      />
+      <AccountCard />
       {/* ============ ① API 设置（模型供应商） ============ */}
       <Card
         title="① API 设置 · 模型供应商"
+        tourId="tour-settings-provider"
         extra={
           <div className="flex items-center gap-2">
-            {saved && <span className="text-[12px] text-emerald-600">{saved}</span>}
+            {saved && <span className="text-[12px] text-[color:var(--wb-ok)]">{saved}</span>}
             <Btn onClick={addProvider}>新增供应商</Btn>
           </div>
         }
@@ -313,7 +321,7 @@ export default function Settings() {
                     {msg[p.id] && (
                       <p
                         className={`mt-1 text-[11.5px] ${
-                          msg[p.id].startsWith('连通正常') ? 'text-emerald-600' : 'text-[color:var(--wb-text-soft)]'
+                          msg[p.id].startsWith('连通正常') ? 'text-[color:var(--wb-ok)]' : 'text-[color:var(--wb-text-soft)]'
                         }`}
                       >
                         {msg[p.id]}
@@ -332,7 +340,7 @@ export default function Settings() {
         title="② Dify 设置"
         extra={
           <div className="flex items-center gap-2">
-            {difySaved && <span className="text-[12px] text-emerald-600">{difySaved}</span>}
+            {difySaved && <span className="text-[12px] text-[color:var(--wb-ok)]">{difySaved}</span>}
             <Btn onClick={addDifyApp}>新增应用</Btn>
             <Btn variant="primary" onClick={saveDify}>
               保存全部

@@ -6,12 +6,25 @@
 import json
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import llm
 from db import execute, now, query
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+# Quest 阶段（DeepScientist 的受控推进节奏：调研 → 计划 → 实验 → 成文）
+STAGES: list[dict[str, str]] = [
+    {"value": "survey", "label": "调研", "brief": "梳理研究现状：关键工作、主流方法、已知缺口，产出调研小结"},
+    {"value": "plan", "label": "计划", "brief": "输出分阶段研究计划：每阶段有可验证产出与判据，等我确认后执行"},
+    {"value": "experiment", "label": "实验", "brief": "把当前计划的第一步细化成可执行任务/实验设计；需要我提供数据时明确列出格式"},
+    {"value": "write", "label": "成文", "brief": "基于已确认的发现，整理研究报告/论文骨架与核心论证"},
+]
+
+
+def _stage_or_default(stage: str | None) -> str:
+    return stage if stage in {s["value"] for s in STAGES} else "survey"
 
 # 角色预设：一句话人设 + system prompt
 ROLES: dict[str, dict[str, str]] = {
@@ -191,6 +204,11 @@ def build_context(keys: list[str], extra: str = "") -> str:
     )
 
 
+@router.get("/stages")
+def stages():
+    return {"stages": STAGES}
+
+
 @router.get("/roles")
 def roles():
     return {"roles": [{"value": k, "label": v["label"]} for k, v in ROLES.items()]}
@@ -223,6 +241,7 @@ class SessionIn(BaseModel):
     mode: str = "fast"
     context_keys: list[str] = []
     context_extra: str = ""
+    stage: str = "survey"
 
 
 @router.get("/sessions")
@@ -239,12 +258,13 @@ def list_sessions():
 def create_session(body: SessionIn):
     ts = now()
     sid = execute(
-        "INSERT INTO chat_sessions (title, role, mode, context, created_at, updated_at) VALUES (?,?,?,?,?,?)",
+        "INSERT INTO chat_sessions (title, role, mode, context, stage, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
         (
             body.title or "新对话",
             body.role,
             body.mode,
             build_context(body.context_keys, body.context_extra),
+            _stage_or_default(body.stage),
             ts,
             ts,
         ),
@@ -276,6 +296,7 @@ class SessionPatch(BaseModel):
     mode: str | None = None
     context_keys: list[str] | None = None
     context_extra: str | None = None
+    stage: str | None = None
 
 
 @router.patch("/sessions/{sid}")
@@ -294,6 +315,9 @@ def update_session(sid: int, body: SessionPatch):
     if body.mode is not None:
         sets.append("mode=?")
         vals.append(body.mode)
+    if body.stage is not None:
+        sets.append("stage=?")
+        vals.append(_stage_or_default(body.stage))
     if body.context_keys is not None or body.context_extra is not None:
         keys = body.context_keys
         if keys is None:
@@ -312,7 +336,57 @@ def update_session(sid: int, body: SessionPatch):
 @router.delete("/sessions/{sid}")
 def delete_session(sid: int):
     execute("DELETE FROM chat_messages WHERE session_id=?", (sid,))
+    execute("DELETE FROM chat_findings WHERE session_id=?", (sid,))
     execute("DELETE FROM chat_sessions WHERE id=?", (sid,))
+    return {"ok": True}
+
+
+# ------------------------------ 发现沉淀（Findings Memory） ------------------------------
+# DeepScientist 的核心机制之一：quest 里确认过的结论被沉淀下来，
+# 后续每一轮都自动注入 system prompt，模型不会「忘」早期结论。
+
+
+def _findings_text(sid: int) -> str:
+    rows = query(
+        "SELECT content FROM chat_findings WHERE session_id=? ORDER BY id LIMIT 40",
+        (sid,),
+    )
+    if not rows:
+        return ""
+    return "【本课题已确认的发现（Findings Memory）】\n" + "\n".join(
+        f"- {r['content']}" for r in rows
+    )
+
+
+class FindingIn(BaseModel):
+    content: str
+    source_msg_id: int | None = None
+
+
+@router.get("/sessions/{sid}/findings")
+def list_findings(sid: int):
+    return query(
+        "SELECT * FROM chat_findings WHERE session_id=? ORDER BY id DESC", (sid,)
+    )
+
+
+@router.post("/sessions/{sid}/findings")
+def create_finding(sid: int, body: FindingIn):
+    if not query("SELECT id FROM chat_sessions WHERE id=?", (sid,)):
+        raise HTTPException(404, "会话不存在")
+    text = (body.content or "").strip()
+    if not text:
+        raise HTTPException(400, "发现内容为空")
+    fid = execute(
+        "INSERT INTO chat_findings (session_id, content, source_msg_id, created_at) VALUES (?,?,?,?)",
+        (sid, text[:2000], body.source_msg_id, now()),
+    )
+    return {"ok": True, "id": fid}
+
+
+@router.delete("/findings/{fid}")
+def delete_finding(fid: int):
+    execute("DELETE FROM chat_findings WHERE id=?", (fid,))
     return {"ok": True}
 
 
@@ -328,47 +402,8 @@ class MessageIn(BaseModel):
 
 @router.post("/sessions/{sid}/messages")
 async def send_message(sid: int, body: MessageIn):
-    rows = query("SELECT * FROM chat_sessions WHERE id=?", (sid,))
-    if not rows:
-        raise HTTPException(404, "会话不存在")
-    s = rows[0]
-    text = (body.content or "").strip()
+    s, text, hist, system, mode = _prepare(sid, body)
 
-    # 重跑：复用上一条 user 内容，只删掉它之后的 assistant 回复，不再插一条新的 user
-    regenerating = False
-    if body.regenerate:
-        last_user = query(
-            "SELECT id, content FROM chat_messages WHERE session_id=? AND role='user' "
-            "ORDER BY id DESC LIMIT 1",
-            (sid,),
-        )
-        if last_user:
-            text = last_user[0]["content"]
-            regenerating = True
-            execute(
-                "DELETE FROM chat_messages WHERE session_id=? AND role='assistant' AND id>?",
-                (sid, last_user[0]["id"]),
-            )
-    if not text:
-        raise HTTPException(400, "消息内容为空")
-
-    if not regenerating:
-        execute(
-            "INSERT INTO chat_messages (session_id, role, content, created_at) VALUES (?,?,?,?)",
-            (sid, "user", text, now()),
-        )
-
-    hist = query(
-        "SELECT role, content FROM chat_messages WHERE session_id=? ORDER BY id DESC LIMIT ?",
-        (sid, int(body.history_limit or 20)),
-    )
-    hist.reverse()
-
-    system = _role_system(s.get("role") or "assistant")
-    if s.get("context"):
-        system += "\n\n" + s["context"]
-
-    mode = body.mode or s.get("mode") or "fast"
     env = await llm.chat_result(hist, system=system, mode=mode, task="chat", max_tokens=4096)
 
     if not env["ok"]:
@@ -416,6 +451,144 @@ async def send_message(sid: int, body: MessageIn):
         "tokens_in": env.get("tokens_in"),
         "tokens_out": env.get("tokens_out"),
     }
+
+
+def _prepare(sid: int, body: MessageIn):
+    """发消息（流式/非流式共用）：校验会话、处理重跑、落库用户消息、组历史与 system。"""
+    rows = query("SELECT * FROM chat_sessions WHERE id=?", (sid,))
+    if not rows:
+        raise HTTPException(404, "会话不存在")
+    s = rows[0]
+    text = (body.content or "").strip()
+
+    # 重跑：复用上一条 user 内容，只删掉它之后的 assistant 回复，不再插一条新的 user
+    if body.regenerate:
+        last_user = query(
+            "SELECT id, content FROM chat_messages WHERE session_id=? AND role='user' "
+            "ORDER BY id DESC LIMIT 1",
+            (sid,),
+        )
+        if last_user:
+            text = last_user[0]["content"]
+            execute(
+                "DELETE FROM chat_messages WHERE session_id=? AND role='assistant' AND id>?",
+                (sid, last_user[0]["id"]),
+            )
+    if not text:
+        raise HTTPException(400, "消息内容为空")
+
+    if not body.regenerate:
+        execute(
+            "INSERT INTO chat_messages (session_id, role, content, created_at) VALUES (?,?,?,?)",
+            (sid, "user", text, now()),
+        )
+
+    hist = query(
+        "SELECT role, content FROM chat_messages WHERE session_id=? ORDER BY id DESC LIMIT ?",
+        (sid, int(body.history_limit or 20)),
+    )
+    hist.reverse()
+
+    system = _role_system(s.get("role") or "assistant")
+    if s.get("context"):
+        system += "\n\n" + s["context"]
+    # Findings Memory：已确认的发现注入每一轮，模型不会「忘」
+    findings_txt = _findings_text(sid)
+    if findings_txt:
+        system += "\n\n" + findings_txt
+    # 阶段意识：告诉模型当前处于 quest 哪个阶段
+    stage = _stage_or_default(s.get("stage"))
+    stage_brief = next((x["brief"] for x in STAGES if x["value"] == stage), "")
+    system += f"\n\n【当前 quest 阶段】{stage}：{stage_brief}"
+
+    mode = body.mode or s.get("mode") or "fast"
+    return s, text, hist, system, mode
+
+
+@router.post("/sessions/{sid}/messages/stream")
+async def send_message_stream(sid: int, body: MessageIn):
+    """流式发消息（SSE）。
+
+    事件流：delta（增量文本）→ done（落库完成的 meta）或 error（信封错误）。
+    注意：本接口不能用 Idempotency-Key —— 幂等中间件会把响应体整个缓存，
+    流式就被破坏了；前端 raw fetch 时不要带该头。
+    """
+    s, text, hist, system, mode = _prepare(sid, body)
+
+    async def gen():
+        live: list[str] = []
+        try:
+            async for ev in llm.stream_chat_events(hist, system=system, mode=mode, task="chat", max_tokens=4096):
+                if ev["type"] == "delta":
+                    live.append(ev["text"])
+                    yield f"data: {json.dumps({'type': 'delta', 'text': ev['text']}, ensure_ascii=False)}\n\n"
+                elif ev["type"] == "error":
+                    # 失败不落库：任何已显示的部分内容都只是草稿，重发即可重试
+                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+                    return
+                else:  # meta：落库 assistant 消息
+                    content = ev["content"]
+                    mid = execute(
+                        """INSERT INTO chat_messages (session_id, role, content, provider, model, tokens_in, tokens_out, created_at)
+                           VALUES (?,?,?,?,?,?,?,?)""",
+                        (
+                            sid,
+                            "assistant",
+                            content,
+                            ev.get("provider") or "",
+                            ev.get("model") or "",
+                            int(ev.get("tokens_in") or 0),
+                            int(ev.get("tokens_out") or 0),
+                            now(),
+                        ),
+                    )
+                    title = s.get("title") or ""
+                    if not title or title == "新对话":
+                        n = int(query("SELECT COUNT(*) c FROM chat_messages WHERE session_id=?", (sid,))[0]["c"])
+                        if n <= 2:
+                            title = await _auto_title(text)
+                            execute("UPDATE chat_sessions SET title=? WHERE id=?", (title, sid))
+                    execute("UPDATE chat_sessions SET updated_at=? WHERE id=?", (now(), sid))
+                    yield (
+                        "data: "
+                        + json.dumps(
+                            {
+                                "type": "done",
+                                "id": mid,
+                                "title": title,
+                                "provider": ev.get("provider") or "",
+                                "model": ev.get("model") or "",
+                                "tokens_in": int(ev.get("tokens_in") or 0),
+                                "tokens_out": int(ev.get("tokens_out") or 0),
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n\n"
+                    )
+        except Exception as exc:  # noqa: BLE001 —— 生成器自己炸了也要给前端一个信封事件
+            yield (
+                "data: "
+                + json.dumps(
+                    {
+                        "type": "error",
+                        "error": {
+                            "kind": "unknown",
+                            "label": "流式输出中断",
+                            "message": llm.redact(f"{type(exc).__name__}: {exc}"),
+                            "detail": "",
+                            "hint": "重试即可；若反复中断，去设置页换一个 provider。",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n\n"
+            )
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 async def _auto_title(first_user_msg: str) -> str:

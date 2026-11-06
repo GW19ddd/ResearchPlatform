@@ -5,46 +5,49 @@
 /* ============================================================
    设计令牌：全站颜色 / 圆角 / 阴影 / 间距的唯一来源。
    组件样式一律引用这些变量，改主题只需要动这一块。
+
+   方向：纸感中性灰底 + 纯白卡片 + 一点靛蓝。
+   颜色都压过对比度（文字用途对白底 ≥ 4.5:1），改浅了先量再改。
    ============================================================ */
 :root {
-  --wb-bg: #f5f6f8;
-  --wb-bg-subtle: #eef0f4;
+  --wb-bg: #f5f5f7;
+  --wb-bg-subtle: #eeeef1;
   --wb-surface: #ffffff;
-  --wb-surface-alt: #fafbfc;
-  --wb-border: #e3e6ea;
-  --wb-border-strong: #cfd4dc;
+  --wb-surface-alt: #fafafb;
+  --wb-border: #ebecf0;
+  --wb-border-strong: #dcdee5;
 
-  --wb-text: #101828;
-  --wb-text-soft: #475467;
-  /* 次要文字色。原来是 #8a94a6，白底上只有 3.06:1，远低于 WCAG AA 的 4.5:1，
-     小字号的提示文字几乎看不清。这里压深到 4.97:1（白底）/ 4.60:1（页面底）。
-     改主题时别再调浅，这条线是硬底线。 */
-  --wb-muted: #667085;
+  --wb-text: #101114;
+  --wb-text-soft: #4b5160;
+  /* 次要文字：白底 4.83:1，页面底 4.6:1。这条线是硬底线，别再调浅。 */
+  --wb-muted: #6b7280;
 
-  --wb-accent: #4f46e5;
-  --wb-accent-soft: #eef2ff;
-  --wb-accent-strong: #4338ca;
+  --wb-accent: #5145e0;
+  --wb-accent-soft: #eeecfd;
+  --wb-accent-strong: #4034c4;
 
-  /* 语义色同理：文字用途必须满足 4.5:1，软底上的小字也要过线 */
-  --wb-ok: #067a45;        /* 原 #0f9d58：白底 3.51:1，不达标 */
-  --wb-ok-soft: #e7f6ee;
-  --wb-warn: #b45309;
-  --wb-warn-soft: #fef4e6;
-  --wb-danger: #c4271b;    /* 原 #d92d20：软底上 4.23:1，不达标 */
+  --wb-ok: #067a45;
+  --wb-ok-soft: #e8f6ef;
+  --wb-warn: #a15c07;
+  --wb-warn-soft: #fdf3e4;
+  --wb-danger: #c02b21;
   --wb-danger-soft: #fdeceb;
-  --wb-info: #026aa2;
-  --wb-info-soft: #e8f4fb;
+  --wb-info: #14618f;
+  --wb-info-soft: #e9f4fa;
 
-  --wb-radius-sm: 6px;
-  --wb-radius: 10px;
-  --wb-radius-lg: 14px;
+  --wb-radius-sm: 8px;
+  --wb-radius: 12px;
+  --wb-radius-lg: 16px;
+  --wb-radius-xl: 22px;
 
-  --wb-shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.04);
-  --wb-shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
-  --wb-shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.04);
-  --wb-shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12), 0 2px 8px rgba(16, 24, 40, 0.06);
+  /* 阴影只做「离纸面一点点」的暗示，不做厚重的浮起 */
+  --wb-shadow-xs: 0 1px 2px rgba(16, 17, 20, 0.04);
+  --wb-shadow-sm: 0 1px 2px rgba(16, 17, 20, 0.04), 0 2px 8px -2px rgba(16, 17, 20, 0.06);
+  --wb-shadow-md: 0 1px 3px rgba(16, 17, 20, 0.05), 0 8px 24px -12px rgba(16, 17, 20, 0.12);
+  --wb-shadow-lg: 0 12px 32px -12px rgba(16, 17, 20, 0.18), 0 32px 64px -32px rgba(16, 17, 20, 0.22);
 
-  --wb-ring: 0 0 0 3px rgba(79, 70, 229, 0.16);
+  --wb-ring: 0 0 0 3px rgba(81, 69, 224, 0.14);
+  --wb-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
 html,
@@ -53,16 +56,42 @@ body,
   height: 100%;
 }
 
+html {
+  /* 长页面里点侧边栏跳转时平滑滚过去；reduced-motion 时上面统一关掉 */
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
-  background: var(--wb-bg);
+  /* 底色上两团几乎看不见的主题色光晕，避免整片灰看起来发死 */
+  background:
+    radial-gradient(1200px 520px at 92% -12%, rgba(81, 69, 224, 0.045), transparent 62%),
+    radial-gradient(900px 460px at -10% 0%, rgba(20, 97, 143, 0.035), transparent 58%),
+    var(--wb-bg);
+  background-attachment: fixed;
   color: var(--wb-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  font-size: 13px;
+  font-family: 'Segoe UI Variable Text', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 13.5px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* 标题用更紧的字距，正文不动 —— 中文正文拉字距会散架 */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.012em;
+  text-wrap: pretty;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+::selection {
+  background: rgba(81, 69, 224, 0.16);
 }
 
 /* 键盘用户才看到焦点环，鼠标点击不打扰。
@@ -177,6 +206,86 @@ table,
 }
 .wb-anim-slide {
   animation: wb-slide-in-right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ------------------------------------------------------------
+   通用表面：卡片 / 内嵌块 / 入场节奏
+   ------------------------------------------------------------ */
+.wb-panel {
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-lg);
+  box-shadow: var(--wb-shadow-xs);
+}
+
+.wb-inset {
+  background: var(--wb-surface-alt);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius);
+}
+
+/* 表单控件默认铺满父容器，但用 :where() 把特异性压到 0 ——
+   这样组件上传 `w-20 / w-40` 这类宽度类时能正常覆盖，不必写 !important。
+   （以前基类里写 w-full，两个类同权重、按 CSS 顺序 w-full 永远赢，
+   结果窄输入框全被撑满，旁边的中文标签被挤成一个字一行。） */
+:where(.wb-input-w) {
+  width: 100%;
+}
+
+/* hover 抬起：只给真正可点的卡片用，静态卡片别乱动 */
+.wb-lift {
+  transition:
+    transform 0.18s var(--wb-ease),
+    box-shadow 0.18s var(--wb-ease),
+    border-color 0.18s var(--wb-ease);
+}
+.wb-lift:hover {
+  transform: translateY(-2px);
+  border-color: var(--wb-border-strong);
+  box-shadow: var(--wb-shadow-md);
+}
+
+@keyframes wb-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.wb-anim-rise {
+  animation: wb-rise 0.34s var(--wb-ease) both;
+}
+/* 一组卡片依次浮上来：靠 --i 控制节奏，别超过 8 个，否则最后几个等太久 */
+.wb-stagger > * {
+  animation: wb-rise 0.4s var(--wb-ease) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+/* 登录页背景：极淡的网格 + 两团光，像一张方格纸被灯照着 */
+.wb-auth-bg {
+  background-color: #fbfbfd;
+  background-image:
+    radial-gradient(760px 420px at 18% 12%, rgba(81, 69, 224, 0.1), transparent 62%),
+    radial-gradient(680px 420px at 86% 88%, rgba(20, 97, 143, 0.09), transparent 62%),
+    linear-gradient(to right, rgba(16, 17, 20, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(16, 17, 20, 0.035) 1px, transparent 1px);
+  background-size: auto, auto, 34px 34px, 34px 34px;
+}
+
+@keyframes wb-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(14px, -18px, 0) scale(1.04);
+  }
+}
+.wb-anim-drift {
+  animation: wb-drift 16s ease-in-out infinite;
 }
 
 .wb-spinner {
@@ -373,4 +482,24 @@ pre.markdown-block {
 }
 .pdfjs-page .textLayer span::-moz-selection {
   background: rgba(79, 70, 229, 0.28);
+}
+
+/* ---------- 新手引导：高亮框的呼吸光晕 ---------- */
+.wb-tour-spot {
+  box-shadow: 0 0 0 4px var(--wb-accent-soft), var(--wb-shadow-lg);
+  animation: wb-tour-breathe 2.2s ease-in-out infinite;
+}
+@keyframes wb-tour-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px var(--wb-accent-soft), var(--wb-shadow-lg);
+  }
+  50% {
+    box-shadow: 0 0 0 7px var(--wb-accent-soft), var(--wb-shadow-lg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wb-tour-spot {
+    animation: none;
+  }
 }

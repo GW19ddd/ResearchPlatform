@@ -471,7 +471,7 @@ export default function Literature() {
   if (loadError) {
     return (
       <div className="flex flex-col gap-3.5">
-        <PageHeader title="文献" desc="录入 → 检索 → 同步 → 精读笔记 → 横向对比" />
+        <PageHeader eyebrow="输入 · 02" title="文献" desc="录入 → 检索 → 同步 → 精读笔记 → 横向对比" />
         <LoadError error={loadError} onRetry={boot} retrying={loading} what="文献列表" />
       </div>
     )
@@ -482,6 +482,7 @@ export default function Literature() {
   return (
     <div className="flex flex-col gap-3.5">
       <PageHeader
+        eyebrow="输入 · 02"
         title="文献"
         desc="录入 → 检索 → 同步 → 精读笔记 → 横向对比，闭环到 Related Work"
         actions={
@@ -518,6 +519,7 @@ export default function Literature() {
 
       <Card
         title="文献库"
+        tourId="tour-lit-library"
         extra={
           <div className="flex flex-wrap items-center gap-1.5">
             <SearchInput

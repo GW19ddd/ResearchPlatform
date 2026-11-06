@@ -268,6 +268,34 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   created_at TEXT
 );
 
+-- quest 发现沉淀（Findings Memory）：每轮对话的 system prompt 会自动带上这些结论
+CREATE TABLE IF NOT EXISTS chat_findings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER,
+  content TEXT,
+  source_msg_id INTEGER,
+  created_at TEXT
+);
+
+-- 本地账户：单用户登录，密码用 PBKDF2-SHA256 加盐存储，不存明文
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  display_name TEXT,
+  password_hash TEXT NOT NULL,
+  avatar_hue INTEGER DEFAULT 240,
+  created_at TEXT,
+  last_login_at TEXT
+);
+
+-- 会话：登录后发一个随机 token 写进 HttpOnly Cookie，服务端只存哈希
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  created_at TEXT,
+  expires_at TEXT
+);
+
 -- 幂等写：同一个 Idempotency-Key 重复提交只产生一次业务写入
 CREATE TABLE IF NOT EXISTS idempotency_keys (
   key TEXT PRIMARY KEY,
@@ -353,6 +381,7 @@ MIGRATIONS = [
     ("literature", "gloss_id", "TEXT"),
     ("canvas_node_outputs", "status", "TEXT"),
     ("canvas_node_outputs", "error_json", "TEXT"),
+    ("chat_sessions", "stage", "TEXT DEFAULT 'survey'"),
 ]
 
 

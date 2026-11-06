@@ -104,6 +104,11 @@ async function _send<T = any>(
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
     const msg = errText(text, res.status)
+    // 401 = 会话失效。广播一声，AuthProvider 会把界面切回登录页；
+    // 登录接口自己的 401（密码错）不广播，否则登录框会被自己踢掉。
+    if (res.status === 401 && !p.startsWith('/auth/')) {
+      window.dispatchEvent(new Event('wb:unauthorized'))
+    }
     if (writes && !quiet) toast(msg, 'error')
     throw new Error(msg)
   }

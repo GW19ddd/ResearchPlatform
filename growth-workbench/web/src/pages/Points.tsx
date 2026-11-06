@@ -8,9 +8,15 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Btn, Card, Empty, Input, Pill } from '../components/ui'
+import { Btn, Card, Empty, Input, Loading, PageHeader, Pill, StatCard } from '../components/ui'
 import { del, get, post } from '../lib/api'
 import { usePersist } from '../lib/state'
+
+// recharts 只认十六进制字面量，这里是令牌副本：C_LINE = --wb-accent，
+// AXIS = --wb-muted，GRID = --wb-border。改令牌时记得同步（与 Dashboard 同一套）。
+const C_LINE = '#4f46e5'
+const AXIS = '#667085'
+const GRID = '#e3e6ea'
 
 const RULE_LABELS: Record<string, string> = {
   weekly_outcome_done: '周成果完成',
@@ -79,29 +85,36 @@ export default function Points() {
     load()
   }
 
-  if (!s) return <Card>加载中…</Card>
+  if (!s) return <Loading text="正在加载积分…" />
 
   const trend = (s.trend || []).map((t: any) => ({ date: String(t.date).slice(5), 累计: t.total }))
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-3 gap-3">
-        <Card>
-          <div className="text-[12px] text-[color:var(--wb-text-soft)]">余额</div>
-          <div className="mt-1 text-2xl font-medium text-[color:var(--wb-text)]">{s.balance}</div>
-        </Card>
-        <Card>
-          <div className="text-[12px] text-[color:var(--wb-text-soft)]">本周净分</div>
-          <div className={`mt-1 text-2xl font-medium ${s.week_net >= 0 ? 'text-[color:var(--wb-text)]' : 'text-[color:var(--wb-danger)]'}`}>
-            {s.week_net >= 0 ? '+' : ''}
-            {s.week_net}
-          </div>
-        </Card>
-        <Card>
-          <div className="text-[12px] text-[color:var(--wb-text-soft)]">保护下限</div>
-          <div className="mt-1 text-2xl font-medium text-[color:var(--wb-text)]">{s.rules.weekly_net_floor}</div>
-          <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">超出部分不计分</div>
-        </Card>
+      <PageHeader
+        eyebrow="激励"
+        title="积分"
+        desc="正向加分 + 反向扣分 + 押注对赌，兑换自定义奖励"
+      />
+      <div className="grid grid-cols-3 gap-3" data-tour="tour-points-stats">
+        <StatCard
+          label="余额"
+          value={s.balance}
+          unit="分"
+          tone={s.balance >= 0 ? 'accent' : 'danger'}
+        />
+        <StatCard
+          label="本周净分"
+          value={`${s.week_net >= 0 ? '+' : ''}${s.week_net}`}
+          unit="分"
+          tone={s.week_net >= 0 ? 'ok' : 'danger'}
+        />
+        <StatCard
+          label="保护下限"
+          value={s.rules.weekly_net_floor}
+          unit="分"
+          hint="周净扣到下限就不再扣，防弃用"
+        />
       </div>
 
       <Card title="积分曲线">
@@ -110,12 +123,28 @@ export default function Points() {
         ) : (
           <div style={{ height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Line type="monotone" dataKey="累计" stroke="#185FA5" strokeWidth={2} />
+              <LineChart data={trend} margin={{ top: 8, right: 6, bottom: 0, left: -6 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: AXIS }} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: AXIS }} tickLine={false} width={40} />
+                <Tooltip
+                  contentStyle={{
+                    fontSize: 12,
+                    borderRadius: 10,
+                    border: '1px solid #e3e6ea',
+                    background: '#ffffff',
+                    padding: '8px 10px',
+                    boxShadow: '0 4px 12px rgba(16,24,40,0.08)',
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="累计"
+                  stroke={C_LINE}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 3 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -227,7 +256,7 @@ export default function Points() {
                 <span className="text-[color:var(--wb-text-soft)]">{l.reason}</span>
                 <span className="flex items-center gap-2">
                   <span className="text-[11.5px] text-[color:var(--wb-muted)]">{String(l.created_at).slice(0, 16)}</span>
-                  <span className={l.delta >= 0 ? 'text-emerald-600' : 'text-[color:var(--wb-danger)]'}>
+                  <span className={l.delta >= 0 ? 'text-[color:var(--wb-ok)]' : 'text-[color:var(--wb-danger)]'}>
                     {l.delta >= 0 ? '+' : ''}
                     {l.delta}
                   </span>

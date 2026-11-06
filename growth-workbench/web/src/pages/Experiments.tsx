@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Btn, Card, Empty, Input, MdBlock, Pill, Select, TextArea } from '../components/ui'
+import { Btn, Card, Empty, IconBtn, Input, MdBlock, PageHeader, Pill, Select, TextArea } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { AiError, AiMeta } from '../components/AiError'
 import {
@@ -159,8 +159,13 @@ export default function Experiments() {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader
+        eyebrow="执行 · 01"
+        title="实验"
+        desc="假设 → 设计 → 记录 → 结论：每个实验都要闭环"
+      />
       <div className="grid gap-4 md:grid-cols-3">
-        <Card title="新建实验">
+        <Card title="新建实验" tourId="tour-exp-form">
           <div className="flex flex-col gap-2">
             <Input placeholder="实验名称（必填）" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
             <TextArea
@@ -279,7 +284,7 @@ export default function Experiments() {
           title={`结果记录 · ${current.name}`}
           extra={<span className="text-[12px] text-[color:var(--wb-text-soft)]">成功率 {successRate}%</span>}
         >
-          <div className="mb-3 grid grid-cols-4 gap-2">
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 md:grid-cols-4">
             <Input placeholder="case 名" value={res.case_name} onChange={(v) => setRes({ ...res, case_name: v })} />
             <Input placeholder="方法" value={res.method} onChange={(v) => setRes({ ...res, method: v })} />
             <Input
@@ -336,17 +341,16 @@ export default function Experiments() {
                         {r.notes || '—'}
                       </td>
                       <td className="border-b border-[color:var(--wb-border)] px-2 py-1.5">
-                        <button
-                          aria-label="删除该结果"
+                        <IconBtn
+                          icon="trash"
+                          size="sm"
+                          tone="danger"
                           title="删除该结果"
-                          className="flex h-6 w-6 items-center justify-center rounded-[7px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-danger-soft)] hover:text-[color:var(--wb-danger)]"
                           onClick={async () => {
                             await del(`/results/${r.id}`)
                             if (sel !== null) loadResults(sel)
                           }}
-                        >
-                          <Icon name="trash" size={12} />
-                        </button>
+                        />
                       </td>
                     </tr>
                   ))}

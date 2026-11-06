@@ -1,4 +1,5 @@
 import { useMemo, useState, type KeyboardEvent } from 'react'
+import { Btn } from './ui'
 
 export type HeatDay = {
   date: string
@@ -210,13 +211,9 @@ export default function Heatmap({
                   {kinds.map(([k, v]) => `${k} ${v}`).join('、')}
                 </span>
               )}
-              <button
-                type="button"
-                onClick={() => setSelDate(null)}
-                className="ml-auto shrink-0 rounded-[6px] px-1.5 py-[1px] text-[11.5px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
-              >
+              <Btn size="xs" variant="ghost" className="ml-auto" onClick={() => setSelDate(null)}>
                 关闭
-              </button>
+              </Btn>
             </div>
 
             <div className="mt-1 min-h-0 flex-1 overflow-y-auto">

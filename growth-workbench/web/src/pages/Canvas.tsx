@@ -14,6 +14,7 @@ import {
   type Edge,
 } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Btn, Input, Loading, MdBlock, Modal, Select, StatusTag } from '../components/ui'
 import { AiError } from '../components/AiError'
 import { toast } from '../components/toast'
@@ -105,6 +106,7 @@ function Flow({
 }
 
 export default function Canvas() {
+  const nav = useNavigate()
   const [skills, setSkills] = useState<Skill[]>([])
   const [cats, setCats] = useState<{ name: string; skills: Skill[] }[]>([])
   const [canvases, setCanvases] = useState<any[]>([])
@@ -553,6 +555,42 @@ export default function Canvas() {
     }
   }
 
+  /** 画布 → 对话联动：把选中节点的输出立项成新 quest，跳到科研工作区接着推进 */
+  const makeQuest = async () => {
+    if (!cid || !sel) return
+    const out = (outputs[sel] || '').trim()
+    if (!out) return
+    try {
+      const s = await post<any>(
+        '/chat/sessions',
+        {
+          title: `${name || '画布成果'} · Quest`.slice(0, 40),
+          role: 'assistant',
+          mode: 'fast',
+          context_keys: [],
+        },
+        { ok: false },
+      )
+      await post(
+        `/chat/sessions/${s.id}/messages`,
+        {
+          content: [
+            `【研究目标】\n以下是我用科研画布流水线得到的成果，请基于它继续推进：评估可行性、找出漏洞、给出下一步可执行计划。\n\n${out.slice(0, 6000)}`,
+            '请按以下规则推进：\n1. 先输出分阶段研究计划（每阶段有可验证产出），等我确认后再逐步执行；\n2. 每个阶段结束时给「阶段小结：做了什么 / 结论 / 下一步」；\n3. 执行中要改动上述任何边界，先说明再动手。',
+          ].join('\n\n'),
+          mode: 'fast',
+          regenerate: false,
+        },
+        { ok: false },
+      )
+      localStorage.setItem('wb:chat.sid', String(s.id))
+      flash('已立项，正在跳转科研工作区…', 'ok')
+      setTimeout(() => nav('/chat'), 400)
+    } catch (e: any) {
+      flash(e?.message || '立项失败', 'error')
+    }
+  }
+
   const selNode = nodes.find((n) => n.id === sel) || null
 
   const shownCats =
@@ -617,7 +655,7 @@ export default function Canvas() {
 
       {/* 中：画布 */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="shrink-0 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]">
+        <div className="shrink-0 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]" data-tour="tour-canvas-toolbar">
           {/* 第一行：画布本身的操作 */}
           <div className="flex flex-wrap items-center gap-2 px-3 py-2">
             <Select
@@ -793,6 +831,7 @@ export default function Canvas() {
           onRun={() => sel && run(sel)}
           onDelete={() => sel && delNode(sel)}
           onSaveOutput={saveOutput}
+          onMakeQuest={makeQuest}
           onOpenSource={openSource}
           onExpandOutput={() => setBigOut(true)}
         />

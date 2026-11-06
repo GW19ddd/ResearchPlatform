@@ -9,10 +9,12 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from db import execute, init_db, now, query
+import auth as auth_core
 from routers import (
     activity,
     advisor,
     ai_guard,
+    auth as auth_router,
     backup,
     canvas,
     chat,
@@ -53,6 +55,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    """登录闸门。
+
+    只拦 /api/*：静态页面必须放行，否则未登录时连登录页都加载不出来。
+    还没建账户时全部放行 —— 第一次打开工作台要先进「创建账户」。
+    Cookie 里带的是随机会话 token，服务端只存它的哈希，过期即失效。
+    """
+    path = request.url.path
+
+    if not path.startswith("/api") or request.method == "OPTIONS":
+        return await call_next(request)
+
+    # 登录自身与健康探测必须匿名可达
+    if path in ("/api/health", "/api/auth/state", "/api/auth/login", "/api/auth/setup"):
+        return await call_next(request)
+
+    if not auth_core.has_user():
+        return await call_next(request)
+
+    token = request.cookies.get(auth_core.SESSION_COOKIE)
+    if not token:
+        header = request.headers.get("authorization") or ""
+        if header.lower().startswith("bearer "):
+            token = header[7:].strip()
+
+    if not auth_core.resolve_session(token):
+        return JSONResponse(
+            {"detail": "登录已过期，请重新登录", "code": "unauthorized"}, status_code=401
+        )
+
+    return await call_next(request)
+
 
 @app.middleware("http")
 async def idempotency(request: Request, call_next):
@@ -130,6 +166,7 @@ def health():
     return {"name": "科研一站式工作台", "docs": "/docs", "status": "ok"}
 
 
+app.include_router(auth_router.router)
 app.include_router(research.router)
 app.include_router(paper.router)
 app.include_router(plan.router)

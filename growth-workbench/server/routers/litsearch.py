@@ -17,7 +17,7 @@ async def litsearch(q: str, limit: int = 20):
         return {"ok": True, "results": []}
 
     params: dict = {
-        "per-page": max(1, min(int(limit), 50)),
+        "per-page": max(1, min(int(limit), 100)),
         "mailto": "workbench@local",  # polite pool，仅提速用
     }
     if q.lower().startswith("10.") and "/" in q:

@@ -390,6 +390,121 @@ async def chat_result(
 complete_with_meta = complete_result
 
 
+async def stream_chat_events(
+    messages: list[dict],
+    system: str = "",
+    mode: Literal["fast", "reason"] = "fast",
+    task: str = "chat",
+    max_tokens: int = 4096,
+    provider_id: str | None = None,
+):
+    """流式多轮对话。
+
+    依次 yield：
+      {"type": "delta", "text": str}          —— 增量文本
+      {"type": "meta",  "content": 完整文本, provider, model, tokens_in, tokens_out}
+      {"type": "error", "error": {kind, label, message, detail, hint}}
+
+    信封规则不变：失败时不会产出 meta（调用方据此判断不落库）。
+    openai 兼容与 ollama 走真流式；responses（Codex）各家流式差异大，整段返回后一次吐出。
+    """
+    p = None
+    try:
+        p = pick_provider(provider_id, mode)
+        require_key(p)
+        msgs = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in messages]
+        if system:
+            msgs = [{"role": "system", "content": system}] + msgs
+        model = _model_of(p, mode)
+        kind = p.get("type", "openai")
+        max_tok = _effective_max_tokens(mode, max_tokens)
+        temperature = 0.3 if mode == "fast" else 0.0
+        full: list[str] = []
+        tin = tout = 0
+
+        if kind == "responses":
+            text, tin, tout = await _call_responses(p, model, msgs, max_tok)
+            if text:
+                full.append(text)
+                yield {"type": "delta", "text": text}
+        elif kind == "ollama":
+            payload = {
+                "model": model,
+                "messages": msgs,
+                "stream": True,
+                "options": {"num_predict": max_tok, "temperature": temperature},
+            }
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                async with client.stream(
+                    "POST", f"{_base(p)}/api/chat", json=payload, headers=_headers(p)
+                ) as r:
+                    r.raise_for_status()
+                    async for line in r.aiter_lines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            obj = json.loads(line)
+                        except ValueError:
+                            continue
+                        if obj.get("done"):
+                            tin = obj.get("prompt_eval_count") or tin
+                            tout = obj.get("eval_count") or tout
+                        delta = ((obj.get("message") or {}).get("content")) or ""
+                        if delta:
+                            full.append(delta)
+                            yield {"type": "delta", "text": delta}
+        else:
+            payload = {
+                "model": model,
+                "messages": msgs,
+                "max_tokens": max_tok,
+                "temperature": temperature,
+                "stream": True,
+                "stream_options": {"include_usage": True},
+            }
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                async with client.stream(
+                    "POST", f"{_base(p)}/chat/completions", json=payload, headers=_headers(p)
+                ) as r:
+                    r.raise_for_status()
+                    async for line in r.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if not data:
+                            continue
+                        if data == "[DONE]":
+                            break
+                        try:
+                            obj = json.loads(data)
+                        except ValueError:
+                            continue
+                        if isinstance(obj.get("usage"), dict):
+                            tin = obj["usage"].get("prompt_tokens") or tin
+                            tout = obj["usage"].get("completion_tokens") or tout
+                        delta = (((obj.get("choices") or [{}])[0]).get("delta") or {}).get("content") or ""
+                        if delta:
+                            full.append(delta)
+                            yield {"type": "delta", "text": delta}
+
+        text = "".join(full)
+        if not text.strip():
+            raise LLMError("empty_output", "模型未输出任何内容", "流式调用收到 0 个增量")
+        await _log_usage(p, task, tin, tout)
+        yield {
+            "type": "meta",
+            "content": text,
+            "provider": p.get("name", ""),
+            "provider_id": p.get("id", ""),
+            "model": model,
+            "tokens_in": int(tin or 0),
+            "tokens_out": int(tout or 0),
+        }
+    except Exception as exc:  # noqa: BLE001 —— 流式也要遵守信封：错误绝不冒充内容
+        yield {"type": "error", "error": fail_env(exc, p)["error"]}
+
+
 async def test_connection(p: dict) -> dict:
     """设置页的「测试连接」：发一条极短消息，返回是否可用。"""
     try:

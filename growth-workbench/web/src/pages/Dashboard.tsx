@@ -9,18 +9,18 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Btn, Card, Empty, Input, Loading, Pill, Segmented, StatCard } from '../components/ui'
+import { Btn, Card, Empty, Input, Loading, PageHeader, Pill, Segmented, StatCard } from '../components/ui'
 import { toast } from '../components/toast'
 import Heatmap, { HeatDay } from '../components/Heatmap'
 import { get, post } from '../lib/api'
 import { usePersist } from '../lib/state'
 
 // recharts 把颜色写成 SVG 属性，var() 在属性里不生效，这里用令牌的十六进制值。
-// 改令牌时记得同步：C_SLEEP = --wb-ok，AXIS = --wb-muted，GRID = --wb-border。
-const C_FOCUS = '#4f46e5'
+// 改令牌时记得同步：C_FOCUS = --wb-accent，C_SLEEP = --wb-ok，AXIS = --wb-muted，GRID = --wb-border。
+const C_FOCUS = '#5145e0'
 const C_SLEEP = '#067a45'
-const AXIS = '#667085'
-const GRID = '#e3e6ea'
+const AXIS = '#6b7280'
+const GRID = '#ebecf0'
 
 const HEAT_RANGES = [
   { value: '91', label: '3 个月' },
@@ -163,7 +163,17 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <PageHeader
+        eyebrow="今日概览"
+        title="今天"
+        desc={new Date().toLocaleDateString('zh-CN', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          weekday: 'long',
+        })}
+      />
+      <div className="wb-stagger grid grid-cols-2 gap-3.5 md:grid-cols-4" data-tour="tour-dash-stats">
         {/* 四个指标量纲各不相同，单位一律单独写，不靠读者自己猜 */}
         <StatCard
           label="积分余额"
@@ -274,9 +284,11 @@ export default function Dashboard() {
                   <Tooltip
                     contentStyle={{
                       fontSize: 12,
-                      borderRadius: 10,
-                      border: '1px solid #e3e6ea',
-                      boxShadow: '0 4px 12px rgba(16,24,40,0.08)',
+                      borderRadius: 12,
+                      border: '1px solid #ebecf0',
+                      background: '#ffffff',
+                      padding: '8px 10px',
+                      boxShadow: '0 12px 32px -12px rgba(16,17,20,0.18)',
                     }}
                     formatter={(v: any, n: any, item: any) => {
                       if (n === '睡眠') {

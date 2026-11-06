@@ -5,7 +5,7 @@
  * 侧边抽屉只负责笔记与 Gloss，两者互不依赖，PDF 这一块可以单独替换。
  */
 import { useEffect, useState } from 'react'
-import { Btn, Input, Loading, Pill, Spinner } from '../../components/ui'
+import { Btn, IconBtn, Input, Loading, Pill, Spinner } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import PdfViewer from '../../components/PdfViewer'
 import { get, patch } from '../../lib/api'
@@ -117,14 +117,7 @@ export default function PdfModal({
           <Btn size="sm" onClick={() => setNonce((n) => n + 1)} loading={loading}>
             重新定位
           </Btn>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
-          >
-            <Icon name="close" size={17} />
-          </button>
+          <IconBtn icon="close" size="md" ariaLabel="关闭" onClick={onClose} className="rounded-[8px]" />
         </header>
 
         {/* 正文 */}

@@ -3,7 +3,7 @@
  * 去重只按归一化标题比对当前库，命中就不再允许重复入库。
  */
 import { useMemo, useState, type KeyboardEvent } from 'react'
-import { Btn, Card, Empty, Pill, SearchInput } from '../../components/ui'
+import { Btn, Card, Empty, Pagination, Pill, SearchInput } from '../../components/ui'
 import { get, post } from '../../lib/api'
 
 type Hit = {
@@ -33,9 +33,20 @@ export default function LitSearchCard({
   const [hits, setHits] = useState<Hit[] | null>(null)
   const [total, setTotal] = useState<number | null>(null)
   const [adding, setAdding] = useState('')
+  /** 检索结果分页（本地切片，翻页不发请求） */
+  const [sp, setSp] = useState(1)
+  const [spSize, setSpSize] = useState(10)
 
   const libSet = useMemo(() => new Set(libTitles.map(norm)), [libTitles])
   const inLib = (h: Hit) => libSet.has(norm(h.title))
+
+  /** 一次拉 100 条（OpenAlex per-page 上限 200），前端切片换页 */
+  const spCount = Math.max(1, Math.ceil((hits?.length || 0) / Math.max(1, spSize)))
+  const spCur = Math.min(Math.max(1, sp), spCount) // 新检索后页码可能越界，兜住
+  const pagedHits = useMemo(
+    () => (hits || []).slice((spCur - 1) * spSize, spCur * spSize),
+    [hits, spCur, spSize],
+  )
 
   const search = async (term?: string) => {
     const kw = (term ?? q).trim()
@@ -44,13 +55,14 @@ export default function LitSearchCard({
     setBusy(true)
     setErr('')
     try {
-      const r: any = await get(`/litsearch?q=${encodeURIComponent(kw)}&limit=20`)
+      const r: any = await get(`/litsearch?q=${encodeURIComponent(kw)}&limit=100`)
       if (r.ok === false) {
         setErr(r.error || '检索失败')
         setHits(null)
       } else {
         setHits(r.results || [])
         setTotal(typeof r.total === 'number' ? r.total : null)
+        setSp(1) // 换检索词必须回到第一页
       }
     } catch (e: any) {
       setErr(e?.message || '检索失败')
@@ -112,10 +124,11 @@ export default function LitSearchCard({
       {hits && hits.length > 0 && (
         <>
           <p className="mt-2 text-[11.5px] text-[color:var(--wb-muted)]">
-            命中 {hits.length} 条{total != null ? `（OpenAlex 共约 ${total} 条）` : ''}
+            已拉回 {hits.length} 条{total != null ? `（OpenAlex 共约 ${total} 条）` : ''}
+            {spCount > 1 ? ` · 第 ${spCur} / ${spCount} 页` : ''}
           </p>
           <div className="mt-1 flex flex-col gap-1.5">
-            {hits.map((h) => {
+            {pagedHits.map((h) => {
               const exists = inLib(h)
               return (
                 <div
@@ -166,6 +179,17 @@ export default function LitSearchCard({
                 </div>
               )
             })}
+          </div>
+          <div className="mt-3 border-t border-[color:var(--wb-border)] pt-2.5">
+            <Pagination
+              total={hits.length}
+              page={spCur}
+              pageSize={spSize}
+              onPage={setSp}
+              onPageSize={(n) => setSpSize(n)}
+              unit="条"
+              sizes={[10, 20, 50]}
+            />
           </div>
         </>
       )}

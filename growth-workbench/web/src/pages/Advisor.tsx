@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Btn, Card, Empty, Input, MdBlock, Pill, Select, TextArea } from '../components/ui'
+import { Btn, Card, Empty, Input, MdBlock, PageHeader, Pill, Select, TextArea } from '../components/ui'
 import { AiError, AiMeta } from '../components/AiError'
 import { del, get, patch, post } from '../lib/api'
 import { useAiTask, useIdemKey } from '../lib/hooks'
@@ -59,6 +59,11 @@ export default function Advisor() {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader
+        eyebrow="复盘 · 02"
+        title="导师"
+        desc="记承诺 → 写话术：先别漏掉任何一句答应过的话"
+      />
       {pending.filter((p) => p.overdue).length > 0 && (
         <div className="rounded-xl border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-4 py-3">
           <div className="text-[13px] font-medium text-[color:var(--wb-danger)]">

@@ -6,7 +6,7 @@
  * PDF 阅读本身不在这里 —— 那是一个居中的大浮层（PdfModal），侧栏只留给文字类内容。
  */
 import { useEffect, useState } from 'react'
-import { Btn, Empty, Input, MdBlock, Pill, Select, TextArea } from '../../components/ui'
+import { Btn, Empty, IconBtn, Input, MdBlock, Pill, Select, TextArea } from '../../components/ui'
 import { del, get, patch, post, put } from '../../lib/api'
 import { usePersist } from '../../lib/state'
 import { STATUS } from './literature-shared'
@@ -243,30 +243,27 @@ export default function LiteratureDrawer({
                         </Pill>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
-                        <button
+                        <IconBtn
+                          icon="refresh"
+                          size="sm"
                           title="只重新生成这一节"
-                          onClick={() => genNotes(n.section)}
                           disabled={dbusy === 'sec-' + n.section}
-                          className="rounded px-1.5 py-0.5 text-[12px] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)] disabled:opacity-40"
-                        >
-                          {dbusy === 'sec-' + n.section ? '…' : '↻'}
-                        </button>
-                        <button
+                          onClick={() => genNotes(n.section)}
+                        />
+                        <Btn
+                          size="xs"
+                          variant="ghost"
                           onClick={() =>
                             setEditing(
                               editing?.id === n.id ? null : { id: n.id, text: n.content || '' },
                             )
                           }
-                          className="rounded px-1.5 py-0.5 text-[12px] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]"
                         >
                           {editing?.id === n.id ? '取消' : '编辑'}
-                        </button>
-                        <button
-                          onClick={() => dropNote(n.id)}
-                          className="rounded px-1.5 py-0.5 text-[12px] text-[color:var(--wb-danger)] hover:bg-[color:var(--wb-danger-soft)]"
-                        >
+                        </Btn>
+                        <Btn size="xs" variant="danger" onClick={() => dropNote(n.id)}>
                           删除
-                        </button>
+                        </Btn>
                       </div>
                     </div>
 

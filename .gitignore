@@ -47,6 +47,9 @@ growth-workbench/server/skills/github/
 .DS_Store
 Thumbs.db
 
+# ---------- Vite 临时配置（每次启动生成，不入库） ----------
+growth-workbench/web/vite.config.ts.timestamp-*.mjs
+
 # ---------- 环境 / 密钥 ----------
 .env
 .env.*

@@ -93,12 +93,9 @@ export default function SkillPalette({
                 <div className="truncate text-[11.5px] text-[color:var(--wb-muted)]">{s.desc}</div>
                 {(s as any).source === 'github' && (
                   <div className="mt-1 hidden group-hover:block">
-                    <button
-                      onClick={() => onOpenSource(s.id, s.name)}
-                      className="rounded border border-[color:var(--wb-border-strong)] px-1 text-[11.5px] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-surface)]"
-                    >
-                      看 SKILL.md 原文
-                    </button>
+                      <Btn size="xs" variant="ghost" onClick={() => onOpenSource(s.id, s.name)}>
+                        看 SKILL.md 原文
+                      </Btn>
                   </div>
                 )}
               </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Btn, Card, Empty, Input, LoadError, Loading, MdBlock, Select } from '../components/ui'
+import { Btn, Card, Empty, Input, LoadError, Loading, MdBlock, PageHeader, Select, StatCard } from '../components/ui'
 import { AiError, AiMeta } from '../components/AiError'
 import { get, patch, post } from '../lib/api'
 import { useAiTask } from '../lib/hooks'
@@ -69,44 +69,39 @@ export default function Paper() {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader
+        eyebrow="执行 · 02"
+        title="论文"
+        desc="七阶段流水线：阶段阻塞超过 3 天会亮红牌"
+      />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card>
-          <div className="text-[12px] text-[color:var(--wb-text-soft)]">阶段进度</div>
-          <div className="mt-1 text-2xl font-medium text-[color:var(--wb-text)]">{ov.progress}%</div>
-        </Card>
-        <Card>
-          <div className="text-[12px] text-[color:var(--wb-text-soft)]">字数</div>
-          <div className="mt-1 flex items-baseline gap-1">
-            <span className="text-2xl font-medium tabular-nums text-[color:var(--wb-text)]">{ov.words}</span>
-            <span className="text-[11.5px] text-[color:var(--wb-muted)]">字</span>
-          </div>
-          <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">目标 {ov.target_words} 字</div>
-        </Card>
-        <Card>
-          <div className="text-[12px] text-[color:var(--wb-text-soft)]">阻塞阶段</div>
-          <div className="mt-1 flex items-baseline gap-1">
-            <span className="text-2xl font-medium tabular-nums text-[color:var(--wb-danger)]">
-              {ov.blocked.length}
+        <StatCard label="阶段进度" value={ov.progress} unit="%" tone="accent" />
+        <StatCard label="字数" value={ov.words} unit="字" hint={`目标 ${ov.target_words} 字`} />
+        <StatCard
+          label="阻塞阶段"
+          value={ov.blocked.length}
+          unit="个"
+          tone={ov.blocked.length > 0 ? 'danger' : 'ok'}
+          hint={ov.blocked.length > 0 ? '下方卡点明细里有 AI 解锁入口' : '一切顺畅'}
+        />
+        <StatCard
+          label="当前阶段"
+          value={
+            <span className="text-[14px] font-semibold leading-snug">
+              {ov.current?.name || '—'}
             </span>
-            <span className="text-[11.5px] text-[color:var(--wb-muted)]">个</span>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-[12px] text-[color:var(--wb-text-soft)]">当前阶段</div>
-          <div className="mt-1 truncate text-[13px] font-medium text-[color:var(--wb-text)]">
-            {ov.current?.name || '—'}
-          </div>
-        </Card>
+          }
+        />
       </div>
 
-      <Card title="阶段流水线">
+      <Card title="阶段流水线" tourId="tour-paper-stages">
         <div className="mb-3 flex flex-wrap gap-2">
           {ov.stages.map((s: any) => {
             const tone =
               s.status === 'done'
-                ? 'border-emerald-300 bg-emerald-50'
+                ? 'border-[color:var(--wb-ok)]/30 bg-[color:var(--wb-ok-soft)]'
                 : s.status === 'blocked'
-                ? 'border-rose-400 bg-[color:var(--wb-danger-soft)]'
+                ? 'border-[color:var(--wb-danger)]/40 bg-[color:var(--wb-danger-soft)]'
                 : s.status === 'doing'
                 ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-surface-alt)]'
                 : 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]'
@@ -191,7 +186,7 @@ export default function Paper() {
             {sections.map((s) => {
               const pct = s.target_words ? Math.min(100, Math.round((s.word_count / s.target_words) * 100)) : 0
               return (
-                <div key={s.id} className="flex items-center gap-3">
+                <div key={s.id} className="flex flex-wrap items-center gap-3">
                   <span className="w-28 shrink-0 text-[12px] text-[color:var(--wb-text)]">{s.name}</span>
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color:var(--wb-bg-subtle)]">
                     <div className="h-full bg-[color:var(--wb-accent)]" style={{ width: `${pct}%` }} />

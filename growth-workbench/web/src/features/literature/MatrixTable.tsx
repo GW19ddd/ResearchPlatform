@@ -3,7 +3,7 @@
  *
  * 纯展示 + 三个回调，不碰数据获取，方便单独复用/替换。
  */
-import { Btn, Empty } from '../../components/ui'
+import { Btn, Empty, IconBtn } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 
 export default function MatrixTable({
@@ -41,14 +41,14 @@ export default function MatrixTable({
                     >
                       <span className="flex items-center gap-1">
                         {d}
-                        <button
-                          className="flex h-6 w-6 items-center justify-center rounded-[7px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-danger-soft)] hover:text-[color:var(--wb-danger)]"
-                          onClick={() => onDropDim(d)}
+                        <IconBtn
+                          icon="close"
+                          size="sm"
+                          tone="danger"
                           title="删除该维度"
-                          aria-label={`删除维度 ${d}`}
-                        >
-                          <Icon name="close" size={12} />
-                        </button>
+                          ariaLabel={`删除维度 ${d}`}
+                          onClick={() => onDropDim(d)}
+                        />
                       </span>
                     </th>
                   ))}

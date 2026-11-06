@@ -4,10 +4,12 @@ import {
   Card,
   Details,
   Empty,
+  IconBtn,
   Input,
   LoadError,
   Loading,
   MdBlock,
+  PageHeader,
   Pill,
   TextArea,
 } from '../components/ui'
@@ -101,8 +103,13 @@ export default function Plan() {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader
+        eyebrow="复盘 · 01"
+        title="计划复盘"
+        desc="周计划 + 周复盘：组会周自动生成双周汇报"
+      />
       <div className="grid gap-4 md:grid-cols-2">
-        <Card title={`本周成果 · ${week.week_start} 起`}>
+        <Card title={`本周成果 · ${week.week_start} 起`} tourId="tour-plan-week">
           <div className="flex gap-2">
             <Input
               placeholder="必须是可交付物，例：完成 F2 组数据整理"
@@ -122,9 +129,13 @@ export default function Plan() {
                   <span className="text-[12px] text-[color:var(--wb-text)]">
                     {i + 1}. {o}
                   </span>
-                  <button className="text-[color:var(--wb-muted)] hover:text-[color:var(--wb-danger)]" onClick={() => removeOutcome(i)}>
-                    ×
-                  </button>
+                  <IconBtn
+                    icon="close"
+                    size="sm"
+                    tone="danger"
+                    title="删除该成果"
+                    onClick={() => removeOutcome(i)}
+                  />
                 </div>
               ))
             )}
@@ -162,15 +173,16 @@ export default function Plan() {
                     </span>
                   </label>
                   <Pill>{t.points} 分</Pill>
-                  <button
-                    className="text-[color:var(--wb-muted)] hover:text-[color:var(--wb-danger)]"
+                  <IconBtn
+                    icon="close"
+                    size="sm"
+                    tone="danger"
+                    title="删除该任务"
                     onClick={async () => {
                       await del(`/plan/tasks/${t.id}`)
                       load()
                     }}
-                  >
-                    ×
-                  </button>
+                  />
                 </div>
               ))
             )}

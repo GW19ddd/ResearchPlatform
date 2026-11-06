@@ -24,6 +24,7 @@ export type IconName =
   | 'chevronLeft'
   | 'chevronRight'
   | 'chevronDown'
+  | 'chevronUp'
   | 'chevronsLeft'
   | 'chevronsRight'
   | 'close'
@@ -40,6 +41,13 @@ export type IconName =
   | 'refresh'
   | 'download'
   | 'trash'
+  | 'send'
+  | 'user'
+  | 'logout'
+  | 'lock'
+  | 'eye'
+  | 'eyeOff'
+  | 'shield'
 
 const P: Record<IconName, ReactElement> = {
   sun: (
@@ -97,6 +105,7 @@ const P: Record<IconName, ReactElement> = {
   chevronLeft: <path d="M15 18l-6-6 6-6" />,
   chevronRight: <path d="M9 18l6-6-6-6" />,
   chevronDown: <path d="M6 9.5l6 6 6-6" />,
+  chevronUp: <path d="M6 14.5l6-6 6 6" />,
   chevronsLeft: <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" />,
   chevronsRight: <path d="M13 17l5-5-5-5M6 17l5-5-5-5" />,
   close: <path d="M18 6L6 18M6 6l12 12" />,
@@ -152,6 +161,47 @@ const P: Record<IconName, ReactElement> = {
       <path d="M3.5 6.5h17" />
       <path d="M8.5 6.5V4.5a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v2" />
       <path d="M18.5 6.5l-1 14a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2l-1-14" />
+    </>
+  ),
+  send: <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />,
+  user: (
+    <>
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M4.5 20.5c0-3.4 3.4-5.6 7.5-5.6s7.5 2.2 7.5 5.6" />
+    </>
+  ),
+  logout: (
+    <>
+      <path d="M15 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3" />
+      <path d="M10 16.5L5.5 12 10 7.5" />
+      <path d="M5.5 12H15" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
+      <path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7" />
+      <path d="M12 15v2" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.8" />
+    </>
+  ),
+  eyeOff: (
+    <>
+      <path d="M4 4l16 16" />
+      <path d="M9.9 5.9A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.6 3.4" />
+      <path d="M6.3 8.1A16.6 16.6 0 0 0 2.5 12S6 18.5 12 18.5a9.4 9.4 0 0 0 3.9-.9" />
+      <path d="M10.3 10.5a2.8 2.8 0 0 0 3.5 3.9" />
+    </>
+  ),
+  shield: (
+    <>
+      <path d="M12 3l7 2.6v5.6c0 4.3-2.9 7.7-7 9.3-4.1-1.6-7-5-7-9.3V5.6z" />
+      <path d="M9.2 12l2 2 3.6-4" />
     </>
   ),
 }

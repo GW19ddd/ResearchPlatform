@@ -46,6 +46,7 @@ export default function NodeInspector({
   onSaveOutput,
   onOpenSource,
   onExpandOutput,
+  onMakeQuest,
 }: {
   node: CNode | null
   skills: Skill[]
@@ -65,6 +66,8 @@ export default function NodeInspector({
   onSaveOutput: (target: OutputTarget) => void
   onOpenSource: (id: string, name: string) => void
   onExpandOutput?: () => void
+  /** 把本节点输出立项成新 quest（画布 → 对话联动），不传则不显示按钮 */
+  onMakeQuest?: () => void
 }) {
   if (!node) {
     return (
@@ -371,6 +374,11 @@ export default function NodeInspector({
                 <Btn size="sm" onClick={() => onSaveOutput('paper' as any)}>
                   存论文
                 </Btn>
+                {onMakeQuest && (
+                  <Btn size="sm" variant="primary" onClick={onMakeQuest} title="把这个输出立项成 quest，让科研智能体接着推进">
+                    开新 Quest
+                  </Btn>
+                )}
               </div>
             </div>
             {(meta?.provider || meta?.tokens_in) && (

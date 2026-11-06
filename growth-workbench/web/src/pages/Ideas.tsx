@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Btn, Card, Empty, Input, MdBlock, Pill, ScoreBar, Select, TextArea } from '../components/ui'
+import { Btn, Card, Drawer, Empty, Input, MdBlock, PageHeader, Pill, ScoreBar, Select, TextArea } from '../components/ui'
 import { AiError, AiMeta } from '../components/AiError'
 import {
   BulkBar,
@@ -457,8 +457,13 @@ export default function Ideas() {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader
+        eyebrow="输入 · 01"
+        title="创新点"
+        desc="捕获 → 质疑 → 选定：想法先过三关，再进实验"
+      />
       <div className="grid gap-4 md:grid-cols-3">
-        <Card title="捕获新想法" className="md:col-span-1">
+        <Card title="捕获新想法" className="md:col-span-1" tourId="tour-idea-form">
           <div className="flex flex-col gap-2">
             <Input
               placeholder="标题（必填）"
@@ -502,8 +507,8 @@ export default function Ideas() {
             </div>
             <div className="grid grid-cols-2 gap-1">
               {['novelty', 'feasibility', 'impact', 'effort'].map((k) => (
-                <label key={k} className="flex items-center justify-between text-[11.5px] text-[color:var(--wb-text-soft)]">
-                  {SCORE_LABELS[k]}
+                <label key={k} className="flex items-center justify-between gap-2 whitespace-nowrap text-[11.5px] text-[color:var(--wb-text-soft)]">
+                  <span className="shrink-0">{SCORE_LABELS[k]}</span>
                   <Input
                     className="w-12"
                     type="number"
@@ -743,23 +748,28 @@ export default function Ideas() {
       </Card>
 
       {detail && (
-        <>
-          <div className="fixed inset-0 z-30 bg-[color:var(--wb-accent)]/20" onClick={() => setDetail(null)} />
-          <div className="fixed right-0 top-0 z-40 flex h-full w-full max-w-[34rem] flex-col border-l border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-2xl">
-            <div className="flex items-center justify-between gap-2 border-b border-[color:var(--wb-border)] px-4 py-3">
-              <div className="text-[13px] font-medium text-[color:var(--wb-text)]">编辑想法</div>
+        <Drawer
+          open
+          onClose={() => setDetail(null)}
+          title="编辑想法"
+          width="w-[34rem]"
+          footer={
+            <div className="flex items-center justify-between gap-2">
+              <Btn variant="danger" onClick={dropDetail}>
+                删除这个想法
+              </Btn>
               <div className="flex items-center gap-2">
-                <Btn variant="primary" onClick={saveDetail} disabled={dbusy === 'save'}>
-                  {dbusy === 'save' ? '保存中…' : '保存'}
-                </Btn>
                 <Btn variant="ghost" onClick={() => setDetail(null)}>
                   关闭
                 </Btn>
+                <Btn variant="primary" onClick={saveDetail} loading={dbusy === 'save'}>
+                  保存
+                </Btn>
               </div>
             </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-              <div className="flex flex-col gap-3">
+          }
+        >
+          <div className="flex flex-col gap-3">
                 <div>
                   <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">标题</div>
                   <Input value={detail.title || ''} onChange={(v) => setField('title', v)} />
@@ -843,9 +853,6 @@ export default function Ideas() {
                       {r.label}
                     </Btn>
                   ))}
-                  <Btn variant="danger" className="ml-auto" onClick={dropDetail}>
-                    删除这个想法
-                  </Btn>
                 </div>
 
                 {revTask.error && (
@@ -887,9 +894,7 @@ export default function Ideas() {
                   </details>
                 )}
               </div>
-            </div>
-          </div>
-        </>
+        </Drawer>
       )}
     </div>
   )
