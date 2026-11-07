@@ -115,6 +115,12 @@ async function _send<T = any>(
 
   if (sayOk) toast(opts?.ok || WRITE_OK[method] || '已更新', 'ok')
 
+  // 写操作成功即广播：跨模块联动（侧栏徽标、文献计数等）统一靠这个事件刷新，
+  // 各页面不用再手写 dispatchEvent。鉴权接口除外（登录时侧栏数据会自己加载）。
+  if (writes && !p.startsWith('/auth/')) {
+    window.dispatchEvent(new Event('wb:data-changed'))
+  }
+
   const ct = res.headers.get('content-type') || ''
   if (ct.includes('application/json')) return res.json() as Promise<T>
   return (await res.text()) as unknown as T

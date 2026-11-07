@@ -11,12 +11,7 @@ import {
 import { Btn, Card, Empty, Input, Loading, PageHeader, Pill, StatCard } from '../components/ui'
 import { del, get, post } from '../lib/api'
 import { usePersist } from '../lib/state'
-
-// recharts 只认十六进制字面量，这里是令牌副本：C_LINE = --wb-accent，
-// AXIS = --wb-muted，GRID = --wb-border。改令牌时记得同步（与 Dashboard 同一套）。
-const C_LINE = '#4f46e5'
-const AXIS = '#667085'
-const GRID = '#e3e6ea'
+import { C_ACCENT as C_LINE, C_AXIS as AXIS, C_GRID as GRID } from '../lib/chartTokens'
 
 const RULE_LABELS: Record<string, string> = {
   weekly_outcome_done: '周成果完成',

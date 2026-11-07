@@ -17,13 +17,7 @@ import { toast } from '../components/toast'
 import Heatmap, { HeatDay } from '../components/Heatmap'
 import { get, post } from '../lib/api'
 import { usePersist } from '../lib/state'
-
-// recharts 把颜色写成 SVG 属性，var() 在属性里不生效，这里用令牌的十六进制值。
-// 改令牌时记得同步：C_FOCUS = --wb-accent，C_SLEEP = --wb-ok，AXIS = --wb-muted，GRID = --wb-border。
-const C_FOCUS = '#5145e0'
-const C_SLEEP = '#067a45'
-const AXIS = '#6b7280'
-const GRID = '#ebecf0'
+import { C_ACCENT as C_FOCUS, C_OK as C_SLEEP, C_AXIS as AXIS, C_GRID as GRID } from '../lib/chartTokens'
 
 const HEAT_RANGES = [
   { value: '91', label: '3 个月' },
