@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Btn, Card, Drawer, Empty, Input, MdBlock, PageHeader, Pill, ScoreBar, Select, TextArea } from '../components/ui'
+import SignatureCard from '../components/SignatureCard'
 import { AiError, AiMeta } from '../components/AiError'
 import {
   BulkBar,
@@ -462,6 +463,24 @@ export default function Ideas() {
         title="创新点"
         desc="捕获 → 质疑 → 选定：想法先过三关，再进实验"
       />
+
+      {/* 首屏招牌：三关筛选进度，明确告诉用户现在卡在哪一步 */}
+      <SignatureCard
+        eyebrow="创新点 · 三关筛选"
+        title="风暴、质疑、入库：想法要过三关"
+        desc="AI 结构化头脑风暴出候选（defect / mve / risk），三角色质疑逐轮打磨，验证选定后才进实验；质疑历史可回看。"
+        icon="sparkle"
+        steps={[
+          { label: '已捕获', value: ideas.filter((i) => i.status === 'captured').length, active: true },
+          { label: '筛选中', value: ideas.filter((i) => i.status === 'screening').length },
+          { label: '已验证 / 选定', value: ideas.filter((i) => ['validated', 'selected'].includes(i.status)).length },
+        ]}
+        metrics={[
+          { label: '合计', value: ideas.length },
+          { label: '已放弃', value: ideas.filter((i) => i.status === 'dropped').length },
+        ]}
+      />
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card title="捕获新想法" className="md:col-span-1" tourId="tour-idea-form">
           <div className="flex flex-col gap-2">

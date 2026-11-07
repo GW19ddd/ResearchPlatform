@@ -15,6 +15,7 @@ import {
   StatusTag,
 } from '../components/ui'
 import { AiError, AiMeta } from '../components/AiError'
+import SignatureCard from '../components/SignatureCard'
 import { Icon } from '../components/Icon'
 import { get, patch, post } from '../lib/api'
 import { useAiTask } from '../lib/hooks'
@@ -124,6 +125,29 @@ export default function Paper() {
         desc="七阶段流水线：阶段阻塞超过 3 天会亮红牌"
       />
 
+      {/* 首屏招牌：七阶段 + 阻塞红牌；stepper 与红牌不再被数字卡压在下面 */}
+      <SignatureCard
+        eyebrow="论文 · 七阶段流水线"
+        title="阶段卡住超过 3 天，会亮红牌"
+        desc="七个阶段逐个推进，阻塞达到 3 天自动红牌告警；写作体检 readiness 与章节双轨字数挂在阶段旁，卡点可一键诊断。"
+        icon="file"
+        tone={ov.blocked.length > 0 ? 'danger' : 'accent'}
+        metrics={[
+          { label: '当前阶段', value: ov.current?.name || '—' },
+          { label: '进度', value: `${ov.progress}%` },
+          { label: '阻塞', value: `${ov.blocked.length} 个`, tone: 'danger' },
+          { label: '字数', value: ov.words },
+        ]}
+        action={
+          ov.blocked.length > 0 ? (
+            <Btn variant="primary" size="sm" onClick={() => setActiveId(ov.blocked[0].id)}>
+              定位阻塞阶段
+            </Btn>
+          ) : undefined
+        }
+      />
+
+      <div className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">概览指标</div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="阶段进度" value={ov.progress} unit="%" tone="accent" />
         <StatCard

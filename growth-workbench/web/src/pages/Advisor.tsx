@@ -230,12 +230,15 @@ export default function Advisor() {
 
         {/* 右：承诺台账 + 记沟通 + AI 话术 */}
         <div className="flex flex-col gap-4 lg:col-span-2">
-          <Card title="承诺台账" bodyClassName="p-4">
-            {pending.length === 0 ? (
-              <Empty text="没有进行中的承诺" hint="要么都做完了，要么还没记过。" />
+          <Card title={`承诺台账（未逾期 ${pending.length - overdue.length} 项）`} bodyClassName="p-4">
+            {pending.length - overdue.length === 0 ? (
+              <Empty
+                text={pending.length === 0 ? '没有进行中的承诺' : '未逾期承诺都清完了'}
+                hint={pending.length === 0 ? '要么都做完了，要么还没记过。' : '逾期项在顶部红警区处理，不在这里重复展示。'}
+              />
             ) : (
               <div className="flex flex-col gap-2">
-                {pending.map((p) => (
+                {pending.filter((p) => !p.overdue).map((p) => (
                   <div
                     key={p.id}
                     className={`flex items-start justify-between gap-2 rounded-lg border p-2.5 ${

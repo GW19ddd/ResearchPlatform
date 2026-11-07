@@ -130,6 +130,14 @@ export const TOUR_STEPS: TourStep[] = [
     tip: '每个节点的运行记录都会记下模型、token 与耗时，方便复盘。',
   },
   {
+    key: 'research',
+    title: '调研 Research：找文献最短路径',
+    body: '第三个工作台 /research 是独立的调研对话：深度检索自动生成检索式 → 查 OpenAlex 真数据 → 去重入文献库 → 产出带 [n] 引用的综述；左栏管理会话与历次报告。',
+    path: '/research',
+    target: 'tour-research-dock',
+    tip: '检索到的文献会直接出现在文献库，不用手动搬运。',
+  },
+  {
     key: 'chat',
     title: '回到课题 Quest 工作区',
     body: '在下面的输入框里推进一个课题：按「调研 → 计划 → 实验 → 成文」切换阶段，把关键结论「沉淀为发现」，之后的每一轮对话都会自动带上这些记忆。',

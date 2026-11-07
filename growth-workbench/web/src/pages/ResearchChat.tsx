@@ -357,6 +357,7 @@ export default function ResearchChat() {
       {/* 左栏：对话管理（对标 Undermind 侧栏）；右边缘可拖拽调宽 */}
       <aside
         data-resizable
+        data-tour="tour-research-dock"
         className="flex shrink-0 flex-col border-r border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)]"
         style={{ width: leftW, minWidth: 180, maxWidth: 400 }}
       >

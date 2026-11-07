@@ -16,6 +16,7 @@ import {
   TextArea,
 } from '../components/ui'
 import { AiError, AiMeta } from '../components/AiError'
+import SignatureCard from '../components/SignatureCard'
 import {
   BulkBar,
   ExportCol,
@@ -236,7 +237,26 @@ export default function Experiments() {
         }
       />
 
-      {/* 顶部统计条 */}
+      {/* 首屏招牌：结论写回才是实验模块的价值，不是四张数字卡 */}
+      <SignatureCard
+        eyebrow="实验 · 结论写回"
+        title="把结果变成能引用的结论"
+        desc="结构化结果（case / method / metrics / success）可横向对比并关联创新点；AI 分析结果会写回实验的 conclusion，不是一次性弹窗。"
+        icon="beaker"
+        metrics={[
+          { label: '当前实验', value: current?.name || '未选中' },
+          { label: '结果记录', value: `${results.length} 条` },
+          { label: '成功', value: `${results.filter((r) => r.success).length} 条`, tone: 'ok' },
+          { label: '最近分析', value: out?.title || '未跑过' },
+        ]}
+        action={
+          sel !== null ? (
+            <Btn variant="primary" size="sm" onClick={analyze}>跑一轮 AI 分析</Btn>
+          ) : undefined
+        }
+      />
+
+      <div className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">概览指标</div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="实验总数" value={exps.length} unit="个" />
         <StatCard
@@ -444,6 +464,7 @@ export default function Experiments() {
 
             <Card
               title="结果记录"
+              tourId="tour-exp-form"
               extra={
                 <span className="text-[12px] text-[color:var(--wb-text-soft)]">
                   {results.length > 0 ? `${results.filter((r) => r.success).length}/${results.length} 成功` : '暂无'}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   CartesianGrid,
   Legend,
@@ -10,6 +11,8 @@ import {
   YAxis,
 } from 'recharts'
 import { Btn, Card, Empty, Input, Loading, PageHeader, Pill, Segmented, StatCard } from '../components/ui'
+import { Icon } from '../components/Icon'
+import SignatureCard from '../components/SignatureCard'
 import { toast } from '../components/toast'
 import Heatmap, { HeatDay } from '../components/Heatmap'
 import { get, post } from '../lib/api'
@@ -67,9 +70,12 @@ function sleepAxis(vals: number[]): { lo: number; hi: number } {
 }
 
 export default function Dashboard() {
+  const nav = useNavigate()
   const [data, setData] = useState<any>(null)
   const [heat, setHeat] = useState<any>(null)
   const [heatRange, setHeatRange] = usePersist('dash.heatRange', '182')
+  // 生活打卡（睡眠/专注曲线 + 打卡表单）默认折叠：今日页主线是科研待办，生活数据低频
+  const [lifeOpen, setLifeOpen] = usePersist('dash.lifeOpen', false)
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
   const [form, setForm] = usePersist<any>('dash.form', {
@@ -174,6 +180,30 @@ export default function Dashboard() {
         })}
       />
 
+      {/* 首屏招牌：科研待办清单；四张数字卡降为概览副行 */}
+      <SignatureCard
+        eyebrow="今日 · 科研待办"
+        title="今天先处理卡住的事"
+        desc="从论文阻塞、待读文献、待跑实验、逾期承诺四处直接跳过去；下方数字卡只是概览，不再是首屏主角。"
+        icon="sun"
+        tone={data.commitments?.overdue > 0 ? 'danger' : 'accent'}
+        metrics={[
+          { label: '论文进度', value: `${data.paper?.progress ?? 0}%` },
+          { label: '待读文献', value: (data.literature?.todo || 0) + (data.literature?.reading || 0) },
+          { label: '计划中实验', value: data.experiments?.planned || 0 },
+          { label: '逾期承诺', value: data.commitments?.overdue || 0, tone: 'danger' },
+        ]}
+        action={
+          <>
+            <Btn variant="primary" size="sm" onClick={() => nav('/paper')}>看论文</Btn>
+            <Btn size="sm" onClick={() => nav('/literature')}>待读文献</Btn>
+            <Btn size="sm" onClick={() => nav('/experiments')}>待跑实验</Btn>
+            <Btn size="sm" onClick={() => nav('/advisor')}>逾期承诺</Btn>
+          </>
+        }
+      />
+
+      <div className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">概览指标</div>
       <div className="wb-stagger grid grid-cols-2 gap-3.5 md:grid-cols-4" data-tour="tour-dash-stats">
         {/* 四个指标量纲各不相同，单位一律单独写，不靠读者自己猜 */}
         <StatCard
@@ -242,7 +272,18 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* 生活打卡默认折叠，避免抢占科研主线首屏 */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setLifeOpen(!lifeOpen)}
+          className="flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium text-[color:var(--wb-text-soft)] hover:text-[color:var(--wb-accent)]"
+        >
+          <Icon name={lifeOpen ? 'chevronDown' : 'chevronRight'} size={13} />
+          生活打卡{data.checkin_today ? '' : ' · 今日还没打'}
+        </button>
+        {lifeOpen && (
+        <div className="mt-3 grid gap-4 md:grid-cols-3">
         <Card
           className="md:col-span-2"
           title="近 14 天状态"
@@ -378,6 +419,8 @@ export default function Dashboard() {
             </Btn>
           </div>
         </Card>
+        </div>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

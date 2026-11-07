@@ -40,6 +40,7 @@ import {
 } from '../components/BulkBar'
 import { toast } from '../components/toast'
 import { Icon } from '../components/Icon'
+import SignatureCard from '../components/SignatureCard'
 import { del, get, patch, post } from '../lib/api'
 import { useAiTask, useIdemKey } from '../lib/hooks'
 import { usePersist } from '../lib/state'
@@ -517,13 +518,34 @@ export default function Literature() {
         }
       />
 
+      {/* 首屏招牌：把技术含量最高的两个产出视图从 tab 里提出来 */}
+      <SignatureCard
+        eyebrow="文献 · 两个产出视图"
+        title="从一篇论文长出一张引文网络"
+        desc="确定性力导向布局 + OpenAlex 双向扩边，扩出来的文献自动入库；动态维度对比矩阵直接服务 Related Work。"
+        icon="book"
+        metrics={[
+          { label: '馆藏', value: counts.total },
+          { label: '已读', value: counts.done, tone: 'ok' },
+          { label: '待读', value: counts.todo },
+          { label: '在读', value: counts.reading },
+        ]}
+        action={
+          <>
+            <Btn variant="primary" size="sm" onClick={() => switchTab('graph')}>打开关联图</Btn>
+            <Btn size="sm" onClick={() => switchTab('matrix')}>打开对比矩阵</Btn>
+          </>
+        }
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Segmented value={activeTab} onChange={switchTab} options={TABS} />
         <span className="text-[11.5px] text-[color:var(--wb-muted)]">
-          分区独立成屏，点按钮切换；在线检索在左侧「检索」，Zotero 同步在「设置」里
+          分区独立成屏，点按钮切换；DOI / 批量检索入库在「工具 → 在线检索」，Zotero 同步在「设置」里
         </span>
       </div>
 
+      <div className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">概览指标</div>
       {/* 概览条：不必撑满整行，四张卡收成紧凑一排 */}
       <div className="grid grid-cols-2 gap-3 sm:max-w-[620px] sm:grid-cols-4">
         <StatCard label="文献总数" value={counts.total} unit="篇" tone="accent" />
@@ -762,7 +784,7 @@ export default function Literature() {
             onChange={(v) => setForm({ ...form, url: v })}
           />
           <p className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
-            批量入库走下面的「从 Zotero 同步」，这里适合随手补一条。
+            这里适合随手补一条；DOI / 关键词批量检索入库走侧栏「工具 → 在线检索」，Zotero 批量同步在「设置」里。
           </p>
         </div>
       </Modal>
