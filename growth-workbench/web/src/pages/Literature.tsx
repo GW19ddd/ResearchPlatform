@@ -45,6 +45,7 @@ import LiteratureDrawer from '../features/literature/LiteratureDrawer'
 import LitSearchCard from '../features/literature/LitSearchCard'
 import MatrixTable from '../features/literature/MatrixTable'
 import PdfModal from '../features/literature/PdfModal'
+import RelationGraph from '../features/literature/RelationGraph'
 import { STATUS, collsOf, inCollection } from '../features/literature/literature-shared'
 
 const STATUS_DOT: Record<string, string> = {
@@ -55,11 +56,12 @@ const STATUS_DOT: Record<string, string> = {
 
 const EMPTY_FORM = { title: '', authors: '', year: '', venue: '', url: '' }
 
-type LitTab = 'library' | 'search' | 'matrix'
+type LitTab = 'library' | 'search' | 'matrix' | 'graph'
 const TABS: { value: LitTab; label: string }[] = [
   { value: 'library', label: '文献库' },
   { value: 'search', label: '在线检索' },
   { value: 'matrix', label: '对比矩阵' },
+  { value: 'graph', label: '关联图' },
 ]
 
 const LIT_COLS: ExportCol[] = [
@@ -737,6 +739,10 @@ export default function Literature() {
             await post('/literature/matrix', { literature_id, dim_name, dim_value: value })
           }}
         />
+      )}
+
+      {activeTab === 'graph' && (
+        <RelationGraph onChanged={reloadAll} />
       )}
 
       {/* 录入 */}

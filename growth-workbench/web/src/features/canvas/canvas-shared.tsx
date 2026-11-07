@@ -1,5 +1,7 @@
 /** 画布模块共享的类型与常量；节点渲染器也放这里，页面只管编排。 */
+import type { CSSProperties } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
+import { Icon, isIconName, type IconName } from '../../components/Icon'
 
 export type NodeType = 'input' | 'prompt' | 'skill' | 'tool' | 'output'
 
@@ -75,11 +77,80 @@ export const TYPE_ACCENT: Record<string, { line: string; soft: string; text: str
   output: { line: '#fcd34d', soft: 'rgba(251,191,36,0.15)', text: '#92400e' },
 }
 
-const STATUS_CHIP: Record<string, { cls: string; text: string }> = {
-  running: { cls: 'bg-[color:var(--wb-warn-soft)] text-[color:var(--wb-warn)]', text: '运行中…' },
-  done: { cls: 'bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]', text: '已完成' },
-  error: { cls: 'bg-[color:var(--wb-danger-soft)] text-[color:var(--wb-danger)]', text: '出错' },
-  idle: { cls: 'text-[color:var(--wb-muted)]', text: '未运行' },
+/** 每类节点的默认图标；节点可在右侧面板单独覆盖（存 config.icon） */
+export const NODE_ICON: Record<string, IconName> = {
+  input: 'file',
+  prompt: 'sparkle',
+  skill: 'hexagon',
+  tool: 'send',
+  output: 'download',
+}
+
+/** 右侧面板「节点图标」可选清单 */
+export const ICON_CHOICES: { value: IconName; label: string }[] = [
+  { value: 'file', label: '文档' },
+  { value: 'sparkle', label: '灵感' },
+  { value: 'hexagon', label: '模块' },
+  { value: 'book', label: '文献' },
+  { value: 'beaker', label: '实验' },
+  { value: 'message', label: '对话' },
+  { value: 'search', label: '检索' },
+  { value: 'pencil', label: '写作' },
+  { value: 'send', label: '调用' },
+  { value: 'refresh', label: '循环' },
+  { value: 'download', label: '输出' },
+  { value: 'gear', label: '设置' },
+  { value: 'compass', label: '方向' },
+  { value: 'map', label: '路线' },
+  { value: 'library', label: '资料库' },
+  { value: 'radar', label: '扫描' },
+  { value: 'quill', label: '撰稿' },
+  { value: 'wand', label: '润色' },
+  { value: 'chart', label: '图表' },
+  { value: 'slides', label: '汇报' },
+  { value: 'pipeline', label: '流程' },
+  { value: 'layers', label: '层次' },
+  { value: 'lightbulb', label: '创意' },
+  { value: 'target', label: '目标' },
+]
+
+/** n8n 风格彩色实底：深色底 + 白字（对比度均 >= 4.5:1）；edge 用作连线与端点色 */
+export const TYPE_TILE: Record<string, { bg: string; edge: string }> = {
+  input: { bg: '#1d4ed8', edge: '#93c5fd' },
+  prompt: { bg: '#6d28d9', edge: '#c4b5fd' },
+  skill: { bg: '#4338ca', edge: '#a5b4fc' },
+  tool: { bg: '#047857', edge: '#6ee7b7' },
+  output: { bg: '#b45309', edge: '#fcd34d' },
+}
+
+/** 节点图标：优先用户自配（只要图库里有就认可，扩充图标不会让旧配置失效），否则按类型 */
+export const nodeIcon = (d: CData): IconName => {
+  const custom = d.config?.icon
+  if (isIconName(custom)) return custom
+  return NODE_ICON[d.ntype] || 'hexagon'
+}
+
+/** hex + 透明度 → rgba()；画布节点与左侧技能库共用同一套「浅底 + 同色线框」的视觉语言 */
+const hexA = (hex: string, a: number): string => {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `rgba(${r},${g},${b},${a})`
+}
+
+/**
+ * 画布节点的浅底芯片：白底 + 分类色线性图标 + 同色细线框，和左侧技能库的图标框一致。
+ * 不再用实心彩色方块，改为轻盈的「白底 + 同色描边」，避免大色块发闷。
+ */
+export function nodeChip(bg: string, active = false): CSSProperties {
+  return {
+    backgroundColor: 'var(--wb-surface)',
+    color: bg,
+    boxShadow: `inset 0 0 0 1.5px ${hexA(bg, active ? 0.5 : 0.3)}`,
+    outline: active ? `3px solid ${bg}` : 'none',
+    outlineOffset: '3px',
+  }
 }
 
 /** 节点副标题：一句话说清这个节点「拿什么当输入」 */
@@ -101,44 +172,73 @@ export function subtitle(data: CData): string {
   }
 }
 
-export function CanvasNode({ data, selected }: NodeProps<CNode>) {
+/**
+ * n8n 风格图形节点：彩色圆角方块 + 居中大图标 + 节点标题。
+ * 自由画布与固定框共用同一个 NodeTile，视觉完全一致。
+ */
+export function NodeTile({
+  data,
+  size = 'md',
+  label = false,
+  active = false,
+}: {
+  data: CData
+  size?: 'sm' | 'md'
+  label?: boolean
+  active?: boolean
+}) {
+  const tile = TYPE_TILE[data.ntype] || TYPE_TILE.skill
+  const sm = size === 'sm'
   const st = data.status || 'idle'
-  const style = TYPE_STYLE[data.ntype] || TYPE_STYLE.skill
-  const chip = STATUS_CHIP[st] || STATUS_CHIP.idle
+  // 浅底芯片上，状态点用实色；空闲态用中性灰，避免白底上白点看不见
+  const dot =
+    st === 'running' ? '#f59e0b' : st === 'done' ? '#16a34a' : st === 'error' ? '#ef4444' : 'rgba(100,116,139,0.4)'
   return (
-    <div
-      className={`relative w-56 overflow-hidden rounded-[12px] border px-3 py-2 text-[12px] shadow-[var(--wb-shadow-sm)] transition ${style.box} ${
-        selected
-          ? 'ring-2 ring-[color:var(--wb-accent)] ring-offset-1 ring-offset-white'
-          : ''
-      } ${st === 'running' ? 'wb-anim-pulse' : ''}`}
+    <span
+      className={`relative flex shrink-0 flex-col items-center justify-center gap-1 transition ${sm ? 'h-11 w-11 rounded-[13px]' : 'h-[92px] w-[92px] rounded-[20px]'} ${st === 'running' ? 'wb-anim-pulse' : ''}`}
+      style={nodeChip(tile.bg, !!active)}
     >
-      <span className={`absolute left-0 top-0 h-full w-[3px] ${style.bar}`} />
+      <Icon name={nodeIcon(data)} size={sm ? 21 : 32} strokeWidth={sm ? 1.9 : 1.8} />
+      {label && (
+        <span className="max-w-[80px] truncate px-1 text-[10.5px] font-medium leading-tight">
+          {data.title || data.key}
+        </span>
+      )}
+      {!sm && (
+        <span
+          className="absolute right-2 top-2 h-2 w-2 rounded-full ring-2 ring-[color:var(--wb-surface)]"
+          style={{ background: dot }}
+          title={st === 'running' ? '运行中' : st === 'done' ? '已完成' : st === 'error' ? '出错' : '未运行'}
+        />
+      )}
+    </span>
+  )
+}
+
+export function CanvasNode({ data, selected }: NodeProps<CNode>) {
+  const tile = TYPE_TILE[data.ntype] || TYPE_TILE.skill
+  const st = data.status || 'idle'
+  return (
+    <div className="group relative">
+      <NodeTile data={data} label active={!!selected} />
       <Handle
         type="target"
         position={Position.Left}
-        className="!h-2.5 !w-2.5 !border-2 !border-white !bg-[color:var(--wb-accent)]"
+        className="!h-3 !w-3"
+        style={{ background: tile.edge, border: '3px solid #ffffff' }}
       />
-      <div className="flex items-start justify-between gap-1">
-        <span className="truncate font-medium leading-snug text-[color:var(--wb-text)]">
-          {data.title || data.key}
-        </span>
-        <span className={`shrink-0 rounded-full px-1.5 text-[11.5px] leading-[17px] ${style.chip}`}>
-          {TYPE_LABEL[data.ntype]}
-        </span>
-      </div>
-      <div className="mt-0.5 truncate text-[10.5px] text-[color:var(--wb-text-soft)]" title={subtitle(data)}>
-        {subtitle(data)}
-      </div>
-      <div className="mt-1.5 flex items-center gap-1 text-[11.5px]">
-        <span className={`rounded px-1.5 leading-[16px] ${chip.cls}`}>{chip.text}</span>
-        <span className="ml-auto tabular-nums text-[color:var(--wb-muted)]">{data.key}</span>
-      </div>
       <Handle
         type="source"
         position={Position.Right}
-        className="!h-2.5 !w-2.5 !border-2 !border-white !bg-[color:var(--wb-accent)]"
+        className="!h-3 !w-3"
+        style={{ background: tile.edge, border: '3px solid #ffffff' }}
       />
+      {/* hover 详情走 absolute 浮层，不占文档流，避免节点高度抖动 */}
+      <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-[9px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-2.5 py-1.5 text-[11px] text-[color:var(--wb-text-soft)] shadow-[var(--wb-shadow-md)] group-hover:block">
+        <span className="font-medium text-[color:var(--wb-text)]">{TYPE_LABEL[data.ntype]}</span>
+        {' · '}{subtitle(data)}
+        {st === 'done' ? ' · 已完成' : st === 'error' ? ' · 出错' : st === 'running' ? ' · 运行中' : ''}
+      </div>
     </div>
   )
 }

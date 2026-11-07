@@ -6,8 +6,10 @@
  */
 import type { ReactNode } from 'react'
 import { Btn, Details, Input, MdBlock, Pill, Select, TextArea } from '../../components/ui'
+import { Icon } from '../../components/Icon'
 import { AiError } from '../../components/AiError'
-import { PROMPT_HINT, TYPE_LABEL, type CData, type CNode, type Skill } from './canvas-shared'
+import { ICON_CHOICES, NODE_ICON, PROMPT_HINT, TYPE_LABEL, type CData, type CNode, type Skill } from './canvas-shared'
+import { skillLabel } from './skill-meta'
 
 export type RunInfo = {
   id: number
@@ -105,6 +107,28 @@ export default function NodeInspector({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+        {/* ---------------- 节点图标（可覆盖类型默认） ---------------- */}
+        <div className="mb-3">
+          <FieldLabel hint="可覆盖类型默认图标">节点图标</FieldLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {ICON_CHOICES.map((c) => {
+              const on = (d.config?.icon || NODE_ICON[d.ntype]) === c.value
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  title={c.label}
+                  aria-label={`节点图标：${c.label}`}
+                  onClick={() => setCfg({ icon: c.value })}
+                  className={`flex h-8 w-8 items-center justify-center rounded-[9px] border transition ${on ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]' : 'border-[color:var(--wb-border)] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'}`}
+                >
+                  <Icon name={c.value} size={16} />
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         {/* ---------------- 配置 ---------------- */}
         {d.ntype === 'skill' && (
           <>
@@ -115,7 +139,7 @@ export default function NodeInspector({
                 onChange={(v) => set((x) => ({ ...x, skillId: v, title: v ? x.title : x.title }))}
                 options={[
                   { value: '', label: '选择技能…' },
-                  ...skills.map((s) => ({ value: s.id, label: s.name })),
+                  ...skills.map((s) => ({ value: s.id, label: skillLabel(s) })),
                 ]}
               />
               {skill?.desc && (
@@ -126,7 +150,7 @@ export default function NodeInspector({
               {skill?.source === 'github' && (
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <Pill tone="green">GitHub 原版 · {skill.category}</Pill>
-                  <Btn size="sm" onClick={() => onOpenSource(skill.id, skill.name)}>
+                  <Btn size="sm" onClick={() => onOpenSource(skill.id, skillLabel(skill))}>
                     看 SKILL.md 原文
                   </Btn>
                 </div>

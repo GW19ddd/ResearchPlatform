@@ -388,6 +388,8 @@ _LIT_FIELDS = {
     "idea_id",
     "pdf_path",
     "gloss_id",
+    "doi",
+    "openalex_id",
 }
 
 
@@ -406,6 +408,7 @@ def delete_literature(lit_id: int):
     row_or_404("literature", lit_id)
     execute("DELETE FROM lit_matrix WHERE literature_id=?", (lit_id,))
     execute("DELETE FROM lit_notes WHERE literature_id=?", (lit_id,))
+    execute("DELETE FROM lit_edges WHERE source_id=? OR target_id=?", (lit_id, lit_id))
     execute("DELETE FROM literature WHERE id=?", (lit_id,))
     return {"ok": True}
 
@@ -418,6 +421,8 @@ def bulk_delete_literature(body: IdsIn):
         return {"deleted": 0}
     _delete_where("lit_matrix", "literature_id", ids)
     _delete_where("lit_notes", "literature_id", ids)
+    placeholders = ",".join("?" * len(ids))
+    execute(f"DELETE FROM lit_edges WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})", (*ids, *ids))
     _delete_where("literature", "id", ids)
     return {"deleted": len(ids)}
 
@@ -699,6 +704,284 @@ def add_dimension(body: MatrixDimIn):
 @router.delete("/literature/matrix/dimension/{dim_name}")
 def delete_dimension(dim_name: str):
     execute("DELETE FROM lit_matrix WHERE dim_name=?", (dim_name,))
+    return {"ok": True}
+
+
+# ============================ 关联图 ============================
+# 类似 ResearchRabbit：选一篇种子文献 → 从 OpenAlex 拉引用关系 →
+# 图谱化展示引用/被引，点击节点继续展开。
+
+import re
+import httpx
+
+_OA_BASE = "https://api.openalex.org/works"
+_OA_MAILTO = "workbench@local"
+
+
+def _norm_title(t: str) -> str:
+    """归一化标题用于去重：小写 + 只留字母数字。"""
+    return re.sub(r"[^a-z0-9]", "", (t or "").lower())
+
+
+def _oa_short_id(full: str) -> str:
+    """https://openalex.org/W123 → W123"""
+    return (full or "").replace("https://openalex.org/", "").replace(
+        "http://openalex.org/", ""
+    )
+
+
+def _strip_doi(doi: str) -> str:
+    """https://doi.org/10.xxx → 10.xxx"""
+    d = (doi or "").strip()
+    for pfx in ("https://doi.org/", "http://doi.org/"):
+        if d.startswith(pfx):
+            return d[len(pfx):]
+    return d
+
+
+def _parse_oa_work(w: dict) -> dict:
+    """从 OpenAlex work 对象提取文献字段。"""
+    authors = ", ".join(
+        a["author"]["display_name"]
+        for a in (w.get("authorships") or [])[:5]
+        if a.get("author")
+    )
+    primary = w.get("primary_location") or {}
+    src = primary.get("source") or {}
+    return {
+        "openalex_id": _oa_short_id(w.get("id", "")),
+        "title": w.get("display_name") or "(无标题)",
+        "authors": authors or None,
+        "year": w.get("publication_year"),
+        "venue": src.get("display_name"),
+        "doi": _strip_doi(w.get("doi") or ""),
+        "url": w.get("doi") or primary.get("landing_page_url") or "",
+        "cited_by_count": w.get("cited_by_count") or 0,
+    }
+
+
+def _find_or_create_lit(meta: dict) -> tuple[int, bool]:
+    """按 DOI 或归一化标题去重，找不到就新建 todo 文献。返回 (id, is_new)。"""
+    doi = meta.get("doi") or ""
+    if doi:
+        rows = query("SELECT id FROM literature WHERE doi=?", (doi,))
+        if rows:
+            execute(
+                "UPDATE literature SET openalex_id=? WHERE id=? AND openalex_id IS NULL",
+                (meta["openalex_id"], rows[0]["id"]),
+            )
+            return rows[0]["id"], False
+    norm = _norm_title(meta["title"])
+    if norm:
+        for r in query("SELECT id, title FROM literature"):
+            if _norm_title(r["title"]) == norm:
+                if meta["openalex_id"]:
+                    execute(
+                        "UPDATE literature SET openalex_id=? WHERE id=? AND openalex_id IS NULL",
+                        (meta["openalex_id"], r["id"]),
+                    )
+                return r["id"], False
+    ts = now()
+    lid = execute(
+        """INSERT INTO literature (title, authors, year, venue, url, doi, openalex_id,
+           status, rating, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?, 'todo', 3, ?, ?)""",
+        (
+            meta["title"],
+            meta["authors"],
+            meta["year"],
+            meta["venue"],
+            meta["url"],
+            meta["doi"],
+            meta["openalex_id"],
+            ts,
+            ts,
+        ),
+    )
+    return lid, True
+
+
+def _ensure_edge(src: int, tgt: int, etype: str = "cites") -> int | None:
+    """创建边（如不存在）。返回新 edge id，或 None（已存在）。"""
+    existing = query(
+        "SELECT id FROM lit_edges WHERE source_id=? AND target_id=? AND edge_type=?",
+        (src, tgt, etype),
+    )
+    if existing:
+        return None
+    return execute(
+        "INSERT INTO lit_edges (source_id, target_id, edge_type, created_at) VALUES (?,?,?,?)",
+        (src, tgt, etype, now()),
+    )
+
+
+async def _oa_find_id(client: httpx.AsyncClient, lit: dict) -> str | None:
+    """按 DOI 或标题在 OpenAlex 找 work ID（短形 W123...）。"""
+    doi = _strip_doi(lit.get("doi") or "")
+    params: dict = {"mailto": _OA_MAILTO, "per-page": 1}
+    if doi.startswith("10."):
+        params["filter"] = f"doi:{doi}"
+    else:
+        params["search"] = lit.get("title", "")
+    r = await client.get(_OA_BASE, params=params)
+    r.raise_for_status()
+    results = r.json().get("results", [])
+    if not results:
+        return None
+    return _oa_short_id(results[0].get("id", ""))
+
+
+async def _oa_fetch_work(client: httpx.AsyncClient, oa_id: str) -> dict | None:
+    """获取单个 work 的完整信息（含 referenced_works）。"""
+    r = await client.get(f"{_OA_BASE}/{oa_id}", params={"mailto": _OA_MAILTO})
+    if r.status_code != 200:
+        return None
+    return r.json()
+
+
+async def _oa_fetch_citing(
+    client: httpx.AsyncClient, oa_id: str, limit: int = 15
+) -> list[dict]:
+    """获取引用了该 work 的文献列表，按被引次数降序。"""
+    r = await client.get(
+        _OA_BASE,
+        params={
+            "filter": f"cites:{oa_id}",
+            "per-page": limit,
+            "sort": "cited_by_count:desc",
+            "mailto": _OA_MAILTO,
+        },
+    )
+    r.raise_for_status()
+    return r.json().get("results", [])
+
+
+async def _oa_batch_works(
+    client: httpx.AsyncClient, oa_ids: list[str]
+) -> list[dict]:
+    """批量获取 works 元数据（每批 50）。"""
+    metas: list[dict] = []
+    for i in range(0, len(oa_ids), 50):
+        batch = oa_ids[i : i + 50]
+        r = await client.get(
+            _OA_BASE,
+            params={
+                "filter": "openalex_id:" + "|".join(batch),
+                "per-page": 50,
+                "mailto": _OA_MAILTO,
+            },
+        )
+        r.raise_for_status()
+        metas.extend(r.json().get("results", []))
+    return metas
+
+
+class EdgeIn(BaseModel):
+    source_id: int
+    target_id: int
+    edge_type: str = "cites"
+
+
+@router.get("/literature/graph")
+def get_graph():
+    """关联图数据：有边的文献 + 所有边 + 全部文献（供侧边栏选择）。"""
+    edges = query("SELECT * FROM lit_edges ORDER BY id")
+    ids: set[int] = set()
+    for e in edges:
+        ids.add(e["source_id"])
+        ids.add(e["target_id"])
+    if ids:
+        ph = ",".join("?" * len(ids))
+        nodes = query(f"{_LIT_SQL}WHERE l.id IN ({ph})", tuple(ids))
+    else:
+        nodes = []
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "papers": query(_LIT_SQL + "ORDER BY l.id DESC"),
+    }
+
+
+@router.post("/literature/{lit_id}/expand")
+async def expand_literature(lit_id: int):
+    """从 OpenAlex 拉取引用关系，自动创建关联文献与边。
+
+    - references（本文引用了谁）：取前 15 篇
+    - cited_by（谁引用了本文）：取前 15 篇，按被引次数降序
+    """
+    lit = row_or_404("literature", lit_id)
+
+    # 1. 确定 OpenAlex ID
+    oa_id = lit.get("openalex_id")
+    if not oa_id:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                oa_id = await _oa_find_id(client, lit)
+        except Exception as e:
+            raise HTTPException(502, f"OpenAlex 查询失败：{e}")
+        if not oa_id:
+            raise HTTPException(
+                404, "在 OpenAlex 未找到该文献，请确认标题或 DOI 是否准确"
+            )
+        execute("UPDATE literature SET openalex_id=? WHERE id=?", (oa_id, lit_id))
+
+    # 2. 拉取引用数据
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            work = await _oa_fetch_work(client, oa_id)
+            if not work:
+                raise HTTPException(502, "OpenAlex work 请求失败")
+            ref_ids = [
+                _oa_short_id(r) for r in (work.get("referenced_works") or [])
+            ][:15]
+            citing = await _oa_fetch_citing(client, oa_id, limit=15)
+            ref_metas = await _oa_batch_works(client, ref_ids) if ref_ids else []
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"OpenAlex 请求失败：{e}")
+
+    # 3. 创建/匹配文献 + 边
+    new_count = 0
+    new_edges = 0
+
+    for w in ref_metas:
+        meta = _parse_oa_work(w)
+        tid, is_new = _find_or_create_lit(meta)
+        if is_new:
+            new_count += 1
+        if _ensure_edge(lit_id, tid, "cites"):
+            new_edges += 1
+
+    for w in citing:
+        meta = _parse_oa_work(w)
+        sid, is_new = _find_or_create_lit(meta)
+        if is_new:
+            new_count += 1
+        if _ensure_edge(sid, lit_id, "cites"):
+            new_edges += 1
+
+    return {
+        "ok": True,
+        "created": new_count,
+        "new_edges": new_edges,
+        "total": len(ref_metas) + len(citing),
+    }
+
+
+@router.post("/literature/graph/edges")
+def add_graph_edge(body: EdgeIn):
+    """手动添加一条关联边。"""
+    eid = _ensure_edge(body.source_id, body.target_id, body.edge_type)
+    if eid is None:
+        raise HTTPException(409, "该关联已存在")
+    return {"ok": True, "id": eid}
+
+
+@router.delete("/literature/graph/edges/{edge_id}")
+def delete_graph_edge(edge_id: int):
+    """删除一条关联边。"""
+    execute("DELETE FROM lit_edges WHERE id=?", (edge_id,))
     return {"ok": True}
 
 

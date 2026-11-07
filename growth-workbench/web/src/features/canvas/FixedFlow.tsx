@@ -11,6 +11,7 @@
 import { Btn, Empty, IconBtn, StatusTag } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import {
+  NodeTile,
   PROMPT_HINT,
   TYPE_ACCENT,
   TYPE_LABEL,
@@ -135,7 +136,8 @@ export default function FixedFlow({
                   >
                     <span className="absolute left-0 top-0 h-full w-[3px]" style={{ background: acc.line }} />
 
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-3">
+                      <NodeTile data={d} size="sm" />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="truncate text-[13px] font-medium text-[color:var(--wb-text)]">

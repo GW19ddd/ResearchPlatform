@@ -49,6 +49,34 @@ export type IconName =
   | 'eye'
   | 'eyeOff'
   | 'shield'
+  | 'compass'
+  | 'map'
+  | 'library'
+  | 'radar'
+  | 'quill'
+  | 'gitBranch'
+  | 'wand'
+  | 'link'
+  | 'quote'
+  | 'chart'
+  | 'slides'
+  | 'clipboardCheck'
+  | 'reply'
+  | 'scan'
+  | 'pipeline'
+  | 'layers'
+  | 'database'
+  | 'image'
+  | 'notebook'
+  | 'inbox'
+  | 'sigma'
+  | 'bookOpen'
+  | 'lightbulb'
+  | 'network'
+  | 'target'
+  | 'grid'
+  | 'route'
+  | 'award'
 
 const P: Record<IconName, ReactElement> = {
   sun: (
@@ -206,7 +234,201 @@ const P: Record<IconName, ReactElement> = {
       <path d="M9.2 12l2 2 3.6-4" />
     </>
   ),
+
+  // —— 科研 / 学术主题图标：给技能库与画布节点用，语义比通用 UI 图标更贴切 ——
+  compass: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M15.6 8.4l-2.2 5-5 2.2 2.2-5z" />
+    </>
+  ),
+  map: (
+    <>
+      <path d="M3 6.5l6-2.5 6 2.5 6-2.5v13l-6 2.5-6-2.5-6 2.5z" />
+      <path d="M9 4v13M15 6.5v13" />
+    </>
+  ),
+  library: (
+    <>
+      <rect x="3.5" y="6" width="4" height="13" rx="1" />
+      <rect x="9" y="4" width="4" height="15" rx="1" />
+      <rect x="14.5" y="7.5" width="4" height="11.5" rx="1" />
+      <path d="M2.5 20h19" />
+    </>
+  ),
+  radar: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="4.5" />
+      <path d="M12 12l6-6" />
+      <circle cx="16.5" cy="8" r="1.1" />
+    </>
+  ),
+  quill: (
+    <>
+      <path d="M20.5 3.5C12 3.5 6 8.5 6 15.5c0 2 .8 3.7 2 5" />
+      <path d="M20.5 3.5c0 8.5-5.5 14-12.5 14" />
+      <path d="M3 21l5.5-1.8" />
+    </>
+  ),
+  gitBranch: (
+    <>
+      <circle cx="7" cy="5.5" r="2.2" />
+      <circle cx="7" cy="18.5" r="2.2" />
+      <circle cx="17" cy="8" r="2.2" />
+      <path d="M7 7.7v8.6M17 10.2v1.3a4 4 0 0 1-4 4H9.2" />
+    </>
+  ),
+  wand: (
+    <>
+      <path d="M4.5 19.5l11-11" />
+      <path d="M15 4.5l.75 1.9 1.9.75-1.9.75-.75 1.9-.75-1.9-1.9-.75 1.9-.75z" />
+      <path d="M19 13l.55 1.4 1.4.55-1.4.55-.55 1.4-.55-1.4-1.4-.55 1.4-.55z" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="M10 13.8a4.2 4.2 0 0 0 6 0l2.6-2.6a4.2 4.2 0 0 0-6-6l-1.5 1.5" />
+      <path d="M14 10.2a4.2 4.2 0 0 0-6 0l-2.6 2.6a4.2 4.2 0 0 0 6 6l1.5-1.5" />
+    </>
+  ),
+  quote: (
+    <>
+      <path d="M9.8 6.5C6.9 8 5.5 10.4 5.5 13.2V18h5v-5H8.2c0-2 .8-3.4 2.4-4.4z" />
+      <path d="M19.3 6.5c-2.9 1.5-4.3 3.9-4.3 6.7V18h5v-5h-2.3c0-2 .8-3.4 2.4-4.4z" />
+    </>
+  ),
+  chart: (
+    <>
+      <path d="M4 3.5v17h16" />
+      <rect x="7" y="12" width="3.2" height="5.5" rx="0.8" />
+      <rect x="12.4" y="8.5" width="3.2" height="9" rx="0.8" />
+      <rect x="17.8" y="5.5" width="3.2" height="12" rx="0.8" />
+    </>
+  ),
+  slides: (
+    <>
+      <rect x="3" y="4" width="18" height="12.5" rx="2" />
+      <path d="M12 16.5V20M8.5 20h7" />
+      <path d="M6.5 12.5l3.2-3.2 2.3 2.3 3-3.6 2.5 3" />
+    </>
+  ),
+  clipboardCheck: (
+    <>
+      <rect x="5" y="4.5" width="14" height="16.5" rx="2" />
+      <path d="M9 4.5V3.2A1.2 1.2 0 0 1 10.2 2h3.6A1.2 1.2 0 0 1 15 3.2v1.3" />
+      <path d="M8.8 12.8l2.2 2.2 4.4-4.6" />
+    </>
+  ),
+  reply: (
+    <>
+      <path d="M9 7L4 12l5 5" />
+      <path d="M4 12h9.5a5.5 5.5 0 0 1 5.5 5.5V19" />
+    </>
+  ),
+  scan: (
+    <>
+      <path d="M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5" />
+      <path d="M4 12h16" />
+    </>
+  ),
+  pipeline: (
+    <>
+      <rect x="2" y="9" width="5.5" height="6" rx="1.5" />
+      <rect x="9.25" y="9" width="5.5" height="6" rx="1.5" />
+      <rect x="16.5" y="9" width="5.5" height="6" rx="1.5" />
+      <path d="M7.5 12h1.75M14.75 12h1.75" />
+    </>
+  ),
+  layers: (
+    <>
+      <path d="M12 3l9 4.8-9 4.8-9-4.8z" />
+      <path d="M3 12l9 4.8 9-4.8" />
+      <path d="M3 16.2l9 4.8 9-4.8" />
+    </>
+  ),
+  database: (
+    <>
+      <ellipse cx="12" cy="6" rx="8" ry="3" />
+      <path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
+      <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
+    </>
+  ),
+  image: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <circle cx="8.5" cy="9.5" r="1.6" />
+      <path d="M3 16.5l4.8-4.8 3.7 3.7 3.2-3.2 6.3 6.3" />
+    </>
+  ),
+  notebook: (
+    <>
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M9 3v18" />
+      <path d="M12 8h4M12 12h4M12 16h3" />
+    </>
+  ),
+  inbox: (
+    <>
+      <path d="M3 13h5l1.5 2.8h5L16 13h5" />
+      <path d="M4.6 5h14.8L21 13v4.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V13z" />
+    </>
+  ),
+  sigma: <path d="M17.5 5H8l5.2 7L8 19h9.5" />,
+  bookOpen: (
+    <>
+      <path d="M12 6.5C10 5 7.5 4.5 4 4.5v14c3.5 0 6 .5 8 2 2-1.5 4.5-2 8-2v-14c-3.5 0-6 .5-8 2z" />
+      <path d="M12 6.5v14" />
+    </>
+  ),
+  lightbulb: (
+    <>
+      <path d="M9.5 18h5M10.5 21h3" />
+      <path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3z" />
+    </>
+  ),
+  network: (
+    <>
+      <circle cx="12" cy="5" r="2" />
+      <circle cx="5" cy="18.5" r="2" />
+      <circle cx="19" cy="18.5" r="2" />
+      <path d="M12 7v4M10.8 12.8L6.2 16.8M13.2 12.8l4.6 4" />
+    </>
+  ),
+  target: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5.5" />
+      <circle cx="12" cy="12" r="2" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+    </>
+  ),
+  route: (
+    <>
+      <circle cx="6" cy="18" r="2" />
+      <circle cx="18" cy="6" r="2" />
+      <path d="M8 18h6a4 4 0 0 0 0-8h-4a4 4 0 0 1 0-8h6" />
+    </>
+  ),
+  award: (
+    <>
+      <circle cx="12" cy="9" r="5.5" />
+      <path d="M12 6.3l1 2 2.2.3-1.6 1.6.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.6 2.2-.3z" />
+      <path d="M8.5 13.8L7 21l5-2.6 5 2.6-1.5-7.2" />
+    </>
+  ),
 }
+
+/** 运行时校验：配置里存的图标名只要在图库里就认可，避免以后扩充图标时旧配置失效 */
+export const isIconName = (v: unknown): v is IconName =>
+  typeof v === 'string' && Object.prototype.hasOwnProperty.call(P, v)
 
 export function Icon({
   name,

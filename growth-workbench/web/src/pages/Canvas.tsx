@@ -1,7 +1,9 @@
 import '@xyflow/react/dist/style.css'
 import {
   Background,
+  BackgroundVariant,
   Controls,
+  MarkerType,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
@@ -25,7 +27,8 @@ import SkillPalette from '../features/canvas/SkillPalette'
 import FixedFlow from '../features/canvas/FixedFlow'
 import NodeInspector, { type RunInfo } from '../features/canvas/NodeInspector'
 import TemplateManager, { type TemplateInfo } from '../features/canvas/TemplateManager'
-import { nodeTypes, TYPE_LABEL, type CData, type CNode, type Skill } from '../features/canvas/canvas-shared'
+import { nodeTypes, TYPE_LABEL, TYPE_TILE, type CData, type CNode, type Skill } from '../features/canvas/canvas-shared'
+import { skillLabel } from '../features/canvas/skill-meta'
 
 /**
  * 把 fitView 从 ReactFlow 内部递给外层工具栏。
@@ -60,6 +63,18 @@ function Flow({
 }) {
   const { screenToFlowPosition } = useReactFlow()
 
+  /** 连线跟随源节点的识别色：深色实线 + 同色箭头端点，浅背景上清晰，贴近 n8n 观感 */
+  const styledEdges: Edge[] = edges.map((e) => {
+    const src = nodes.find((n) => n.id === e.source)
+    const color = (src && TYPE_TILE[src.data.ntype]?.bg) || '#94a3b8'
+    return {
+      ...e,
+      animated: false,
+      style: { stroke: color, strokeWidth: 2.2 },
+      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color },
+    }
+  })
+
   const onConnect = useCallback(
     (c: Connection) => setEdges((eds: Edge[]) => addEdge({ ...c, animated: true }, eds)),
     [setEdges],
@@ -82,7 +97,7 @@ function Flow({
     >
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={styledEdges}
         nodeTypes={nodeTypes}
         onNodesChange={(ch) => setNodes((nds: CNode[]) => applyNodeChanges(ch, nds) as CNode[])}
         onEdgesChange={(ch) => setEdges((eds: Edge[]) => applyEdgeChanges(ch, eds))}
@@ -93,12 +108,13 @@ function Flow({
         proOptions={{ hideAttribution: true }}
         className="bg-[color:var(--wb-bg-subtle)]"
       >
-        <Background gap={16} size={1} color="#dce1ea" />
+        <Background variant={BackgroundVariant.Dots} gap={18} size={1.4} color="#d3d9e3" />
         <Controls className="!bottom-3 !left-3" />
         <MiniMap
           pannable
           zoomable
-          className="!bottom-3 !right-3 !h-20 !w-32 !rounded-[10px] !border !border-[color:var(--wb-border)]"
+          nodeColor={(n) => TYPE_TILE[(n.data as CData)?.ntype]?.bg || '#94a3b8'}
+          className="!bottom-3 !right-3 !h-16 !w-24 !rounded-[10px] !border !border-[color:var(--wb-border)]"
           maskColor="rgba(16,24,40,0.08)"
         />
       </ReactFlow>
@@ -135,7 +151,8 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   /** 布局：固定框（默认，轻量）/ 自由画布（高级，可拖拽缩放） */
-  const [layout, setLayout] = usePersist<'fixed' | 'free'>('canvas.layout', 'fixed')
+  // v2：按用户「还是保留那种画布」把默认改回自由画布；换 key 让上一轮写死的 fixed 不残留
+  const [layout, setLayout] = usePersist<'fixed' | 'free'>('canvas.layout.v2', 'free')
   const [tipSeen, setTipSeen] = usePersist('canvas.tipSeen', false)
   // 面板折叠：宽屏要的是更大的画布，不是更长的正文
   const [leftOpen, setLeftOpen] = usePersist('canvas.leftOpen', true)
@@ -287,7 +304,7 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
       const d = await get<any>(`/canvas/${id}`)
       setCid(id)
       setName(d.canvas.name)
-      const ns: CNode[] = (d.nodes || []).map((n: any) => ({
+      const raw: CNode[] = (d.nodes || []).map((n: any) => ({
         id: n.node_key,
         type: 'cnode',
         position: { x: n.x || 0, y: n.y || 0 },
@@ -300,6 +317,14 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
           status: 'idle',
         },
       }))
+      // 固定框时期保存的画布节点都在原点，回到自由画布时铺开，避免叠成一坨
+      const stacked = raw.length > 1 && raw.every((n) => !n.position.x && !n.position.y)
+      const ns = stacked
+        ? raw.map((n, i) => ({
+            ...n,
+            position: { x: 80 + (i % 4) * 210, y: 80 + Math.floor(i / 4) * 170 },
+          }))
+        : raw
       setNodes(ns)
       setEdges(
         (d.edges || []).map((e: any, i: number) => ({
@@ -384,7 +409,7 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
         selected: true,
         data: {
           key,
-          title: sk ? sk.name : `${TYPE_LABEL[ntype] || '节点'}节点`,
+          title: sk ? skillLabel(sk) : `${TYPE_LABEL[ntype] || '节点'}节点`,
           ntype: ntype as any,
           skillId: ntype === 'skill' ? skillId : '',
           config: cfg,
@@ -714,8 +739,8 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
               value={layout}
               onChange={switchLayout}
               options={[
-                { value: 'fixed', label: '固定框' },
                 { value: 'free', label: '自由画布' },
+                { value: 'fixed', label: '固定框' },
               ]}
             />
             <Select

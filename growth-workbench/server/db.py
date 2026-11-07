@@ -71,6 +71,15 @@ CREATE TABLE IF NOT EXISTS lit_matrix (
   sort_order INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS lit_edges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_id INTEGER NOT NULL,
+  target_id INTEGER NOT NULL,
+  edge_type TEXT NOT NULL DEFAULT 'cites',
+  created_at TEXT,
+  UNIQUE(source_id, target_id, edge_type)
+);
+
 CREATE TABLE IF NOT EXISTS experiments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -379,6 +388,7 @@ MIGRATIONS = [
     ("literature", "source_key", "TEXT"),
     ("literature", "pdf_path", "TEXT"),
     ("literature", "gloss_id", "TEXT"),
+    ("literature", "openalex_id", "TEXT"),
     ("canvas_node_outputs", "status", "TEXT"),
     ("canvas_node_outputs", "error_json", "TEXT"),
     ("chat_sessions", "stage", "TEXT DEFAULT 'survey'"),
