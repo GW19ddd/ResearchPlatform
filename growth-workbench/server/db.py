@@ -277,6 +277,28 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   created_at TEXT
 );
 
+-- 研究对话（Undermind 式）：独立于 /api/chat 的会话与消息。
+-- kind: text 普通回复 / deep 深度检索 / report 报告；meta 存 JSON（引用、检索式、建议）。
+CREATE TABLE IF NOT EXISTS rchat_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT DEFAULT '新对话',
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS rchat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER,
+  role TEXT,
+  kind TEXT DEFAULT 'text',
+  content TEXT,
+  meta TEXT,
+  provider TEXT,
+  model TEXT,
+  elapsed_ms INTEGER DEFAULT 0,
+  created_at TEXT
+);
+
 -- quest 发现沉淀（Findings Memory）：每轮对话的 system prompt 会自动带上这些结论
 CREATE TABLE IF NOT EXISTS chat_findings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

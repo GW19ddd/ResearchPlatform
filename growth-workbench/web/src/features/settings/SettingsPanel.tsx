@@ -30,7 +30,7 @@ const SECTIONS: {
   {
     key: 'dify',
     label: 'Dify 应用',
-    desc: '画布工作流节点',
+    desc: '编排画布节点',
     hint: '填一次地址与 Key，画布里的 Dify 节点就能直接用',
     icon: 'hexagon',
   },

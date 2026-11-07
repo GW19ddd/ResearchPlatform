@@ -625,6 +625,156 @@ AUTO_SYSTEM = (
 )
 
 
+CHAT_SYSTEM = (
+    "你是「科研画布」的对话操作副驾。用户用中文自然语言指挥你搭建/修改一张自动化科研流水线（节点图）。"
+    "你要把指令翻译成对节点图的最小操作集（新增/连线/重命名/配置/删除），并回一句简短、口语化、像副驾在解释的中文说明。"
+    "严谨：只从给定的技能库挑 skill_id，绝不编造；连线不能成环；能复用现有节点就复用，不要重复新增。"
+    "只输出合法 JSON，不要解释、不要代码块围栏。"
+)
+
+
+def _canvas_state(nodes: list[dict], edges: list[dict]) -> str:
+    """把当前画布压成一段给 LLM 看的文本。"""
+    if not nodes:
+        return "（画布为空）"
+    lines = []
+    for n in nodes:
+        cfg = n.get("config") or {}
+        extra = ""
+        if n.get("type") == "skill":
+            extra = f" skill_id={n.get('skill_id')}"
+            ins = cfg.get("inputs") or {}
+            if ins:
+                extra += " inputs=" + ", ".join(f"{k}={v}" for k, v in ins.items())
+        elif n.get("type") == "input":
+            extra = f" text={(cfg.get('text') or '')[:40]!r}"
+        elif n.get("type") == "output":
+            extra = f" prefix={(cfg.get('prefix') or '')[:40]!r}"
+        lines.append(f"- {n['node_key']} [{n.get('type')}] {n.get('title')}{extra}")
+    el = " · ".join(f"{e['source_key']}→{e['target_key']}" for e in edges) or "（无连线）"
+    return "现有节点：\n" + "\n".join(lines) + "\n现有连线：" + el
+
+
+def _chat_prompt(instr: str, menu: str, state: str, hist: str) -> str:
+    return f"""用户正在用「科研画布」搭一个自动化科研流水线（节点图）。你扮演会操作这块画布的研究副驾。
+
+{hist and ('最近对话：\n' + hist) or ''}
+当前画布状态：
+{state}
+
+可用技能库（add/connect 时 skill_id 只能从这里挑，不要编造）：
+{menu}
+
+用户的新指令：{instr}
+
+请你把它翻译成对画布的具体操作，并回一句中文短话。
+输出 JSON（不要任何额外文字）：
+{{
+  "reply": "你打算做什么，1-2 句中文，口语、像副驾在解释",
+  "plan": ["你打算怎么做，拆成 1-3 步短句，每步一行，如「先看现有选题节点」「再接一个综述技能」"],
+  "ops": [
+    {{"op":"add","skill_id":"库里的真实id","title":"显示名（6字内）","config":{{"inputs":{{"task":"这一步具体做什么"}}}}}},
+    {{"op":"connect","source":"n2","target":"n3"}},
+    {{"op":"rename","key":"n_out","title":"最终报告"}},
+    {{"op":"config","key":"n2","config":{{"inputs":{{"task":"改成做X"}}}}}},
+    {{"op":"delete","key":"n3"}}
+  ],
+  "suggests": ["用户接下来最可能点的 1-2 条后续指令，具体、可整句直接发送，如「在综述后面加一个创新点评估」"],
+  "run": false
+}}
+
+规则：
+1. 只能从上面技能库挑 skill_id；不认识的技能就别 add，改用现有节点 connect / rename / config。
+2. 新增节点由系统自动编号，不要自己编 key（只有 connect/rename/delete/config 需要指向已存在的 key）。
+3. 连线 source/target 必须是当前画布里真实存在的节点 key，且不要连成环。
+4. 用户明确说「跑一下/运行/执行」时把 run 设为 true；否则 false。
+5. 一次操作宁少勿多，不超过 4 个 op。
+6. plan 是给用户展开看的执行思路，1-3 条短句；suggests 是后续指令建议，最多 2 条、可为空数组。
+7. 只输出 JSON 本身。"""
+
+
+def _apply_ops(canvas_id: int, nodes: list[dict], edges: list[dict], ops: list) -> dict:
+    """把 LLM 给的操作逐个校验、落库。返回已执行的描述列表。"""
+    valid_ids = {s["id"] for s in list_skills()}
+    existing = {n["node_key"] for n in nodes}
+    applied: list[str] = []
+    maxk = 0
+    for n in nodes:
+        m = re.search(r"\d+", n["node_key"])
+        if m:
+            maxk = max(maxk, int(m.group()))
+    maxx = max((n.get("x") or 0) for n in nodes) if nodes else 40
+    maxy = max((n.get("y") or 0) for n in nodes) if nodes else 40
+    for op in ops or []:
+        if not isinstance(op, dict):
+            continue
+        kind = op.get("op")
+        if kind == "add":
+            sid = (op.get("skill_id") or "").strip()
+            ntype = op.get("ntype") or ("skill" if sid else "output")
+            if ntype == "skill" and sid not in valid_ids:
+                applied.append(f"忽略：技能 {sid or '(空)'} 不存在")
+                continue
+            maxk += 1
+            key = op.get("key") or f"n{maxk}"
+            if key in existing:
+                key = f"n{maxk}"
+            cfg = op.get("config") if isinstance(op.get("config"), dict) else {}
+            if ntype == "skill":
+                cfg = {"inputs": {k: str(v) for k, v in (cfg.get("inputs") or {}).items()}}
+            maxx += 260
+            execute(
+                "INSERT INTO canvas_nodes (canvas_id, node_key, type, skill_id, title, x, y, config_json) VALUES (?,?,?,?,?,?,?,?)",
+                (canvas_id, key, ntype, sid or None, (op.get("title") or sid or "新节点")[:24],
+                 maxx, maxy, json.dumps(cfg, ensure_ascii=False)),
+            )
+            existing.add(key)
+            nodes.append({"node_key": key})
+            applied.append(f"新增节点 {key}（{op.get('title') or sid or ntype}）")
+        elif kind == "connect":
+            s, t = str(op.get("source") or ""), str(op.get("target") or "")
+            if s in existing and t in existing and s != t:
+                if not any(e["source_key"] == s and e["target_key"] == t for e in edges):
+                    execute("INSERT INTO canvas_edges (canvas_id, source_key, target_key) VALUES (?,?,?)",
+                            (canvas_id, s, t))
+                    edges.append({"source_key": s, "target_key": t})
+                    applied.append(f"连线 {s} → {t}")
+                else:
+                    applied.append(f"连线已存在 {s} → {t}")
+            else:
+                applied.append(f"忽略：连线端点 {s}/{t} 不存在")
+        elif kind == "rename":
+            key = str(op.get("key") or "")
+            title = (op.get("title") or "").strip()
+            if key in existing and title:
+                execute("UPDATE canvas_nodes SET title=? WHERE canvas_id=? AND node_key=?",
+                        (title[:24], canvas_id, key))
+                applied.append(f"重命名 {key} → {title}")
+        elif kind == "config":
+            key = str(op.get("key") or "")
+            if key in existing:
+                cfg = op.get("config") if isinstance(op.get("config"), dict) else {}
+                row = query("SELECT config_json FROM canvas_nodes WHERE canvas_id=? AND node_key=?",
+                            (canvas_id, key))
+                cur = json.loads(row[0]["config_json"] or "{}") if row else {}
+                if isinstance(cfg.get("inputs"), dict):
+                    cur.setdefault("inputs", {}).update({k: str(v) for k, v in cfg["inputs"].items()})
+                else:
+                    cur.update({k: str(v) for k, v in cfg.items()})
+                execute("UPDATE canvas_nodes SET config_json=? WHERE canvas_id=? AND node_key=?",
+                        (json.dumps(cur, ensure_ascii=False), canvas_id, key))
+                applied.append(f"配置 {key} 已更新")
+        elif kind == "delete":
+            key = str(op.get("key") or "")
+            if key in existing:
+                execute("DELETE FROM canvas_nodes WHERE canvas_id=? AND node_key=?", (canvas_id, key))
+                execute("DELETE FROM canvas_edges WHERE canvas_id=? AND (source_key=? OR target_key=?)",
+                        (canvas_id, key, key))
+                existing.discard(key)
+                applied.append(f"删除节点 {key}")
+    return {"ok": True, "applied": applied}
+
+
 def _skill_menu() -> str:
     lines = []
     for s in list_skills():
@@ -889,6 +1039,74 @@ async def api_auto(body: AutoIn):
         "ok": True, "id": cid, "name": name, "rationale": rationale,
         "dropped": dropped, "fallback": used_fallback,
         "nodes": nodes, "edges": edges,
+    }
+
+
+class ChatIn(BaseModel):
+    instruction: str
+    history: list[dict] = []
+
+
+@router.post("/{canvas_id}/chat")
+async def api_canvas_chat(canvas_id: int, body: ChatIn):
+    """对话操作画布：自然语言指令 → LLM 解析成节点操作 → 落库 → 回话。
+
+    对齐 Undermind 的「对话即操作」体验：用户用中文描述想要什么，AI 把指令翻译成
+    对节点图的最小改动集合（add/connect/rename/config/delete），落库后前端实时刷新画布。
+    """
+    _canvas_or_404(canvas_id)
+    instr = (body.instruction or "").strip()
+    if not instr:
+        raise HTTPException(400, "说点什么，例如「加一个文献综述节点」")
+    nodes = _nodes(canvas_id)
+    edges = _edges(canvas_id)
+    menu = _skill_menu()
+    state = _canvas_state(nodes, edges)
+    hist = ""
+    for m in (body.history or [])[-6:]:
+        role = m.get("role")
+        text = (m.get("content") or "").strip()
+        if role and text:
+            hist += f"{'用户' if role == 'user' else '助手'}：{text}\n"
+    prompt = _chat_prompt(instr, menu, state, hist)
+    t0 = time.monotonic()
+    env = await llm.complete_with_meta(prompt, system=CHAT_SYSTEM, mode="fast", task="canvas:chat", max_tokens=1800)
+    reply = "（AI 暂时没回话）"
+    ops: list = []
+    plan: list = []
+    suggests: list = []
+    run = False
+    if env.get("ok"):
+        raw = (env.get("content") or "").strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            raw = raw.split("\n", 1)[-1] if "\n" in raw else raw
+        i, j = raw.find("{"), raw.rfind("}")
+        parsed: dict = {}
+        if i >= 0 and j > i:
+            try:
+                parsed = json.loads(raw[i:j + 1])
+            except ValueError:
+                parsed = {}
+        reply = (parsed.get("reply") or "").strip() or reply
+        ops = parsed.get("ops") if isinstance(parsed.get("ops"), list) else []
+        plan = [str(x) for x in parsed.get("plan") or [] if str(x).strip()][:4]
+        suggests = [str(x) for x in parsed.get("suggests") or [] if str(x).strip()][:2]
+        run = bool(parsed.get("run"))
+    else:
+        e = env.get("error") or {}
+        reply = f"（操作失败：{e.get('label') or 'AI 返回错误'}：{e.get('message') or ''}）"
+    applied = _apply_ops(canvas_id, nodes, edges, ops)
+    if not applied["applied"] and not ops:
+        applied["applied"] = ["（没有可执行的改动）"]
+    return {
+        "ok": True,
+        "reply": reply,
+        "applied": applied["applied"],
+        "run": run,
+        "plan": plan,
+        "suggests": suggests,
+        "elapsed_ms": int((time.monotonic() - t0) * 1000),
     }
 
 

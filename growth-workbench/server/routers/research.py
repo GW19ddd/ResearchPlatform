@@ -1138,3 +1138,135 @@ async def analyze_experiment(exp_id: int):
         "tokens_in": env["tokens_in"],
         "tokens_out": env["tokens_out"],
     }
+
+
+@router.post("/experiments/{exp_id}/failures")
+async def experiment_failures(exp_id: int):
+    """失败模式归因：只看失败样本，给可行动的根因假设。"""
+    exp = row_or_404("experiments", exp_id)
+    results = query("SELECT * FROM exp_results WHERE experiment_id=?", (exp_id,))
+    failed = [r for r in results if not r["success"]]
+    if not failed:
+        return {"ok": False, "result": "", "error": {
+            "kind": "no_data", "label": "没有失败样本",
+            "message": "当前实验的所有结果记录都是成功，无需归因。",
+            "hint": "失败归因只对「失败」的结果记录生效，先录入几条失败 case 再试。",
+        }}
+    lines = [
+        f"- case={r['case_name']} | 方法={r['method'] or '-'} | "
+        f"指标={r['metrics_json'] or '{}'} | 备注={r['notes'] or '-'}"
+        for r in failed
+    ]
+    ok_lines = [
+        f"- case={r['case_name']} | 方法={r['method'] or '-'} | 指标={r['metrics_json'] or '{}'}"
+        for r in results if r["success"]
+    ]
+    prompt = f"""实验「{exp['name']}」的假设：{exp.get('hypothesis') or '（无）'}
+设计：{exp.get('design') or '（无）'}
+
+失败样本（{len(failed)} 条）：
+{chr(10).join(lines)}
+
+成功样本对照（{len(ok_lines)} 条）：
+{chr(10).join(ok_lines) if ok_lines else "（无成功样本）"}
+
+请做失败模式归因，输出：
+1. 失败模式分类：把失败样本按「看起来是同一种死法」分成 2-4 组，每组起个名字并给出组内证据
+2. 每组的根因假设：按可能性排序，说明「依据哪个字段/哪条记录」
+3. 每组一条验证动作：花 <半天 就能确认/排除该假设的最小操作
+4. 红旗：如果失败样本少到无法归因（<3 条）或信息缺失严重，直说，不要硬编
+
+只基于给出的数据分析，禁止编造数据里不存在的细节。"""
+    env = await llm.complete_result(prompt, mode="fast", task="exp-failures", max_tokens=3072)
+    if not env["ok"]:
+        return {"ok": False, "result": "", "error": env["error"]}
+    return {
+        "ok": True, "result": env["content"], "error": None,
+        "provider": env["provider"], "model": env["model"],
+        "tokens_in": env["tokens_in"], "tokens_out": env["tokens_out"],
+    }
+
+
+class DesignReviewIn(BaseModel):
+    extra: str | None = None  # 用户补充的上下文（预算/时间/算力约束等）
+
+
+@router.post("/experiments/{exp_id}/design-review")
+async def experiment_design_review(exp_id: int, body: DesignReviewIn | None = None):
+    """实验设计预审：跑之前先挑毛病，省下白跑一周的代价。"""
+    exp = row_or_404("experiments", exp_id)
+    prompt = f"""你是一位方法论严苛但务实的实验方法学审稿人。请预审下面这个还没跑的实验设计：
+
+实验名称：{exp['name']}
+假设：{exp.get('hypothesis') or '（未填写）'}
+设计（方法 × 样本 × 指标）：{exp.get('design') or '（未填写）'}
+{('补充约束：' + body.extra) if body and body.extra else ''}
+
+请输出：
+1. 一句话总评：这个设计能不能直接开跑（能 / 小改后能 / 大改后才能）
+2. 致命问题清单：会导致结论不可信或白跑的设计缺陷，每条给出「为什么致命 + 怎么改」
+3. 缺失项检查：样本量、基线、随机性/重复次数、评价指标、消融项、数据泄漏风险——缺哪个点哪个，没缺的别硬凑
+4. 最便宜的先行版本：如果只有 1/3 的预算，这个实验最简化但仍有说服力的跑法
+5. 开跑前 checklist：3-5 条勾选项
+
+务实一点：这是个人科研工作台的实验，不是顶会投稿评审，别拿「创新性不足」说事，只看方法学。"""
+    env = await llm.complete_result(prompt, mode="fast", task="exp-design-review", max_tokens=3072)
+    if not env["ok"]:
+        return {"ok": False, "result": "", "error": env["error"]}
+    return {
+        "ok": True, "result": env["content"], "error": None,
+        "provider": env["provider"], "model": env["model"],
+        "tokens_in": env["tokens_in"], "tokens_out": env["tokens_out"],
+    }
+
+
+class CompareIn(BaseModel):
+    ids: list[int] = []
+
+
+@router.post("/experiments/compare")
+async def experiments_compare(body: CompareIn):
+    """跨实验对比：把勾选的 2-6 个实验放在一起，让 AI 找模式。"""
+    ids = [int(i) for i in body.ids if i is not None]
+    if len(ids) < 2:
+        return {"ok": False, "result": "", "error": {
+            "kind": "no_data", "label": "至少勾选 2 个实验",
+            "message": "跨实验对比需要 2-6 个实验，在列表里多选后再点对比。",
+            "hint": None,
+        }}
+    ids = ids[:6]
+    blocks = []
+    for eid in ids:
+        e = row_or_404("experiments", eid)
+        results = query("SELECT * FROM exp_results WHERE experiment_id=?", (eid,))
+        n_ok = sum(1 for r in results if r["success"])
+        rl = [
+            f"    - {r['case_name']} | {r['method'] or '-'} | {'成功' if r['success'] else '失败'} | {r['metrics_json'] or '{}'}"
+            for r in results[:20]
+        ]
+        blocks.append(
+            f"### 实验 {e['name']}（状态：{e['status']}）\n"
+            f"假设：{e.get('hypothesis') or '（无）'}\n"
+            f"设计：{e.get('design') or '（无）'}\n"
+            f"结果（{n_ok}/{len(results)} 成功）：\n" + ("\n".join(rl) if rl else "    （无记录）")
+        )
+    prompt = f"""下面是 {len(blocks)} 个实验的完整档案，请做横向对比分析：
+
+{chr(10).join(blocks)}
+
+请输出：
+1. 对比总表（Markdown 表格）：实验名 × 假设 × 方法要点 × 成功率 × 关键指标
+2. 模式发现：哪个实验的结果支持/反驳了哪个假设？有没有跨实验重复出现的现象？
+3. 冲突与矛盾：结果之间有没有互相打架的地方？指出具体是哪两个实验的哪个指标
+4. 下一步：基于全部证据，最值得投入的下一个实验是什么（合并/分支/放弃哪个方向）
+5. 可直接写进论文的一段话：用 3-4 句话概述这组实验共同支撑的结论
+
+只基于给出的数据分析，禁止编造。"""
+    env = await llm.complete_result(prompt, mode="fast", task="exp-compare", max_tokens=3584)
+    if not env["ok"]:
+        return {"ok": False, "result": "", "error": env["error"]}
+    return {
+        "ok": True, "result": env["content"], "error": None,
+        "provider": env["provider"], "model": env["model"],
+        "tokens_in": env["tokens_in"], "tokens_out": env["tokens_out"],
+    }

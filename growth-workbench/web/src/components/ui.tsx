@@ -230,8 +230,10 @@ export function Input({
   className = '',
   defaultValue,
   onBlur,
+  onKeyDown,
   disabled,
   autoComplete,
+  ariaLabel,
 }: {
   value?: string | number
   onChange?: (v: string) => void
@@ -240,8 +242,12 @@ export function Input({
   className?: string
   defaultValue?: string | number
   onBlur?: (e: FocusEvent<HTMLInputElement>) => void
+  /** 地址栏之类需要回车提交时用；可选，不影响既有调用方 */
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
   disabled?: boolean
   autoComplete?: string
+  /** 给原生 input 挂 aria-label（无障碍 + 自动化定位）；可选 */
+  ariaLabel?: string
 }) {
   return (
     <input
@@ -251,8 +257,10 @@ export function Input({
       placeholder={placeholder}
       disabled={disabled}
       autoComplete={autoComplete}
+      aria-label={ariaLabel}
       onChange={(e) => onChange?.(e.target.value)}
       onBlur={onBlur}
+      onKeyDown={onKeyDown}
       className={`${CONTROL_BASE} border-[color:var(--wb-border-strong)] px-3 py-[7px] focus:border-[color:var(--wb-accent)] ${className}`}
     />
   )
@@ -265,6 +273,8 @@ export function TextArea({
   rows = 3,
   onKeyDown,
   className = '',
+  defaultValue,
+  onBlur,
 }: {
   value?: string
   onChange?: (v: string) => void
@@ -272,14 +282,19 @@ export function TextArea({
   rows?: number
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   className?: string
+  /** 非受控用法：详情面板「失焦保存」场景，避免整页重渲 */
+  defaultValue?: string
+  onBlur?: (e: React.FocusEvent<HTMLTextAreaElement>) => void
 }) {
   return (
     <textarea
       rows={rows}
       value={value ?? ''}
+      defaultValue={defaultValue}
       placeholder={placeholder}
       onChange={(e) => onChange?.(e.target.value)}
       onKeyDown={onKeyDown}
+      onBlur={onBlur}
       className={`${CONTROL_BASE} resize-y border-[color:var(--wb-border-strong)] px-3 py-2 leading-relaxed focus:border-[color:var(--wb-accent)] ${className}`}
     />
   )

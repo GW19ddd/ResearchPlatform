@@ -1,12 +1,15 @@
 /**
- * 文献页：录入 → 检索 → 同步 → 分页浏览 → 对比矩阵。
+ * 文献页：录入 → 同步 → 分页浏览 → 对比矩阵 → 关联图。
  *
  * 这一层只负责「列表数据、筛选、分页、开哪个浮层」，
  * 笔记 / PDF / Gloss 在 features/literature/*，Zotero 同步与对比矩阵也各自独立成组件。
  * 列表永远是全量拉回本地再切片分页 —— 这是本地单机应用，翻页不该产生请求。
+ *
+ * 在线检索与 AI 检索方案已移到独立「检索」页（/search，左侧菜单栏进入），
+ * 本页不再重复放检索入口。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AiError, AiMeta } from '../components/AiError'
+import { AiError } from '../components/AiError'
 import {
   Btn,
   Card,
@@ -14,7 +17,6 @@ import {
   Input,
   LoadError,
   Loading,
-  MdBlock,
   Modal,
   PageHeader,
   Pagination,
@@ -42,7 +44,6 @@ import { del, get, patch, post } from '../lib/api'
 import { useAiTask, useIdemKey } from '../lib/hooks'
 import { usePersist } from '../lib/state'
 import LiteratureDrawer from '../features/literature/LiteratureDrawer'
-import LitSearchCard from '../features/literature/LitSearchCard'
 import MatrixTable from '../features/literature/MatrixTable'
 import PdfModal from '../features/literature/PdfModal'
 import RelationGraph from '../features/literature/RelationGraph'
@@ -56,10 +57,9 @@ const STATUS_DOT: Record<string, string> = {
 
 const EMPTY_FORM = { title: '', authors: '', year: '', venue: '', url: '' }
 
-type LitTab = 'library' | 'search' | 'matrix' | 'graph'
+type LitTab = 'library' | 'matrix' | 'graph'
 const TABS: { value: LitTab; label: string }[] = [
   { value: 'library', label: '文献库' },
-  { value: 'search', label: '在线检索' },
   { value: 'matrix', label: '对比矩阵' },
   { value: 'graph', label: '关联图' },
 ]
@@ -82,17 +82,13 @@ export default function Literature() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [busy, setBusy] = useState('')
-  // 检索方案 / 单篇摘要两个 AI 动作：失败给原因 + 重试，不把错误文案当笔记
-  const kwTask = useAiTask<any>()
+  // 单篇摘要的 AI 动作：失败给原因 + 重试，不把错误文案当笔记
   const dgTask = useAiTask<any>()
   const idem = useIdemKey()
 
-  // 录入 / 检索
+  // 录入
   const [form, setForm] = usePersist<any>('lit.form', EMPTY_FORM)
-  const [topic, setTopic] = usePersist('lit.topic', '')
-  const [out, setOut] = usePersist<{ title: string; text: string } | null>('lit.out', null)
   const [addOpen, setAddOpen] = useState(false)
-  const [planOpen, setPlanOpen] = useState(false)
 
   // 浏览：筛选 + 搜索 + 分页
   const [filter, setFilter] = usePersist('lit.filter', '')
@@ -100,8 +96,8 @@ export default function Literature() {
   const [page, setPage] = usePersist('lit.page', 1)
   const [pageSize, setPageSize] = usePersist('lit.pageSize', 20)
 
-  // 四个分区各占一个视图，点按钮切换，不再一页铺到底
-  // 兼容旧的持久化值（Zotero 同步已搬到设置里）：非法值一律回落到文献库
+  // 各分区独立成屏，点按钮切换，不再一页铺到底
+  // 兼容旧的持久化值（在线检索已搬到 /search、Zotero 同步搬到设置里）：非法值一律回落到文献库
   const [tab, setTab] = usePersist<LitTab>('lit.tab', 'library')
   const activeTab: LitTab = TABS.some((t) => t.value === tab) ? tab : 'library'
 
@@ -211,13 +207,6 @@ export default function Literature() {
     if (pdfItem?.id === id) setPdfItem(null)
     if (bulk.has(id)) bulk.toggle(id) // 删掉的就别留在选区里
     await reloadAll()
-  }
-
-  const keywords = async () => {
-    if (!topic.trim()) return
-    const r: any = await kwTask.run(() => post('/literature/keywords', { topic }, { ok: false }))
-    if (!r || r.ok === false) return
-    setOut({ title: `检索方案 · ${topic}`, text: r.result })
   }
 
   // 摘要失败时要能一键重试同一篇，所以记住最后一次点的 id
@@ -506,7 +495,7 @@ export default function Literature() {
   if (loadError) {
     return (
       <div className="flex flex-col gap-3.5">
-        <PageHeader eyebrow="输入 · 02" title="文献" desc="录入 → 检索 → 同步 → 精读笔记 → 横向对比" />
+        <PageHeader eyebrow="输入 · 02" title="文献" desc="录入 → 同步 → 精读笔记 → 横向对比" />
         <LoadError error={loadError} onRetry={boot} retrying={loading} what="文献列表" />
       </div>
     )
@@ -519,30 +508,19 @@ export default function Literature() {
       <PageHeader
         eyebrow="输入 · 02"
         title="文献"
-        desc="录入 → 检索 → 同步 → 精读笔记 → 横向对比，闭环到 Related Work"
+        desc="录入 → 同步 → 精读笔记 → 横向对比，闭环到 Related Work"
         actions={
-          <>
-            <Btn
-              onClick={() => {
-                setPlanOpen(true)
-                setOut(null)
-              }}
-            >
-              <Icon name="sparkle" size={13} />
-              检索方案
-            </Btn>
-            <Btn variant="primary" onClick={() => setAddOpen(true)}>
-              <Icon name="plus" size={13} />
-              新增文献
-            </Btn>
-          </>
+          <Btn variant="primary" onClick={() => setAddOpen(true)}>
+            <Icon name="plus" size={13} />
+            新增文献
+          </Btn>
         }
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Segmented value={activeTab} onChange={switchTab} options={TABS} />
         <span className="text-[11.5px] text-[color:var(--wb-muted)]">
-          三个分区独立成屏，点按钮切换；Zotero 同步在「设置」里
+          分区独立成屏，点按钮切换；在线检索在左侧「检索」，Zotero 同步在「设置」里
         </span>
       </div>
 
@@ -718,10 +696,6 @@ export default function Literature() {
       </Card>
       )}
 
-      {activeTab === 'search' && (
-        <LitSearchCard libTitles={items.map((i) => i.title)} onImported={reloadAll} />
-      )}
-
       {activeTab === 'matrix' && (
         <MatrixTable
           matrix={matrix}
@@ -790,49 +764,6 @@ export default function Literature() {
           <p className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
             批量入库走下面的「从 Zotero 同步」，这里适合随手补一条。
           </p>
-        </div>
-      </Modal>
-
-      {/* 检索方案 */}
-      <Modal
-        open={planOpen}
-        onClose={() => setPlanOpen(false)}
-        title="AI 检索方案"
-        width="max-w-3xl"
-        footer={
-          <>
-            <Btn onClick={() => setPlanOpen(false)}>关闭</Btn>
-            <Btn
-              variant="primary"
-              onClick={keywords}
-              loading={kwTask.busy}
-              disabled={!topic.trim()}
-            >
-              生成检索式
-            </Btn>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-3">
-          <Input
-            placeholder="研究主题，例：LLM agent for CFD case repair"
-            value={topic}
-            onChange={setTopic}
-          />
-          <p className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
-            输出可直接粘贴到 Google Scholar / IEEE Xplore / arXiv 的布尔检索式、必追关键词与反向检索建议。
-          </p>
-          {kwTask.error && (
-            <AiError error={kwTask.error} onRetry={keywords} retrying={kwTask.busy} />
-          )}
-          {kwTask.busy ? (
-            <Loading text="正在生成检索方案…" />
-          ) : out && !kwTask.error ? (
-            <div className="max-h-[52vh] overflow-y-auto rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] p-3">
-              <MdBlock text={out.text} />
-              <AiMeta res={kwTask.data || {}} />
-            </div>
-          ) : null}
         </div>
       </Modal>
 

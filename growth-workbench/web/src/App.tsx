@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Ideas from './pages/Ideas'
 import Literature from './pages/Literature'
 import Navigator from './pages/Navigator'
+import Search from './pages/Search'
 import Experiments from './pages/Experiments'
 import Paper from './pages/Paper'
 import Plan from './pages/Plan'
@@ -11,47 +12,58 @@ import Advisor from './pages/Advisor'
 import Points from './pages/Points'
 import Settings from './pages/Settings'
 import Chat from './pages/Chat'
+import Canvas from './pages/Canvas'
+import ResearchChat from './pages/ResearchChat'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
+import WorkspaceTabs from './components/WorkflowTabs'
 import { ToastHost } from './components/toast'
 import Tour from './components/Tour'
 import { Icon, IconName } from './components/Icon'
+import { ResizeHandle } from './components/ResizeHandle'
 import { Avatar, Btn, IconBtn, Input, Modal } from './components/ui'
 import { usePersist } from './lib/state'
 import { get } from './lib/api'
 import { displayNameOf, useAuth } from './lib/auth'
 import SettingsPanel from './features/settings/SettingsPanel'
 
-/** 侧边栏按科研流程分段：输入 → 执行 → 复盘 → 激励 */
-const NAV_GROUPS: { group: string; items: { to: string; label: string; icon: IconName }[] }[] = [
+/**
+ * 三层信息架构：① 工作台（做科研的地方）→ ② 研究资产（产出的东西）→ ③ 节奏与工具（收纳）。
+ * 工作台单独渲染成一组三卡，不塞进普通列表；术语字典见
+ * docs/feature-ia-redesign-2026-11-08.md 第 5.3 节。
+ */
+const WORKSPACES: { to: string; label: string; hint: string; icon: IconName; primary?: boolean }[] = [
+  { to: '/chat', label: '课题 Quest', hint: '契约 → 四阶段门禁 → 成文', icon: 'sparkle', primary: true },
+  { to: '/canvas', label: '编排画布 Canvas', hint: '多步 AI 任务连成流水线', icon: 'layers' },
+  { to: '/research', label: '调研 Research', hint: '找文献 → 自动入库 → 带引用报告', icon: 'message' },
+]
+
+/** 工作台之外的导航分组；「工具」默认折叠，不占主线视觉权重 */
+const NAV_GROUPS: { group: string; foldable?: boolean; items: { to: string; label: string; icon: IconName }[] }[] = [
   {
-    group: '输入',
+    group: '研究资产',
     items: [
       { to: '/ideas', label: '创新点', icon: 'sparkle' },
       { to: '/literature', label: '文献', icon: 'book' },
-      { to: '/navigator', label: '科研导航', icon: 'search' },
-    ],
-  },
-  {
-    group: '执行',
-    items: [
       { to: '/experiments', label: '实验', icon: 'beaker' },
       { to: '/paper', label: '论文', icon: 'file' },
     ],
   },
   {
-    group: '复盘',
+    group: '节奏',
     items: [
       { to: '/plan', label: '计划复盘', icon: 'clock' },
       { to: '/advisor', label: '导师', icon: 'phone' },
+      { to: '/points', label: '激励规则', icon: 'star' },
     ],
   },
   {
-    group: '激励',
-    items: [{ to: '/points', label: '积分', icon: 'star' }],
-  },
-  {
-    group: '',
-    items: [{ to: '/chat', label: '对话 / 工作流', icon: 'message' }],
+    group: '工具',
+    foldable: true,
+    items: [
+      { to: '/search', label: '在线检索', icon: 'scan' },
+      { to: '/navigator', label: '站点快搜', icon: 'search' },
+    ],
   },
 ]
 
@@ -70,7 +82,7 @@ function navBadges(d: any): Record<string, NavBadge> {
   const put = (to: string, n: number, tone: NavBadge['tone']) => {
     if (n > 0) out[to] = { n, tone }
   }
-  put('/', (d.open_tasks || 0) + (d.open_bets || 0), 'accent')
+  put('/today', (d.open_tasks || 0) + (d.open_bets || 0), 'accent')
   put('/literature', d.literature?.todo || 0, 'warn')
   put('/experiments', d.experiments?.planned || 0, 'neutral')
   put('/plan', d.commitments?.open || 0, 'warn')
@@ -126,6 +138,59 @@ function BrandMark({ size = 30 }: { size?: number }) {
   )
 }
 
+/** ① 工作台：三个做科研的地方，一组三卡。主路径（课题 Quest）渐变高亮，另两个同级。 */
+function WorkspaceGroup({ collapsed }: { collapsed: boolean }) {
+  return (
+    <div className={collapsed ? 'px-2 pb-1 pt-1' : 'px-3 pb-1 pt-1'}>
+      {!collapsed && (
+        <div className="px-1 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
+          工作台
+        </div>
+      )}
+      <div className={`flex flex-col ${collapsed ? 'gap-1' : 'gap-1.5'}`}>
+        {WORKSPACES.map((w) => (
+          <NavLink
+            key={w.to}
+            to={w.to}
+            title={collapsed ? w.label : w.hint}
+            className={({ isActive }) =>
+              `group relative flex items-center rounded-[11px] transition-all duration-150 ${
+                collapsed ? 'h-9 justify-center px-0' : 'h-[46px] gap-2.5 px-3'
+              } ${
+                w.primary
+                  ? 'font-semibold text-white shadow-[0_8px_18px_-8px_rgba(64,52,196,0.7)] bg-gradient-to-br from-[color:var(--wb-accent)] to-[color:var(--wb-accent-strong)] ' +
+                    (isActive ? 'ring-2 ring-white/70 ring-offset-1 ring-offset-[color:var(--wb-surface)]' : 'hover:brightness-105')
+                  : 'border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] ' +
+                    (isActive
+                      ? 'border-[color:var(--wb-accent)]/40 bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
+                      : 'text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-accent)]/50 hover:text-[color:var(--wb-accent)]')
+              }`
+            }
+          >
+            <span
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] ${
+                w.primary ? 'bg-white/20' : 'bg-[color:var(--wb-bg-subtle)]'
+              }`}
+            >
+              <Icon name={w.icon} size={collapsed ? 18 : 16} />
+            </span>
+            {collapsed ? (
+              <span className="sr-only">{w.label}</span>
+            ) : (
+              <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                <span className="truncate text-[12.5px]">{w.label}</span>
+                <span className={`truncate text-[9.5px] font-normal ${w.primary ? 'text-white/80' : 'text-[color:var(--wb-muted)]'}`}>
+                  {w.hint}
+                </span>
+              </span>
+            )}
+          </NavLink>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** 头像菜单：靠点击外部与 Esc 关闭，不做 hover —— 移动端 hover 根本不存在 */
 function useDismiss(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null)
@@ -149,6 +214,7 @@ function useDismiss(open: boolean, close: () => void) {
 
 function Sidebar({
   collapsed,
+  width,
   badges,
   onToggle,
   onProfile,
@@ -156,6 +222,8 @@ function Sidebar({
   onSettings,
 }: {
   collapsed: boolean
+  /** 展开态宽度由 App 用 usePersist 持有，可拖拽；折叠态固定 60px 图标条 */
+  width: number
   badges: Record<string, NavBadge>
   onToggle: () => void
   onProfile: () => void
@@ -164,6 +232,8 @@ function Sidebar({
 }) {
   const { user, logout } = useAuth()
   const [menu, setMenu] = useState(false)
+  /** 「工具」分组默认折叠：低频入口不占主线视觉权重 */
+  const [toolsOpen, setToolsOpen] = usePersist('app.navToolsOpen', false)
   const menuRef = useDismiss(menu, () => setMenu(false))
   const name = displayNameOf(user)
 
@@ -172,9 +242,11 @@ function Sidebar({
 
   return (
     <aside
+      data-resizable
       className={`flex h-full shrink-0 flex-col border-r border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] transition-[width] duration-200 ${
-        collapsed ? 'w-[60px]' : 'w-[216px]'
+        collapsed ? 'w-[60px]' : ''
       }`}
+      style={collapsed ? undefined : { width }}
       aria-label="侧边栏"
     >
       <div className={`flex items-center gap-2.5 pb-2 pt-4 ${collapsed ? 'flex-col px-0' : 'px-4'}`}>
@@ -196,44 +268,62 @@ function Sidebar({
         </button>
       </div>
 
+      {/* ① 工作台：三个独立产品，一组三卡（路由驱动，不再由 state 决定显示谁） */}
+      <WorkspaceGroup collapsed={collapsed} />
+
       <nav
         data-tour="tour-sidebar"
         className={`mt-2 min-h-0 flex-1 overflow-y-auto pb-2 ${collapsed ? 'px-2' : 'px-3'}`}
         aria-label="主导航"
       >
-        <NavLink to="/" end title={collapsed ? '今日' : undefined} className={({ isActive }) => itemCls(isActive, collapsed)}>
+        <NavLink to="/today" end title={collapsed ? '今日' : undefined} className={({ isActive }) => itemCls(isActive, collapsed)}>
           <Icon name="sun" size={15} />
           {!collapsed && <span className="truncate">今日</span>}
           {collapsed && <span className="sr-only">今日</span>}
-          <NavCount badge={badges['/']} collapsed={collapsed} />
+          <NavCount badge={badges['/today']} collapsed={collapsed} />
         </NavLink>
 
-        {NAV_GROUPS.map((g, gi) => (
-          <div key={gi}>
-            {g.group &&
-              (collapsed ? (
-                gi > 0 && <div className="mx-1 my-2 border-t border-[color:var(--wb-border)]" />
-              ) : (
-                <div className="px-2.5 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
-                  {g.group}
+        {NAV_GROUPS.map((g, gi) => {
+          const folded = !!g.foldable && !toolsOpen && !collapsed
+          return (
+            <div key={gi}>
+              {g.group &&
+                (collapsed ? (
+                  gi > 0 && <div className="mx-1 my-2 border-t border-[color:var(--wb-border)]" />
+                ) : g.foldable ? (
+                  <button
+                    type="button"
+                    onClick={() => setToolsOpen((v) => !v)}
+                    aria-expanded={!folded}
+                    className="flex w-full items-center gap-1.5 px-2.5 pb-1 pt-4 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)] transition-colors hover:text-[color:var(--wb-text-soft)]"
+                  >
+                    <Icon name="chevronRight" size={11} className={folded ? '' : 'rotate-90'} />
+                    {g.group}
+                  </button>
+                ) : (
+                  <div className="px-2.5 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
+                    {g.group}
+                  </div>
+                ))}
+              {!folded && (
+                <div className="flex flex-col gap-[2px]">
+                  {g.items.map((n) => (
+                    <NavLink
+                      key={n.to}
+                      to={n.to}
+                      title={collapsed ? n.label : undefined}
+                      className={({ isActive }) => itemCls(isActive, collapsed)}
+                    >
+                      <Icon name={n.icon} size={15} />
+                      {collapsed ? <span className="sr-only">{n.label}</span> : <span className="truncate">{n.label}</span>}
+                      <NavCount badge={badges[n.to]} collapsed={collapsed} />
+                    </NavLink>
+                  ))}
                 </div>
-              ))}
-            <div className="flex flex-col gap-[2px]">
-              {g.items.map((n) => (
-                <NavLink
-                  key={n.to}
-                  to={n.to}
-                  title={collapsed ? n.label : undefined}
-                  className={({ isActive }) => itemCls(isActive, collapsed)}
-                >
-                  <Icon name={n.icon} size={15} />
-                  {collapsed ? <span className="sr-only">{n.label}</span> : <span className="truncate">{n.label}</span>}
-                  <NavCount badge={badges[n.to]} collapsed={collapsed} />
-                </NavLink>
-              ))}
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </nav>
 
       {/* 底部工具：新手引导 + 左下角设置齿轮（常驻，折叠态只留图标） */}
@@ -360,10 +450,14 @@ function Splash({ label = '正在打开工作台' }: { label?: string }) {
 
 export default function App() {
   const path = useLocation().pathname
-  /** canvas 与 chat 都满铺整个内容区 */
-  const full = path === '/canvas' || path === '/chat'
+  /** 三个工作台 + 落地页满铺；工作台顶部由 App 统一挂一份 WorkspaceTabs */
+  const isWorkspace = path === '/chat' || path === '/canvas' || path === '/research'
+  const full = isWorkspace || path === '/'
+  const isLanding = path === '/'
   const [navOpen, setNavOpen] = useState(false)
   const [collapsed, setCollapsed] = usePersist('app.navCollapsed', false)
+  /** 展开态侧边栏宽度：可拖拽，全站共用（拖一次所有页面都生效），折叠态仍是固定 60px */
+  const [sidebarW, setSidebarW] = usePersist('app.sidebarW', 216)
   const [profileOpen, setProfileOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { loading, user, updateProfile, logout } = useAuth()
@@ -445,50 +539,82 @@ export default function App() {
   return (
     <div className="flex h-full bg-[color:var(--wb-bg)]">
       {/* 窄屏：抽屉式导航（点遮罩或左上角按钮收起）；宽屏：常驻，可折叠成图标条 */}
-      {navOpen && (
+      {!isLanding && navOpen && (
         <div
           className="fixed inset-0 z-40 bg-[rgba(16,17,20,0.36)] backdrop-blur-[2px] lg:hidden"
           onClick={() => setNavOpen(false)}
         />
       )}
-      <div className={`${navOpen ? 'fixed z-50 flex h-full' : 'hidden'} lg:relative lg:z-auto lg:flex`}>
-        <Sidebar
-          collapsed={navOpen ? false : collapsed}
-          badges={badges}
-          onToggle={() => (navOpen ? setNavOpen(false) : setCollapsed((v) => !v))}
-          onProfile={() => setProfileOpen(true)}
-          onTour={() => setTourOpen(true)}
-          onSettings={() => setSettingsOpen(true)}
-        />
-      </div>
+      {!isLanding && (
+        <div className={`${navOpen ? 'fixed z-50 flex h-full' : 'hidden'} lg:relative lg:z-auto lg:flex`}>
+          <Sidebar
+            collapsed={navOpen ? false : collapsed}
+            width={sidebarW}
+            badges={badges}
+            onToggle={() => (navOpen ? setNavOpen(false) : setCollapsed((v) => !v))}
+            onProfile={() => setProfileOpen(true)}
+            onTour={() => setTourOpen(true)}
+            onSettings={() => setSettingsOpen(true)}
+          />
+          {/* 展开态才给拖拽把手；窄屏抽屉与折叠图标条都不占这条 6px。
+              拖动只改宽度，侧边栏内的导航 / 折叠 / 账户 / 设置等功能原样保留。 */}
+          {!collapsed && !navOpen && (
+            <ResizeHandle
+              className="hidden lg:block"
+              width={sidebarW}
+              onResize={setSidebarW}
+              onReset={() => setSidebarW(216)}
+              min={188}
+              max={360}
+              label="调整菜单栏宽度"
+            />
+          )}
+        </div>
+      )}
 
       <main className={`flex min-w-0 flex-1 flex-col ${full ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        {/* 工作台切换条：唯一真源，路由驱动；只挂在三个满铺工作台，页面内不再各自渲染页签 */}
+        {isWorkspace && (
+          <div className="flex shrink-0 items-center gap-3 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-4 py-2">
+            <WorkspaceTabs />
+            <span className="hidden truncate text-[11px] text-[color:var(--wb-muted)] md:block">
+              {path === '/chat'
+                ? '一题一 quest：填契约 → 受控推进 → 随时接管'
+                : path === '/canvas'
+                  ? '把多步 AI 任务连成可复用的流水线，成果可立项为 Quest'
+                  : '检索式 → OpenAlex → 去重入库 → 带引用报告'}
+            </span>
+          </div>
+        )}
         {/* key=path：路由切换时整页淡入，页面之间不再「硬切」 */}
         <div
           key={path}
           className={
-            full ? 'wb-anim-fade h-full w-full' : 'wb-anim-fade mx-auto w-full max-w-[1240px] px-6 py-7 md:px-8'
+            full ? 'wb-anim-fade min-h-0 flex-1' : 'wb-anim-fade mx-auto w-full max-w-[1240px] px-6 py-7 md:px-8'
           }
         >
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/ideas" element={<Ideas />} />
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/today" element={<Dashboard />} />
+              <Route path="/ideas" element={<Ideas />} />
             <Route path="/literature" element={<Literature />} />
+            <Route path="/research" element={<ResearchChat />} />
             <Route path="/navigator" element={<Navigator />} />
+            <Route path="/search" element={<Search />} />
             <Route path="/experiments" element={<Experiments />} />
             <Route path="/paper" element={<Paper />} />
             <Route path="/plan" element={<Plan />} />
             <Route path="/advisor" element={<Advisor />} />
             <Route path="/points" element={<Points />} />
-            {/* 画布已并入「对话 / 工作流」分区；旧链接直接落到工作流 tab */}
-            <Route path="/canvas" element={<Chat initialTab="flow" />} />
+            {/* 三个工作台各自独立：不再经 Chat 的 tab 转发，URL 就是唯一真源 */}
+            <Route path="/canvas" element={<Canvas />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </div>
       </main>
 
-      {!navOpen && (
+      {!isLanding && !navOpen && (
         <button
           type="button"
           onClick={() => setNavOpen(true)}

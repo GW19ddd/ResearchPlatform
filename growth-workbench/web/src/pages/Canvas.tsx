@@ -17,7 +17,7 @@ import {
 } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Btn, Input, Loading, MdBlock, Modal, Segmented, Select, StatusTag } from '../components/ui'
+import { Btn, IconBtn, Input, Loading, MdBlock, Modal, Segmented, Select, StatusTag } from '../components/ui'
 import { AiError } from '../components/AiError'
 import { toast } from '../components/toast'
 import { Icon } from '../components/Icon'
@@ -29,6 +29,22 @@ import NodeInspector, { type RunInfo } from '../features/canvas/NodeInspector'
 import TemplateManager, { type TemplateInfo } from '../features/canvas/TemplateManager'
 import { nodeTypes, TYPE_LABEL, TYPE_TILE, type CData, type CNode, type Skill } from '../features/canvas/canvas-shared'
 import { skillLabel } from '../features/canvas/skill-meta'
+import ChatPanel, { type ChatMsg, type ChipConf } from '../features/canvas/ChatPanel'
+import SkillMarket from '../features/skills/SkillMarket'
+import { pickResumableRun } from '../lib/canvasRun'
+
+/** 画布对话的快捷操作与示例（面板通用化后由调用方注入） */
+const CANVAS_CHIPS: ChipConf[] = [
+  { icon: 'wand', label: '搭流水线', text: '搭一个「选题 → 文献综述 → 论文骨架」的流水线', tag: '搭流水线' },
+  { icon: 'plus', label: '加节点', text: '加一个文献综述节点，连到选题后面', tag: '加节点' },
+  { icon: 'pipeline', label: '跑整图', text: '把整个画布跑一遍，跑完给我一句结果摘要', tag: '运行任务' },
+]
+const CANVAS_SAMPLES = [
+  '搭一个「选题 → 文献综述 → 论文骨架」的流程',
+  '加一个文献综述节点，连到选题后面',
+  '把输出节点改名为「最终报告」',
+  '在综述后面加一个「创新点评估」，然后跑整图',
+]
 
 /**
  * 把 fitView 从 ReactFlow 内部递给外层工具栏。
@@ -122,15 +138,24 @@ function Flow({
   )
 }
 
-export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
+/** 编排画布工作台（/canvas）：独立路由，不再作为 Chat 的 tab；
+ *  顶部工作台切换条由 App 层统一渲染。 */
+export default function Canvas() {
   const nav = useNavigate()
   const [skills, setSkills] = useState<Skill[]>([])
   const [cats, setCats] = useState<{ name: string; skills: Skill[] }[]>([])
   const [canvases, setCanvases] = useState<any[]>([])
   const [templates, setTemplates] = useState<TemplateInfo[]>([])
   const [cid, setCid] = usePersist<number | null>('canvas.cid', null)
+  // 始终持有最新 cid：pollRun 据此判断「这次运行是否属于当前正在查看的画布」，
+  // 避免切到别的画布时，别的画布的运行进度 / 失败信息串到当前画布界面。
+  const cidRef = useRef(cid)
+  cidRef.current = cid
   const [name, setName] = useState('')
   const [nodes, setNodes] = useState<CNode[]>([])
+  // 始终持有最新 nodes，供轮询闭包在不进依赖数组的情况下读节点数（续跑时估算进度）
+  const nodesRef = useRef(nodes)
+  nodesRef.current = nodes
   const [edges, setEdges] = useEdgesState<Edge>([]) as any
   const [sel, setSel] = useState<string | null>(null)
   // 运行结果按画布分区持久化：切换菜单回来仍在（固定 key 的大 map，避免切画布时写错分区）
@@ -157,6 +182,11 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
   // 面板折叠：宽屏要的是更大的画布，不是更长的正文
   const [leftOpen, setLeftOpen] = usePersist('canvas.leftOpen', true)
   const [rightOpen, setRightOpen] = usePersist('canvas.rightOpen', true)
+  // 对话操作面板（Undermind 式：自然语言指挥画布）
+  const [chatOpen, setChatOpen] = usePersist('canvas.chatOpen', false)
+  const [chatInput, setChatInput] = usePersist('canvas.chatInput', '')
+  const [messages, setMessages] = usePersist<ChatMsg[]>('canvas.chatMsgs.v2', [])
+  const [chatBusy, setChatBusy] = useState(false)
   // 输出展开成居中大窗（侧栏 23rem 装不下长文本）
   const [bigOut, setBigOut] = useState(false)
   const [providers, setProviders] = useState<any[]>([])
@@ -175,6 +205,7 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
   // GitHub 原版技能（原样加载，不改 SKILL.md）
   const [srcTab, setSrcTab] = usePersist<'all' | 'github' | 'builtin'>('canvas.srcTab', 'all')
   const [ghInfo, setGhInfo] = useState<{ count: number; repos: any[] }>({ count: 0, repos: [] })
+  const [marketOpen, setMarketOpen] = useState(false)
   const [tplOpen, setTplOpen] = useState(false)
   const [viewer, setViewer] = useState<{
     id: string
@@ -188,8 +219,26 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
   const [vbusy, setVbusy] = useState('')
   const keyRef = useRef(1)
   const fitRef = useRef<(() => void) | null>(null)
+  // 同一时刻只有 pollTokenRef 指向的那次轮询有效：发起新运行 / 卸载 / 切画布会作废旧 token，
+  // 避免多个轮询闭包互相覆盖状态（以前「切走再回来状态错乱」的根因之一）
+  const pollTokenRef = useRef(0)
+  // 组件挂载标记：卸载后置 false，轮询闭包据此安全退出（不再对卸载后的组件 setState / 崩溃）
+  const mountedRef = useRef(true)
 
   const flash = (t: string, tone: 'ok' | 'error' | 'info' = 'info') => toast(t, tone)
+
+  /** 装/卸技能后刷新左侧技能库（内置 + GitHub）与仓库统计 */
+  const reloadSkills = useCallback(async () => {
+    try {
+      const s = await get<any>('/canvas/skills')
+      setSkills(s.skills || [])
+      setCats(s.categories || [])
+      const g = await get<any>('/canvas/skills/github')
+      setGhInfo({ count: g.count || 0, repos: g.repos || [] })
+    } catch (e: any) {
+      flash('刷新技能库失败：' + (e?.message || e), 'error')
+    }
+  }, [])
 
   const openSource = async (sid: string, sname: string) => {
     setVbusy('open')
@@ -353,6 +402,27 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
     loadCanvas(target)
   }, [loading, canvases, cid, loadCanvas])
 
+  // 组件卸载时标记：轮询闭包据此安全退出，不在已卸载的组件上 setState（避免 React 警告 / 内存泄漏）
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  // 切到另一块画布时，把「运行态」整体重置：上一块画布的运行进度 / 失败信息不能串到当前画布。
+  // 真正的续接由下方 re-attach effect 基于后端 runs 重新拉起（若新画布确有在途运行）。
+  useEffect(() => {
+    setRunning(false)
+    setRunStatus('')
+    setRunDone(0)
+    setRunTotal(0)
+    setRunErrors({})
+    setRunErr(null)
+    setRunId(null)
+  }, [cid])
+
+  // 切回画布（或导航回来）时，若后端还有「在跑」的运行，自动续接轮询 —— 见下方 run/pollRun 定义之后的 re-attach effect
+
   // ---------------------------------------------------------------- 节点操作
 
   /** 固定框：按当前展示顺序生成链式连线。只在保存/运行时写入后端，不静默改写已加载的画布 */
@@ -463,10 +533,105 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
   }
 
   /**
-   * 运行：后端是后台任务，这里负责轮询真实状态。
+   * 轮询单个画布运行直到终态（done/failed/cancelled）。
    *
-   * 以前这个接口是同步阻塞的，前端只能干等；现在改成「发起 → 轮询 → 逐个节点更新状态」，
-   * 期间可以取消，也能看到第几个节点正在跑。
+   * 关键：轮询循环独立于组件挂载状态 —— 导航离开画布时组件卸载置 mountedRef=false，循环随即
+   * 安全退出（不再 setState、不崩溃）；后端后台任务不受影响、继续跑。切回画布时由 re-attach
+   * effect 用 pickResumableRun 找到在途运行再调一次本函数续接，进度不丢。
+   *
+   * 同一时刻只有 pollTokenRef 指向的那次轮询有效：发起新运行 / 卸载 / 切画布都会把旧 token 作废，
+   * 避免多个轮询闭包互相覆盖状态（以前「切走再回来状态错乱」的根因之一）。
+   */
+  const pollRun = useCallback(
+    async (rid: number, targetCid: number, token: number, total?: number) => {
+      setRunning(true)
+      setRunErr(null)
+      setRunErrors({})
+      setRunStatus('running')
+      if (total != null) setRunTotal(total)
+      setRunDone(0)
+
+      const apply = (outs: any[]) => {
+        const st: Record<string, 'done' | 'error' | 'running'> = {}
+        const errs: Record<string, any> = {}
+        outs.forEach((o: any) => {
+          st[o.node_key] = o.ok === false ? 'error' : 'done'
+          if (o.ok === false) errs[o.node_key] = o.error || {}
+        })
+        if (mountedRef.current && pollTokenRef.current === token && cidRef.current === targetCid) {
+          setNodes((nds) =>
+            nds.map((n) => (st[n.id] ? { ...n, data: { ...n.data, status: st[n.id] } } : n)),
+          )
+          setRunErrors((p) => ({ ...p, ...errs }))
+          setRunDone(Object.keys(st).length)
+        }
+        return st
+      }
+
+      let detail: any = null
+      let last: Record<string, string> = {}
+      const deadline = Date.now() + 30 * 60 * 1000
+      try {
+        while (mountedRef.current && pollTokenRef.current === token && Date.now() < deadline) {
+          await new Promise((res) => setTimeout(res, 700))
+          if (!mountedRef.current || pollTokenRef.current !== token) break
+          detail = await get<any>(`/canvas/runs/${rid}`)
+          if (!mountedRef.current || pollTokenRef.current !== token) break
+          const st = apply(detail.outputs || [])
+          last = st
+          if (
+            mountedRef.current &&
+            pollTokenRef.current === token &&
+            cidRef.current === targetCid
+          ) {
+            setRunStatus(detail.run?.status || 'running')
+          }
+          if (['done', 'failed', 'cancelled'].includes(detail.run?.status)) break
+        }
+
+        if (
+          mountedRef.current &&
+          pollTokenRef.current === token &&
+          cidRef.current === targetCid
+        ) {
+          await refreshOutputs(targetCid)
+          if (detail?.run?.stale) {
+            flash(detail.run.message || '上次运行没有留下结果，重跑一次', 'error')
+            setRunErr({ label: '运行中断', message: detail.run.message || '上次运行随服务中断结束了' })
+          } else {
+            const bad = Object.values(last).filter((s) => s === 'error').length
+            const total0 = Object.keys(last).length
+            const status = detail?.run?.status
+            if (status === 'cancelled') flash('已取消这次运行', 'info')
+            else if (bad) flash(`运行结束 · ${total0} 个节点 · ${bad} 个失败`, 'error')
+            else flash(`运行完成 · ${total0} 个节点`, 'ok')
+          }
+        }
+      } catch (e: any) {
+        if (
+          mountedRef.current &&
+          pollTokenRef.current === token &&
+          cidRef.current === targetCid
+        ) {
+          setRunErr({ label: '运行失败', message: e?.message || String(e) })
+          flash(`运行失败：${e?.message || e}`, 'error')
+          setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, status: 'idle' } })))
+        }
+      } finally {
+        if (
+          mountedRef.current &&
+          pollTokenRef.current === token &&
+          cidRef.current === targetCid
+        )
+          setRunning(false)
+      }
+    },
+    [setNodes, setRunErrors, setRunDone, setRunStatus, setRunErr, setRunTotal, refreshOutputs, flash],
+  )
+
+  /**
+   * 运行：后端是后台任务，这里负责发起并轮询真实状态。
+   * 期间可取消、可见第几个节点在跑；导航离开画布也不会让运行本身中断。
    */
   const run = async (nodeKey?: string) => {
     if (!cid) return
@@ -483,21 +648,6 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
       nds.map((n) => (keys.includes(n.id) ? { ...n, data: { ...n.data, status: 'running' } } : n)),
     )
 
-    const apply = (outs: any[]) => {
-      const st: Record<string, 'done' | 'error' | 'running'> = {}
-      const errs: Record<string, any> = {}
-      outs.forEach((o: any) => {
-        st[o.node_key] = o.ok === false ? 'error' : 'done'
-        if (o.ok === false) errs[o.node_key] = o.error || {}
-      })
-      setNodes((nds) =>
-        nds.map((n) => (st[n.id] ? { ...n, data: { ...n.data, status: st[n.id] } } : n)),
-      )
-      setRunErrors((p) => ({ ...p, ...errs }))
-      setRunDone(Object.keys(st).length)
-      return st
-    }
-
     try {
       const r = await post<any>(
         `/canvas/${cid}/run`,
@@ -507,39 +657,26 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
       const rid = Number(r.run_id)
       setRunId(rid)
       setRunStatus('running')
-
-      let detail: any = null
-      let last: Record<string, string> = {}
-      const deadline = Date.now() + 30 * 60 * 1000
-      while (Date.now() < deadline) {
-        await new Promise((res) => setTimeout(res, 700))
-        detail = await get<any>(`/canvas/runs/${rid}`)
-        const st = apply(detail.outputs || [])
-        last = st
-        setRunStatus(detail.run?.status || 'running')
-        if (['done', 'failed', 'cancelled'].includes(detail.run?.status)) break
-      }
-
-      await refreshOutputs(cid)
-      if (detail?.run?.stale) {
-        flash(detail.run.message || '上次运行没有留下结果，重跑一次', 'error')
-        setRunErr({ label: '运行中断', message: detail.run.message || '上次运行随服务中断结束了' })
-      } else {
-        const bad = Object.values(last).filter((s) => s === 'error').length
-        const total = Object.keys(last).length
-        const status = detail?.run?.status
-        if (status === 'cancelled') flash('已取消这次运行', 'info')
-        else if (bad) flash(`运行结束 · ${total} 个节点 · ${bad} 个失败`, 'error')
-        else flash(`运行完成 · ${total} 个节点`, 'ok')
-      }
+      const token = ++pollTokenRef.current
+      await pollRun(rid, cid, token, keys.length)
     } catch (e: any) {
       setRunErr({ label: '运行失败', message: e?.message || String(e) })
       flash(`运行失败：${e?.message || e}`, 'error')
       setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, status: 'idle' } })))
-    } finally {
       setRunning(false)
     }
   }
+
+  // 切回画布（或导航回来）时，若后端还有「在跑」的运行，自动续接轮询 —— 导航离开不会丢进度
+  useEffect(() => {
+    if (!cid || running) return
+    const resumable = pickResumableRun(runs)
+    if (!resumable) return
+    const token = ++pollTokenRef.current
+    setRunId(resumable.id) // 让续接的运行也能被取消
+    pollRun(resumable.id, cid, token, nodesRef.current.length)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cid, runs, running, pollRun])
 
   const cancelRun = async () => {
     if (!runId) return
@@ -648,7 +785,7 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
         `/chat/sessions/${s.id}/messages`,
         {
           content: [
-            `【研究目标】\n以下是我用科研画布流水线得到的成果，请基于它继续推进：评估可行性、找出漏洞、给出下一步可执行计划。\n\n${out.slice(0, 6000)}`,
+            `【研究目标】\n以下是我用编排画布流水线得到的成果，请基于它继续推进：评估可行性、找出漏洞、给出下一步可执行计划。\n\n${out.slice(0, 6000)}`,
             '请按以下规则推进：\n1. 先输出分阶段研究计划（每阶段有可验证产出），等我确认后再逐步执行；\n2. 每个阶段结束时给「阶段小结：做了什么 / 结论 / 下一步」；\n3. 执行中要改动上述任何边界，先说明再动手。',
           ].join('\n\n'),
           mode: 'fast',
@@ -657,13 +794,48 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
         { ok: false },
       )
       localStorage.setItem('wb:chat.sid', String(s.id))
-      flash('已立项，正在切到「对话」…', 'ok')
-      setTimeout(() => {
-        if (onGoChat) onGoChat()
-        else nav('/chat')
-      }, 400)
+      flash('已立项，正在切到「课题 Quest」…', 'ok')
+      setTimeout(() => nav(`/chat?quest=${s.id}`), 400)
     } catch (e: any) {
       flash(e?.message || '立项失败', 'error')
+    }
+  }
+
+  /** 对话操作画布：把自然语言指令发给后端，AI 解析成节点操作并落库，前端实时刷新。
+   *  可带 tag（指令来源：快捷操作 / 追问 / 手输），显示在用户消息上方的小签里。 */
+  const sendChat = async (raw?: string, tag?: string) => {
+    const text = (raw ?? chatInput).trim()
+    if (!cid || !text || chatBusy) return
+    const history = messages.map((m) => ({ role: m.role, content: m.content }))
+    setMessages((ms) => [...ms, { role: 'user', content: text, skillTag: tag }])
+    setChatInput('')
+    setChatBusy(true)
+    const t0 = Date.now()
+    try {
+      const r = await post<any>(`/canvas/${cid}/chat`, { instruction: text, history }, { ok: false })
+      setMessages((ms) => [
+        ...ms,
+        {
+          role: 'assistant',
+          content: r.reply || '',
+          applied: r.applied || [],
+          plan: r.plan || [],
+          suggests: r.suggests || [],
+          elapsed: r.elapsed_ms || Date.now() - t0,
+        },
+      ])
+      if (r.applied && r.applied.length) flash('画布已更新', 'ok')
+      // 实时刷新画布，让 AI 的改动立刻可见
+      await loadCanvas(cid)
+      if (r.run) run()
+    } catch (e: any) {
+      setMessages((ms) => [
+        ...ms,
+        { role: 'assistant', content: `（操作失败：${e?.message || e}）` },
+      ])
+      flash('对话操作失败：' + (e?.message || e), 'error')
+    } finally {
+      setChatBusy(false)
     }
   }
 
@@ -708,7 +880,8 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
     )
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full flex-col">
+      <div className="flex min-h-0 flex-1">
       {leftOpen && (
       <SkillPalette
         cats={shownCats}
@@ -718,15 +891,8 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
         onOpenSource={openSource}
         onAddNode={addNode}
         onPickSkill={(sid) => addNode('skill', sid, 120, 120)}
-        onClone={async (url) => {
-          const r = await post<any>('/canvas/skills/github/clone', { url }, { silent: true })
-          flash(r.message || `已导入 ${r.skills_found} 个 skill`, 'ok')
-          const s = await get<any>('/canvas/skills')
-          setSkills(s.skills || [])
-          setCats(s.categories || [])
-          const g = await get<any>('/canvas/skills/github')
-          setGhInfo({ count: g.count || 0, repos: g.repos || [] })
-        }}
+        onOpenMarket={() => setMarketOpen(true)}
+        onInstalled={reloadSkills}
       />
       )}
 
@@ -797,6 +963,14 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
               title={rightOpen ? '收起节点面板' : '展开节点面板'}
             >
               {rightOpen ? '节点 ▶' : '◀ 节点'}
+            </Btn>
+            <Btn
+              onClick={() => setChatOpen(!chatOpen)}
+              title={chatOpen ? '收起对话面板' : '打开对话面板（用自然语言指挥画布）'}
+              className={chatOpen ? '!border-[color:var(--wb-accent)] !bg-[color:var(--wb-accent-soft)] !text-[color:var(--wb-accent)]' : ''}
+            >
+              <Icon name="sparkle" size={13} />
+              {chatOpen ? '收起对话' : '对话'}
             </Btn>
           </div>
 
@@ -878,7 +1052,7 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
           </div>
         )}
 
-        <div className="min-h-0 flex-1">
+        <div className="relative min-h-0 flex-1">
           {layout === 'fixed' ? (
             <FixedFlow
               nodes={nodes}
@@ -911,6 +1085,25 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
                 onDropSkill={(sid, x, y) => addNode('skill', sid, x, y)}
               />
             </ReactFlowProvider>
+          )}
+          {nodes.length === 0 && !chatOpen && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+              <div className="pointer-events-auto max-w-md rounded-[16px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]/95 p-5 text-center shadow-[var(--wb-shadow-md)]">
+                <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
+                  <Icon name="layers" size={17} />
+                </div>
+                <div className="text-[13.5px] font-semibold text-[color:var(--wb-text)]">
+                  这块画布还是空的
+                </div>
+                <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--wb-muted)]">
+                  从左侧技能面板拖节点进来，或点右上「对话」用自然语言让我帮你搭一条流水线。
+                </p>
+                <Btn className="mt-3" onClick={() => setChatOpen(true)}>
+                  <Icon name="sparkle" size={13} />
+                  打开对话搭画布
+                </Btn>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -949,6 +1142,23 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
       </div>
       )}
 
+      {/* 对话操作面板（Undermind 版式：消息胶囊 + Worked for/Thinking 折叠 + 快捷操作 + 圆角输入框） */}
+      {chatOpen && (
+        <ChatPanel
+          title={name ? `画布对话 · ${name}` : '画布对话'}
+          messages={messages}
+          busy={chatBusy}
+          input={chatInput}
+          onInput={setChatInput}
+          onSend={sendChat}
+          onClose={() => setChatOpen(false)}
+          onClear={() => setMessages([])}
+          chips={CANVAS_CHIPS}
+          samples={CANVAS_SAMPLES}
+          exportName={`画布对话-${name || '未命名'}`}
+        />
+      )}
+
       {/* 输出展开：侧栏 23rem 装不下长结果，这里给一个居中的大窗口 */}
       <Modal
         open={bigOut && !!sel}
@@ -982,6 +1192,12 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
           await createCanvas(key)
         }}
         onDelete={delTemplate}
+      />
+
+      <SkillMarket
+        open={marketOpen}
+        onClose={() => setMarketOpen(false)}
+        onInstalled={reloadSkills}
       />
 
       {/* GitHub 原版 SKILL.md 查看器 */}
@@ -1050,6 +1266,7 @@ export default function Canvas({ onGoChat }: { onGoChat?: () => void } = {}) {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

@@ -38,6 +38,7 @@ export type IconName =
   | 'menu'
   | 'panel'
   | 'arrowRight'
+  | 'arrowUp'
   | 'plus'
   | 'refresh'
   | 'download'
@@ -61,6 +62,7 @@ export type IconName =
   | 'chart'
   | 'slides'
   | 'clipboardCheck'
+  | 'copy'
   | 'reply'
   | 'scan'
   | 'pipeline'
@@ -69,6 +71,7 @@ export type IconName =
   | 'image'
   | 'notebook'
   | 'inbox'
+  | 'play'
   | 'sigma'
   | 'bookOpen'
   | 'lightbulb'
@@ -173,6 +176,7 @@ const P: Record<IconName, ReactElement> = {
     </>
   ),
   arrowRight: <path d="M5 12h13M13 6.5l5.5 5.5L13 17.5" />,
+  arrowUp: <path d="M12 19V5M5.5 11.5L12 5l6.5 6.5" />,
   plus: <path d="M12 5.5v13M5.5 12h13" />,
   refresh: (
     <>
@@ -320,6 +324,12 @@ const P: Record<IconName, ReactElement> = {
       <path d="M8.8 12.8l2.2 2.2 4.4-4.6" />
     </>
   ),
+  copy: (
+    <>
+      <rect x="8.5" y="8.5" width="12" height="12" rx="2" />
+      <path d="M15.5 8.5V6a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2.5" />
+    </>
+  ),
   reply: (
     <>
       <path d="M9 7L4 12l5 5" />
@@ -374,6 +384,7 @@ const P: Record<IconName, ReactElement> = {
       <path d="M4.6 5h14.8L21 13v4.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V13z" />
     </>
   ),
+  play: <path d="M8.5 6.2v11.6c0 .8.9 1.3 1.6.9l9.2-5.8c.6-.4.6-1.4 0-1.8l-9.2-5.8c-.7-.4-1.6.1-1.6.9z" />,
   sigma: <path d="M17.5 5H8l5.2 7L8 19h9.5" />,
   bookOpen: (
     <>

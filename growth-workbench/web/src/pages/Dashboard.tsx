@@ -173,6 +173,7 @@ export default function Dashboard() {
           weekday: 'long',
         })}
       />
+
       <div className="wb-stagger grid grid-cols-2 gap-3.5 md:grid-cols-4" data-tour="tour-dash-stats">
         {/* 四个指标量纲各不相同，单位一律单独写，不靠读者自己猜 */}
         <StatCard

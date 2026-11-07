@@ -1,12 +1,15 @@
 /**
- * 科研导航：借鉴虫部落「快搜」——
+ * 站点快搜：借鉴虫部落「快搜」——
  * 上面填关键词，点哪个站点就用哪个站搜；不填就直接进站点首页。
  *
  * 图标：各站点官方 favicon / 品牌矢量图标，已下载到 public/site-icons/，
  * 本地离线可用（不依赖第三方图标服务）。想加站点：往 SITES 添一行 + 放一个图标文件。
+ *
+ * 点站点由 BrowserView 在工作台内部打开网页（走 /api/browse 兼容代理），不再 window.open。
  */
 import { useState } from 'react'
 import { Card, PageHeader, SearchInput } from '../components/ui'
+import BrowserView from '../features/navigator/BrowserView'
 
 type Site = { name: string; url: string; q?: string; icon: string }
 
@@ -108,18 +111,20 @@ function SiteCard({ site, hint, onClick }: { site: Site; hint: string; onClick: 
 
 export default function Navigator() {
   const [kw, setKw] = useState('')
+  /** 当前正在工作台内浏览的站点；null = 回到导航网格 */
+  const [page, setPage] = useState<{ name: string; url: string } | null>(null)
 
   const jump = (s: Site) => {
     const url = kw.trim() && s.q ? s.q.replace('{q}', encodeURIComponent(kw.trim())) : s.url
-    window.open(url, '_blank', 'noreferrer')
+    setPage({ name: s.name, url })
   }
 
   return (
     <div className="flex flex-col gap-3.5">
       <PageHeader
         eyebrow="检索 · 工具"
-        title="科研导航"
-        desc="填上关键词再点站点，就是用它搜；不填直接进首页"
+        title="站点快搜"
+        desc="填上关键词再点站点，就是用它搜；不填直接进首页。网页会在工作台里打开，不跳浏览器"
       />
 
       <Card>
@@ -129,6 +134,9 @@ export default function Navigator() {
           placeholder="快搜关键词，例：LLM agent CFD"
           className="w-full"
         />
+        <p className="mt-2 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
+          点站点卡片后，网页会在软件内部打开；顶部工具条可刷新、切换「兼容 / 直连」，或改用系统浏览器。
+        </p>
       </Card>
 
       {SITES.map((g) => (
@@ -145,6 +153,10 @@ export default function Navigator() {
           </div>
         </Card>
       ))}
+
+      {page && (
+        <BrowserView name={page.name} url={page.url} onClose={() => setPage(null)} />
+      )}
     </div>
   )
 }

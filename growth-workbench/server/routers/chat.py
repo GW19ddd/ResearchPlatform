@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 import llm
 from db import execute, now, query
+from skill_registry import get_skill
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -481,6 +482,16 @@ class MessageIn(BaseModel):
     mode: str | None = None
     history_limit: int = 20
     regenerate: bool = False
+    """本轮挂载的技能（旧的单技能入口，保留兼容）。
+    只对这一轮生效：注入的是 SKILL.md 原文作为「本次任务的执行规程」，
+    不写进会话 system，下一轮没带就不生效了 —— 免得用户以为关掉后还在生效。"""
+    skill_id: str | None = None
+    """本机 SKILL.md 路径：粘贴 `@skill:"C:\\...\\SKILL.md"` 时用。"""
+    skill_path: str | None = None
+    """本轮挂载的技能列表（输入框里的 chip，可多个）。
+    元素 {id?, path?, name?, text?}：text 是前端自带的 prompt 模板（科研技能），
+    其余由后端按 id / path 读取 SKILL.md 原文。"""
+    skill_refs: list[dict] | None = None
 
 
 @router.post("/sessions/{sid}/messages")
@@ -534,6 +545,70 @@ async def send_message(sid: int, body: MessageIn):
         "tokens_in": env.get("tokens_in"),
         "tokens_out": env.get("tokens_out"),
     }
+
+
+def _skill_mounts(body: MessageIn) -> list[tuple[str, str]]:
+    """把本轮输入框里的技能 chip 解析成 [(label, 原文)]。
+
+    三种来源：
+      - text：前端自带的科研技能 prompt 模板（不落盘，直接用）
+      - local:<dirname> / path：本机 ~/.workbuddy/skills 下的 SKILL.md 原文
+      - 其它 id：技能注册表（GitHub 原样 skill / 内置 prompt 模板）
+    全部只读，且 path 必须落在 skills 根目录内。
+    """
+    import local_skills
+
+    refs: list[dict] = []
+    if body.skill_refs:
+        refs = [r for r in body.skill_refs if isinstance(r, dict)]
+    elif body.skill_id or body.skill_path:
+        refs = [{"id": body.skill_id or "", "path": body.skill_path or ""}]
+
+    # 多技能叠加的总预算：单个 16000，整体不超过 32000，避免把 system 撑爆
+    MAX_TOTAL = 32000
+    budget = MAX_TOTAL
+    out: list[tuple[str, str]] = []
+    for r in refs:
+        sid = str(r.get("id") or "").strip()
+        path = str(r.get("path") or "").strip()
+        inline = str(r.get("text") or "").strip()
+        label = str(r.get("name") or "").strip() or sid or path or "技能"
+        raw = ""
+        if inline:
+            raw = inline[:8000]
+        elif sid.startswith("local:") or path:
+            raw = local_skills.read_id(sid) if sid.startswith("local:") else ""
+            if not raw and path:
+                raw = local_skills.read_path(path)
+            if not raw:
+                raise HTTPException(
+                    400,
+                    f"本机技能原文读取失败（只允许 skills 目录下的 SKILL.md）：{label}",
+                )
+        elif sid:
+            sk = get_skill(sid)
+            if not sk:
+                raise HTTPException(400, f"技能不存在或已卸载：{sid}")
+            label = sk.get("name") or label
+            if (sk.get("source") or "") == "github":
+                from skill_fs import build_prompt as _gh_prompt
+
+                gh_system, _ = _gh_prompt(sid, {"task": ""}, "", "")
+                raw = gh_system or ""
+            else:
+                raw = sk.get("prompt") or ""
+            if not raw:
+                raise HTTPException(500, f"技能原文读取失败：{sid}")
+        else:
+            continue
+        raw = raw[:16000]
+        if budget <= 0:
+            continue
+        if len(raw) > budget:
+            raw = local_skills.clip_text(raw, budget)
+        budget -= len(raw)
+        out.append((label, raw))
+    return out
 
 
 def _prepare(sid: int, body: MessageIn):
@@ -591,6 +666,17 @@ def _prepare(sid: int, body: MessageIn):
             f"本阶段交付物：{st['deliverables']}\n"
             f"阶段门禁：{st['gate']}\n"
             "请先给出本阶段产出结构，确认方向无误后再展开内容；越过本阶段门禁前必须等用户明确确认，不得自行跳阶段执行。"
+        )
+
+    # 本轮挂载的技能（输入框里的 chip）：把 SKILL.md 原文当「执行规程」注入，可多个。
+    # 只在本轮生效，且明确告诉模型它是规程而不是用户提问 —— 否则模型会把
+    # skill 正文当成对话历史的一部分去评论。
+    for label, raw in _skill_mounts(body):
+        system += (
+            f"\n\n【本轮技能：{label}】\n"
+            "请把下面这段当作本次任务的执行规程，按其规则完成用户这一轮的请求；"
+            "规程与用户明确要求冲突时以用户为准，并在开头一句话说明。\n\n"
+            + raw
         )
 
     mode = body.mode or s.get("mode") or "fast"

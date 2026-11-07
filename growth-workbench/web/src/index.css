@@ -103,6 +103,20 @@ p {
   border-radius: var(--wb-radius-sm);
 }
 
+/* 拖拽分隔条：拖动期间统一锁光标、禁文本选中。
+   [data-resizable] 上关掉宽度过渡，否则侧边栏 transition-[width] 会让拖动跟手慢半拍。 */
+body.wb-resizing {
+  cursor: col-resize !important;
+}
+body.wb-resizing,
+body.wb-resizing * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+body.wb-resizing [data-resizable] {
+  transition: none !important;
+}
+
 /* 细滚动条：默认滚动条在浅色界面上非常抢戏 */
 * {
   scrollbar-width: thin;
@@ -457,6 +471,33 @@ pre.markdown-block {
 }
 .markdown-block img {
   max-width: 100%;
+}
+
+/* ---- 对话正文流：AI 回复没有边框卡片，像文档一样连续铺开 ----
+   覆盖 .markdown-block 的 max-height/overflow（那是给「卡片里塞长文」用的，
+   正文流里出现内部滚动条会把阅读节奏切碎）。 */
+.wb-chat-prose .markdown-block {
+  max-height: none;
+  overflow: visible;
+  font-size: 13.5px;
+  line-height: 1.9;
+  color: var(--wb-text);
+}
+.wb-chat-prose .markdown-block p {
+  margin: 0.7em 0;
+}
+.wb-chat-prose .markdown-block h1,
+.wb-chat-prose .markdown-block h2,
+.wb-chat-prose .markdown-block h3,
+.wb-chat-prose .markdown-block h4 {
+  margin: 1.15em 0 0.45em;
+}
+.wb-chat-prose .markdown-block blockquote {
+  background: var(--wb-surface-alt);
+}
+.wb-chat-prose .markdown-block pre {
+  background: var(--wb-surface-alt);
+  border-color: var(--wb-border);
 }
 
 /* ---------- pdf.js 内置阅读器的文本层（透明覆盖，仅供选中/复制） ---------- */

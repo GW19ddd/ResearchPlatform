@@ -1,55 +1,29 @@
 /**
- * 科研工作区（对话）：结构借 DeepScientist（启动面 → 课题契约 → quest 工作区），
+ * 课题 Quest 工作台（/chat）：结构借 DeepScientist（启动面 → 课题契约 → quest 工作区），
  * 配色与其他模块完全一致，统一走 --wb-* 设计令牌。
  *
- * 三层结构：
- *   1. 启动面 —— 不是聊天框：Start Research 主入口 + quest 项目卡片面板
- *   2. Start Research 弹窗 —— 左边填课题契约（目标/Baseline/参考/成功标准/硬约束/研究强度），
- *      右边实时生成 kickoff prompt，Create 之前必须检查（DeepScientist 的核心纠错点）
- *   3. Quest 工作区 —— 过程可回看（每条产出带模型与时间），底部「人类接管」随时介入
+ * 对话渲染是「连续正文流」而不是卡片墙：AI 回复 = 研流小助手 头部 + 无边框正文
+ * + 一条细操作条；用户消息是轻气泡。输入框内可直接挂技能 chip（@ 唤起浮层）。
  *
- * 一题一 quest：每个会话就是一个 quest，标题 = 课题名，第一条消息 = kickoff prompt（契约全文）。
- * 后端零改动：复用 /chat/sessions 与消息接口。
+ * 三层结构：
+ *   1. 启动面 —— 一句话开题 + quest 项目面板
+ *   2. 详细课题契约（可选）—— 左边填契约，右边实时生成 kickoff prompt
+ *   3. Quest 工作区 —— 过程可回看，底部随时接管
+ *
+ * 一题一 quest：每个会话就是一个 quest，标题 = 课题名，第一条消息 = kickoff prompt。
+ * 编排画布已拆成独立路由 /canvas；顶部工作台切换条由 App 层统一渲染，本页不再挂页签。
  */
-import { useEffect, useRef, useState } from 'react'
-import { Btn, Card, Empty, IconBtn, Input, MdBlock, Modal, Pill, SearchInput, Segmented, Select, TextArea } from '../components/ui'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Btn, Card, Empty, IconBtn, Input, MdBlock, Modal, Pill, Select, TextArea } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { del, get, patch, post } from '../lib/api'
 import { usePersist } from '../lib/state'
-import Canvas from './Canvas'
+import { composeKickoff, EMPTY_QUEST, type Quest } from '../lib/chatKickoff'
+import { parseSse } from '../lib/sse'
+import SkillMarket from '../features/skills/SkillMarket'
+import SkillPicker, { type SkillGroup, type SkillOption } from '../features/skills/SkillPicker'
 
-/** 课题契约（对齐 DeepScientist Start Research 字段） */
-type Quest = {
-  title: string
-  request: string
-  baseline: string
-  papers: string
-  goals: string
-  constraints: string
-}
-const EMPTY_QUEST: Quest = { title: '', request: '', baseline: '', papers: '', goals: '', constraints: '' }
-
-const composeKickoff = (q: Quest) => {
-  const block = (label: string, v: string, fallback: string) =>
-    `【${label}】\n${v.trim() || fallback}`
-  return [
-    `【研究目标】\n${q.request.trim()}`,
-    block('已有基础与 Baseline', q.baseline, '（无，请先自行调研并给出可复现的起点）'),
-    block('参考文献', q.papers, '（无）'),
-    block('成功标准', q.goals, '（未定，请在研究计划里先给出可验证的判据）'),
-    block('硬约束', q.constraints, '（无）'),
-    [
-      '【研究方法纪律 · DeepScientist】',
-      '1. 三层契约：课题根计划（全局研究地图）→ 阶段契约（本阶段目标/交付物/判据）→ 执行清单（一次只推进一项）。每轮先对齐再动手。',
-      '2. 阶段门禁：调研→计划、计划→实验 之间需我（用户）明确确认方向后才可越过；门禁前只做当前阶段准备，不得擅自跳阶段执行。',
-      '3. 证据优先：成文阶段每个主张必须能追溯到一条调研/实验产物；无证据的断言标注「待验证」。',
-      '4. 发现记忆：对话中沉淀为「发现」的结论，之后每轮自动带上，不得遗忘或重复质疑。',
-      '5. 受控自治：阶段内可连续推进，但遇门禁、证据不足或需我提供数据时主动停下并列出所需输入，不编造。',
-      '',
-      '推进节奏：先输出分阶段研究计划（每阶段有可验证产出），等我确认后再逐步执行；每个阶段结束给「阶段小结：做了什么 / 结论 / 下一步」；执行中要改动上述任何边界，先说明再动手。',
-    ].join('\n'),
-  ].join('\n\n')
-}
+/** 课题契约（对齐 DeepScientist Start Research 字段）—— 实现见 lib/chatKickoff.ts（已单测） */
 
 /** 全站统一走快模型，不再提供推理档 */
 const MODES = [{ value: 'fast', label: 'Balanced（快）' }]
@@ -224,71 +198,192 @@ function HeroScene() {
   )
 }
 
-const CHAT_TABS = [
-  { value: 'chat' as const, label: '对话 / Quest' },
-  { value: 'flow' as const, label: '工作流' },
-]
-
-/** 两个分区共用的顶栏：画布已并入对话，不再单独占一个导航项 */
-function ChatTabs({
-  tab,
-  setTab,
-}: {
-  tab: 'chat' | 'flow'
-  setTab: (v: 'chat' | 'flow') => void
-}) {
-  return (
-    <div className="flex shrink-0 items-center gap-3 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-6 py-2">
-      <Segmented value={tab} onChange={setTab} options={CHAT_TABS} />
-      <span className="truncate text-[11.5px] text-[color:var(--wb-muted)]">
-        {tab === 'chat'
-          ? '一题一 quest：填契约 → 受控推进 → 随时接管'
-          : '固定框式流水线：按顺序执行，结果可逐步回看'}
-      </span>
-    </div>
-  )
-}
-
 // ---------------------------------------------------------------- 页面
-export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = {}) {
+export default function Chat() {
   const [sessions, setSessions] = useState<any[]>([])
   const [sid, setSid] = usePersist<number | null>('chat.sid', null)
   const [detail, setDetail] = useState<any>(null)
   const [ctxOptions, setCtxOptions] = useState<{ value: string; label: string }[]>([])
   const [input, setInput] = usePersist('chat.input', '')
+  /** 技能市场装进来、允许在对话页挂载的 GitHub 技能 */
+  const [ghSkills, setGhSkills] = useState<{ id: string; name: string; desc: string; category: string; repo: string }[]>([])
+  /** 本机 ~/.workbuddy/skills 下的 SKILL.md（后端扫描，浏览器读不到本机文件） */
+  const [localSkills, setLocalSkills] = useState<{ id: string; name: string; desc: string; dir: string; path: string }[]>([])
+  /** 输入框内已挂载的技能 chip：本轮生效，发送后清空 */
+  const [mounted, setMounted] = useState<SkillOption[]>([])
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerHost, setPickerHost] = useState<'chat' | 'home'>('chat')
+  const [pickerQ, setPickerQ] = useState('')
+  const [marketOpen, setMarketOpen] = useState(false)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
   const [busy, setBusy] = useState('')
+  // 流式按会话分桶：记录「当前正在生成」的会话，切走对话不中断、也不串台
+  const [streamSid, setStreamSid] = useState<number | null>(null)
+  const streaming = streamSid === sid
+  // 切走对话 / 切走路由时，在途流式继续跑（服务端落库）；只有「还是当前会话 + 组件还活着」才写 UI
+  const sidRef = useRef<number | null>(sid)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    sidRef.current = sid
+  }, [sid])
+  useEffect(() => () => {
+    mountedRef.current = false
+  }, [])
   // 全站统一 fast：保留 setter 供选择器使用，档位不再随历史会话变化
   const [, setMode] = usePersist('chat.mode', 'fast')
   const mode = 'fast'
   const [ctxKeys, setCtxKeys] = usePersist<string[]>('chat.ctx', ['ideas'])
   const [questOpen, setQuestOpen] = useState(false)
+  /** 快速开题：一句话直接开跑（不想填契约时的默认路径） */
+  const [quick, setQuick] = useState('')
+  const quickRef = useRef<HTMLTextAreaElement>(null)
   const [quest, setQuest] = usePersist<Quest>('ds.quest', EMPTY_QUEST)
   const [err, setErr] = useState('')
   const [findings, setFindings] = useState<any[]>([])
   const [showFindings, setShowFindings] = useState(false)
-  const [showSkills, setShowSkills] = useState(false)
-  const [skillCat, setSkillCat] = useState<string>('全部')
-  const [skillQ, setSkillQ] = useState('')
-  /** 空状态首页的分类（Codeg：默认选中「构思」） */
-  const [homeCat, setHomeCat] = useState<string>('构思')
-  /** 对话 / 工作流两个分区；旧 /canvas 链接通过 initialTab 直接落到工作流 */
-  const [tab, setTab] = usePersist<'chat' | 'flow'>('chat.tab', 'chat')
-  useEffect(() => {
-    if (initialTab) setTab(initialTab)
-  }, [initialTab, setTab])
-  const chipRef = useRef<HTMLDivElement>(null)
-  const scrollChips = (dir: number) => chipRef.current?.scrollBy({ left: dir * 260, behavior: 'smooth' })
   const [autoLeft, setAutoLeft] = useState(0)
   const stopRef = useRef(false)
-  const abortRef = useRef<AbortController | null>(null)
+  // 每个会话各自的 AbortController（按 sid 分桶）：允许 A 后台流式时切到 B 再发 B，
+  // 互不覆盖可中止句柄（修复「单例 abortRef 在并发流式下串台」）。
+  const abortMapRef = useRef(new Map<number, AbortController>())
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const loadSessions = async () => setSessions(await get('/chat/sessions'))
+
+  /** 对话页可用的技能：GitHub 白名单 + 本机 skills 目录。装/卸之后调一次即可。 */
+  const loadGhSkills = useCallback(async () => {
+    try {
+      const r = await get<any>('/skills/chat')
+      setGhSkills((r.skills || []).map((s: any) => ({
+        id: s.id, name: s.name, desc: s.desc, category: s.category, repo: s.repo,
+      })))
+    } catch {
+      setGhSkills([])
+    }
+    try {
+      const r = await get<any>('/skills/local')
+      setLocalSkills(r.skills || [])
+    } catch {
+      setLocalSkills([])
+    }
+  }, [])
+
+  /** 三组合一：本机 SKILL.md / GitHub 技能 / 内置科研技能 */
+  const pickerGroups: SkillGroup[] = useMemo(
+    () => [
+      {
+        key: 'local',
+        label: `本机技能 (${localSkills.length})`,
+        icon: 'bookOpen',
+        items: localSkills.map((s) => ({
+          key: s.id, id: s.id, name: s.name, desc: s.desc, group: '本机技能', path: s.path,
+        })),
+      },
+      {
+        key: 'github',
+        label: `GitHub 技能 (${ghSkills.length})`,
+        icon: 'gitBranch',
+        items: ghSkills.map((s) => ({
+          key: s.id, id: s.id, name: s.name, desc: s.desc, group: 'GitHub 技能',
+        })),
+      },
+      {
+        key: 'research',
+        label: `科研技能 (${SKILLS.length})`,
+        icon: 'sparkle',
+        items: SKILLS.map((sk) => ({
+          key: 'preset:' + sk.name, id: '', name: sk.name, desc: sk.desc,
+          group: '科研技能', text: sk.prompt,
+        })),
+      },
+    ],
+    [localSkills, ghSkills],
+  )
+
+  const openPicker = (host: 'chat' | 'home') => {
+    setPickerHost(host)
+    setPickerQ('')
+    setPickerOpen(true)
+  }
+
+  const closePicker = () => {
+    setPickerOpen(false)
+    setPickerQ('')
+  }
+
+  /** 选中技能 → 输入框内加 chip，并吃掉末尾的 @query */
+  const addSkill = (o: SkillOption) => {
+    setMounted((prev) => (prev.some((x) => x.key === o.key) ? prev : [...prev, o]))
+    closePicker()
+    if (pickerHost === 'chat') {
+      setInput((v) => v.replace(/(?:^|\s)@[\w-]*$/, '').trimEnd())
+      setTimeout(() => composerRef.current?.focus(), 0)
+    } else {
+      setQuick((v) => v.replace(/(?:^|\s)@[\w-]*$/, '').trimEnd())
+      setTimeout(() => document.querySelector<HTMLTextAreaElement>('[data-quick-start-wrapper] textarea')?.focus(), 0)
+    }
+  }
+
+  /** 输入框变更：解析粘贴的 @skill:"路径" 成 chip；敲 @ 唤起浮层 */
+  const onComposerChange = (v: string, host: 'chat' | 'home') => {
+    const setter = host === 'chat' ? setInput : setQuick
+    const re = /@skill:\s*"([^"]+)"|@skill:\s*([^\s]+)/gi
+    const found: SkillOption[] = []
+    let m: RegExpExecArray | null
+    while ((m = re.exec(v))) {
+      const p = (m[1] || m[2] || '').trim()
+      if (!p) continue
+      const norm = p.replace(/\\/g, '/').toLowerCase()
+      const hit = localSkills.find((s) => s.path.replace(/\\/g, '/').toLowerCase() === norm)
+      found.push(
+        hit
+          ? { key: hit.id, id: hit.id, name: hit.name, desc: hit.desc, group: '本机技能', path: hit.path }
+          : {
+              key: 'path:' + p,
+              id: '',
+              name: p.split(/[\\/]/).filter(Boolean).slice(-2, -1)[0] || p,
+              desc: p,
+              group: '本机技能',
+              path: p,
+            },
+      )
+    }
+    let cleaned = v
+    if (found.length) {
+      cleaned = v.replace(re, ' ').replace(/[ \t]{2,}/g, ' ').trim()
+      setMounted((prev) => {
+        const keys = new Set(prev.map((x) => x.key))
+        return [...prev, ...found.filter((f) => !keys.has(f.key))]
+      })
+    }
+    setter(cleaned)
+    const at = cleaned.match(/(?:^|\s)@([\w-]*)$/)
+    if (at) {
+      setPickerHost(host)
+      setPickerQ(at[1])
+      setPickerOpen(true)
+    } else if (pickerOpen && pickerHost === host) {
+      closePicker()
+    }
+  }
+
+  /** 发送时把 chip 转成后端 skill_refs，发完清空（本轮生效） */
+  const takeRefs = () => {
+    const refs = mounted.map((o) => ({
+      id: o.id || null,
+      name: o.name,
+      path: o.path || null,
+      text: o.text || null,
+    }))
+    if (mounted.length) setMounted([])
+    return refs
+  }
 
   const open = async (id: number) => {
     const d = await get(`/chat/sessions/${id}`)
     setDetail(d)
     setSid(id)
+    sidRef.current = id
     // 全站统一 fast：不再按会话里存的历史档位切换
     get(`/chat/sessions/${id}/findings`).then(setFindings).catch(() => {})
     scrollDown()
@@ -297,6 +392,7 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
   const backHome = () => {
     setSid(null)
     setDetail(null)
+    sidRef.current = null
   }
 
   const scrollDown = () => setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 60)
@@ -305,10 +401,13 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
     let cancelled = false
     ;(async () => {
       get('/chat/context/options').then((r) => setCtxOptions(r.options || []))
+      loadGhSkills()
       const list = await get('/chat/sessions')
       if (cancelled) return
       setSessions(list || [])
-      const cur = Number(localStorage.getItem('wb:chat.sid') || 0)
+      /** 画布「成果立项 Quest」跳 /chat?quest=<id> 时以 URL 为准；否则回退到上次会话 */
+      const fromUrl = Number(new URLSearchParams(window.location.search).get('quest') || 0)
+      const cur = fromUrl || Number(localStorage.getItem('wb:chat.sid') || 0)
       if (cur && (list || []).some((s: any) => s.id === cur)) await open(cur)
     })()
     return () => {
@@ -317,7 +416,7 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /** Start Research：建 quest + 把 kickoff prompt 作为第一条消息发出去 */
+  /** Start Research：建 quest + 把 kickoff prompt 作为第一条消息发出去（详细契约版，可选） */
   const startQuest = async () => {
     if (!quest.request.trim()) return
     setBusy('quest')
@@ -331,7 +430,7 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
       setQuestOpen(false)
       await loadSessions()
       await open(s.id)
-      await sendKickoff(composeKickoff(quest))
+      await sendKickoff(composeKickoff(quest), s.id, takeRefs())
       setQuest(EMPTY_QUEST)
     } catch (e: any) {
       setErr(String(e?.message || e))
@@ -340,16 +439,51 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
     }
   }
 
-  /** 开题首条消息：走流式（弹窗已关，直接在 quest 里看逐字输出） */
-  const sendKickoff = (text: string) => sendStream(text, false)
+  /** 快速开题（默认路径）：一句话 = 一个新 quest。想填完整契约再用「详细设置」弹窗。 */
+  const quickStart = async () => {
+    const text = quick.trim()
+    if (!text || busy) return
+    setBusy('quest')
+    setErr('')
+    try {
+      const s = await post(
+        '/chat/sessions',
+        { title: text.slice(0, 24), role: 'assistant', mode, context_keys: ctxKeys },
+        { ok: false },
+      )
+      setQuick('')
+      await loadSessions()
+      await open(s.id)
+      await sendKickoff(text, s.id, takeRefs())
+    } catch (e: any) {
+      setErr(String(e?.message || e))
+    } finally {
+      setBusy('')
+    }
+  }
 
-  /** 流式发送：乐观加一个 live 泡，SSE 逐字填充；失败撤掉 live 泡（错误文本不当成果） */
-  const sendStream = async (text: string, regenerate = false) => {
-    if (!sid || !text) return
-    setBusy('send')
+  /** 开题首条消息：走流式（弹窗已关，直接在 quest 里看逐字输出） */
+  const sendKickoff = (text: string, sidOverride?: number, refs?: any[]) =>
+    sendStream(text, false, sidOverride, refs)
+
+  /** 流式发送：乐观加一个 live 泡，SSE 逐字填充；失败撤掉 live 泡（错误文本不当成果）。
+   *  修复：流式状态按 sid 分桶——切走对话 / 切走路由都不中断（服务端照常落库），
+   *  且只把增量写回「当前停留会话」的 UI，绝不串台。 */
+  const sendStream = async (
+    text: string,
+    regenerate = false,
+    sidOverride?: number,
+    skillRefs: any[] = [],
+  ) => {
+    // sidOverride：刚 create 完会话就发首条消息时，React 的 setSid 还没落地，
+    // 读 state 会拿到 null 直接 return —— 开题第一句话就这么丢的，所以允许显式传。
+    const mySid = sidOverride ?? sid
+    if (!mySid || !text) return
+    setStreamSid(mySid)
     setErr('')
     const liveId = -Date.now()
-    if (detail) {
+    // 只有当前停在该会话，才把乐观泡写进 detail；否则只让服务端跑，回来再拉全量
+    if (detail && sidRef.current === mySid) {
       const extra: any[] = []
       if (!regenerate) extra.push({ id: liveId, role: 'user', content: text })
       extra.push({ id: liveId - 1, role: 'assistant', content: '' })
@@ -362,9 +496,12 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
       scrollDown()
     }
     const ac = new AbortController()
-    abortRef.current = ac
+    abortMapRef.current.set(mySid, ac)
+    const safeSetDetail = (updater: (d: any) => any) => {
+      if (mountedRef.current && sidRef.current === mySid) setDetail(updater)
+    }
     const appendLive = (chunk: string) =>
-      setDetail((d: any) =>
+      safeSetDetail((d: any) =>
         d
           ? {
               ...d,
@@ -376,11 +513,12 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
       )
     let failed = false
     try {
-      const res = await fetch(`/api/chat/sessions/${sid}/messages/stream`, {
+      const res = await fetch(`/api/chat/sessions/${mySid}/messages/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // 注意：流式请求不能带 Idempotency-Key（幂等中间件会缓存整个响应体）
-        body: JSON.stringify({ content: text, mode, regenerate }),
+        // skill_refs：输入框里挂的技能 chip，本轮注入 SKILL.md 原文，发完前端已清空
+        body: JSON.stringify({ content: text, mode, regenerate, skill_refs: skillRefs }),
         signal: ac.signal,
       })
       if (!res.ok || !res.body) {
@@ -394,46 +532,50 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
         const { done, value } = await reader.read()
         if (done) break
         buf += dec.decode(value, { stream: true })
-        const parts = buf.split('\n\n')
-        buf = parts.pop() || ''
-        for (const part of parts) {
-          const line = part.trim()
-          if (!line.startsWith('data:')) continue
-          const ev = JSON.parse(line.slice(5))
-          if (ev.type === 'delta') appendLive(ev.text)
+        const { events, rest } = parseSse(buf)
+        buf = rest
+        for (const ev of events) {
+          if (ev.type === 'delta') appendLive(String(ev.text ?? ''))
           else if (ev.type === 'error') {
             failed = true
-            setErr([ev.error.label, ev.error.message, ev.error.hint].filter(Boolean).join(' · '))
+            if (sidRef.current === mySid) {
+              const e = ev.error as { label?: unknown; message?: unknown; hint?: unknown }
+              setErr([e?.label, e?.message, e?.hint].filter(Boolean).join(' · '))
+            }
           }
         }
       }
-      const d = await get(`/chat/sessions/${sid}`)
-      setDetail(d)
+      const d = await get(`/chat/sessions/${mySid}`)
+      safeSetDetail(d)
       loadSessions()
-      scrollDown()
+      if (sidRef.current === mySid) scrollDown()
     } catch (e: any) {
-      if (e?.name !== 'AbortError') setErr(String(e?.message || e))
-      const d = await get(`/chat/sessions/${sid}`)
-      setDetail(d)
+      if (e?.name !== 'AbortError' && sidRef.current === mySid)
+        setErr(String(e?.message || e))
+      const d = await get(`/chat/sessions/${mySid}`)
+      safeSetDetail(d)
     } finally {
-      if (failed) {
+      if (failed && sidRef.current === mySid) {
         // 失败不落库，前端也不留下半截 AI 内容冒充成果
-        setDetail((d: any) =>
+        safeSetDetail((d: any) =>
           d ? { ...d, messages: d.messages.filter((m: any) => m.id !== liveId - 1) } : d,
         )
       }
-      abortRef.current = null
-      setBusy('')
+      if (abortMapRef.current.get(mySid) === ac) abortMapRef.current.delete(mySid)
+      setStreamSid((cur) => (cur === mySid ? null : cur))
     }
   }
 
   /** 人类接管：随时插话，AI 结合全部历史继续推进（流式） */
   const takeover = (regenerate = false) => {
     if (!sid) return
+    // 守卫：当前会话正在流式时，禁止再起一个同会话流（否则 live 气泡与 abort 句柄会互相覆盖）
+    if (streaming) return
     const text = input.trim()
     if (!regenerate && !text) return
     if (!regenerate) setInput('')
-    sendStream(text, regenerate)
+    const refs = takeRefs()
+    sendStream(text, regenerate, undefined, refs)
   }
 
   const setQuestMode = async (v: string) => {
@@ -446,7 +588,7 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
 
   // ---------------------------------------------------------- 阶段推进
   const gotoStage = async (v: string) => {
-    if (!sid || !detail || busy) return
+    if (!sid || !detail || streaming) return
     const cur = detail.stage || 'survey'
     if (v === cur) return
     const st = STAGES.find((x) => x.value === v)!
@@ -555,36 +697,10 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
     </div>
   )
 
-  /** 画布成果立项后切回「对话」并打开刚建的 quest */
-  const goChat = () => {
-    setTab('chat')
-    get('/chat/sessions')
-      .then((list: any) => {
-        setSessions(list || [])
-        const cur = Number(localStorage.getItem('wb:chat.sid') || 0)
-        if (cur && (list || []).some((s: any) => s.id === cur)) open(cur)
-      })
-      .catch(() => {})
-  }
-
-  if (tab === 'flow') {
-    return (
-      <div className="flex h-full flex-col">
-        <ChatTabs tab={tab} setTab={setTab} />
-        <div className="min-h-0 flex-1">
-          <Canvas onGoChat={goChat} />
-        </div>
-      </div>
-    )
-  }
-
   // ------------------------------------------------------------ Quest 工作区（Codeg 式：极简顶栏 + 居中问候/时间线 + 居中大输入框）
   if (sid && detail) {
     const msgs: Msg[] = detail.messages || []
     const isEmpty = msgs.length === 0
-    const catSkills = SKILLS.filter((sk) => sk.cat === homeCat)
-    const featured = catSkills.slice(0, 3)
-    const rest = catSkills.slice(3)
     return (
       <div className="flex h-full flex-col">
         {/* 顶栏：面包屑 + 右侧轻操作 */}
@@ -627,7 +743,7 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
                 <button
                   key={st.value}
                   onClick={() => gotoStage(st.value)}
-                  disabled={state === 'cur' || busy === 'send' || autoLeft > 0}
+                  disabled={state === 'cur' || streaming || autoLeft > 0}
                   title={`${st.label}：${st.brief}`}
                   className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11.5px] transition ${
                     state === 'cur'
@@ -654,7 +770,7 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
               variant="primary"
               onClick={() => {
                 stopRef.current = true
-                abortRef.current?.abort()
+                abortMapRef.current.get(sid ?? -1)?.abort()
               }}
             >
               停止（剩 {autoLeft} 轮）
@@ -664,7 +780,7 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
               size="sm"
               variant="primary"
               onClick={autoDrive}
-              disabled={busy === 'send'}
+              disabled={streaming}
               title={`连续自主推进 ${AUTO_ROUNDS} 轮，随时可停`}
             >
               <Icon name="refresh" size={12} />
@@ -709,288 +825,209 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
           </div>
         )}
 
-        {/* 主区：无消息 = Codeg 式居中问候 + 技能面板；有消息 = 居中时间线 */}
+        {/* 主区：连续正文流（不是卡片墙）。无消息时只留一句问候，保持干净 */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {isEmpty ? (
             <div className="mx-auto flex h-full max-w-3xl flex-col items-center justify-center px-6 py-8">
               <h1 className="text-center text-[34px] font-semibold leading-[1.18] tracking-[-0.035em] text-[color:var(--wb-text)]">
                 今天准备做些<span className="text-[color:var(--wb-accent)]">什么</span>呢?
               </h1>
-              {/* 分类标签（胶囊组，选中高亮） */}
-              <div className="mt-6 flex items-center gap-0.5 rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] p-1 shadow-[var(--wb-shadow-xs)]">
-                {SKILL_CATS.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setHomeCat(c)}
-                    className={`whitespace-nowrap rounded-full px-3.5 py-[6px] text-[12.5px] transition-colors duration-150 ${
-                      homeCat === c
-                        ? 'bg-[color:var(--wb-accent-soft)] font-medium text-[color:var(--wb-accent)]'
-                        : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]'
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-              {/* 技能卡片：当前分类前 3 个 */}
-              <div className="wb-stagger mt-4 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
-                {featured.map((sk, i) => (
-                  <button
-                    key={sk.name}
-                    style={{ '--i': i } as any}
-                    onClick={() => setInput(sk.prompt)}
-                    title="点击把技能提示词装进下方输入框，可再编辑"
-                    className="group wb-lift rounded-[var(--wb-radius-lg)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] p-4 text-left shadow-[var(--wb-shadow-xs)]"
-                  >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
-                      <Icon name={CAT_ICONS[sk.cat]} size={15} />
-                    </span>
-                    <div className="mt-2.5 text-[13px] font-semibold text-[color:var(--wb-text)] transition-colors group-hover:text-[color:var(--wb-accent)]">
-                      {sk.name}
-                    </div>
-                    <div className="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
-                      {sk.desc}
-                    </div>
-                  </button>
-                ))}
-              </div>
-              {/* 其余技能：横向胶囊行（可左右滚动） */}
-              {rest.length > 0 && (
-                <div className="mt-3.5 flex w-full items-center gap-1">
-                  <button
-                    onClick={() => scrollChips(-1)}
-                    aria-label="向左滚动技能"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
-                  >
-                    <Icon name="chevronLeft" size={13} />
-                  </button>
-                  <div
-                    ref={chipRef}
-                    className="flex flex-1 gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                  >
-                    {rest.map((sk) => (
-                      <button
-                        key={sk.name}
-                        onClick={() => setInput(sk.prompt)}
-                        title={sk.desc}
-                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3 py-[6px] text-[12px] text-[color:var(--wb-text-soft)] transition hover:border-[color:var(--wb-accent)] hover:text-[color:var(--wb-accent)]"
-                      >
-                        <Icon name={CAT_ICONS[sk.cat]} size={12} />
-                        {sk.name}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => scrollChips(1)}
-                    aria-label="向右滚动技能"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
-                  >
-                    <Icon name="chevronRight" size={13} />
-                  </button>
-                </div>
-              )}
-              <div className="mt-7 text-center text-[11.5px] text-[color:var(--wb-muted)]">
-                Enter 发送 · Shift+Enter 换行 —— AI 会带着课题契约与发现记忆推进
-              </div>
+              <p className="mt-4 text-center text-[12.5px] leading-relaxed text-[color:var(--wb-muted)]">
+                在下面写下研究目标，输入 <span className="font-medium text-[color:var(--wb-accent)]">@</span> 或点 + 可以挂载技能
+              </p>
             </div>
           ) : (
-            <div className="mx-auto max-w-3xl px-5 py-4">
-            <div className="flex flex-col gap-3.5">
-              {msgs.map((m) => (
-                <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[86%] px-4 py-2.5 text-[13px] ${
-                      m.role === 'user'
-                        ? 'rounded-[16px] rounded-br-[6px] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent-strong)]'
-                        : 'rounded-[16px] rounded-bl-[6px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text)]'
-                    }`}
-                  >
-                    {m.role === 'user' ? (
-                      <div className="whitespace-pre-wrap leading-relaxed">{m.content}</div>
-                    ) : (
-                      <MdBlock text={m.content} />
-                    )}
-                    {m.role === 'assistant' && (
-                      <div className="mt-1.5 flex items-center gap-2 border-t border-[color:var(--wb-border)] pt-1.5 text-[11px] text-[color:var(--wb-muted)]">
-                        {m.model && (
-                          <span>
-                            {m.model}
-                            {m.tokens_out ? ` · ${m.tokens_out} tokens` : ''}
-                            {m.created_at ? ` · ${String(m.created_at).slice(5, 16)}` : ''}
+            <div className="mx-auto max-w-3xl px-5 py-6">
+              <div className="flex flex-col gap-8">
+                {msgs.map((m) =>
+                  m.role === 'user' ? (
+                    <div key={m.id} className="flex justify-end">
+                      <div className="max-w-[80%] whitespace-pre-wrap rounded-[16px] rounded-br-[6px] bg-[color:var(--wb-bg-subtle)] px-3.5 py-2 text-[13.5px] leading-relaxed text-[color:var(--wb-text)]">
+                        {m.content}
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={m.id} className="wb-chat-prose group">
+                      {/* 头部：研流小助手 + 状态，正文无边框无背景，像文档一样连续铺开 */}
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
+                          <Icon name="sparkle" size={13} />
+                        </span>
+                        <span className="text-[12.5px] font-semibold text-[color:var(--wb-text)]">研流小助手</span>
+                        <span className="text-[11px] text-[color:var(--wb-muted)]">
+                          {m.content ? '已完成' : '生成中…'}
+                          {m.created_at ? ` · ${String(m.created_at).slice(11, 16)}` : ''}
+                        </span>
+                      </div>
+                      <div className="pl-8">
+                        {m.content ? (
+                          <MdBlock text={m.content} />
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-[12px] text-[color:var(--wb-muted)]">
+                            <span className="wb-spinner inline-block h-3 w-3" /> 正在组织回答…
                           </span>
                         )}
-                        <span className="flex-1" />
-                        {m.content !== '推进中…' && m.content.trim() && (
-                          <>
-                            <Btn
-                              size="xs"
-                              variant="ghost"
-                              onClick={() => addFinding(m.content, m.id)}
-                              title="把这条结论存进发现记忆，之后每轮对话自动带上"
-                            >
-                              <Icon name="star" size={11} />
-                              沉淀为发现
-                            </Btn>
-                            <Btn
-                              size="xs"
-                              variant="ghost"
-                              onClick={() => navigator.clipboard?.writeText(m.content)}
-                              title="复制全文"
-                            >
-                              复制
-                            </Btn>
-                            <Btn
-                              size="xs"
-                              variant="ghost"
-                              onClick={() =>
-                                setInput(`> ${m.content.replace(/\s+/g, ' ').slice(0, 160)}\n\n`)
-                              }
-                              title="引用这条产出，在输入框里追问"
-                            >
-                              引用
-                            </Btn>
-                          </>
-                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <div ref={bottomRef} className="h-1" />
-            </div>
+                      {m.content && m.content.trim() && m.content !== '推进中…' && (
+                        <div className="mt-2.5 flex flex-wrap items-center gap-0.5 pl-8 text-[11px] text-[color:var(--wb-muted)]">
+                          <button
+                            onClick={() => navigator.clipboard?.writeText(m.content)}
+                            title="复制全文"
+                            className="flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+                          >
+                            <Icon name="copy" size={13} />
+                          </button>
+                          <button
+                            onClick={() => addFinding(m.content, m.id)}
+                            title="把这条结论存进发现记忆，之后每轮对话自动带上"
+                            className="flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+                          >
+                            <Icon name="star" size={13} />
+                          </button>
+                          <button
+                            onClick={() => setInput(`> ${m.content.replace(/\s+/g, ' ').slice(0, 160)}\n\n`)}
+                            title="引用这条产出，在输入框里追问"
+                            className="flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+                          >
+                            <Icon name="quote" size={13} />
+                          </button>
+                          <button
+                            onClick={() => takeover(true)}
+                            title="重新生成这一轮"
+                            className="flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+                          >
+                            <Icon name="refresh" size={13} />
+                          </button>
+                          <span className="flex-1" />
+                          {m.model && (
+                            <span className="whitespace-nowrap">
+                              {m.model}
+                              {m.tokens_out ? ` · ${m.tokens_out} tok` : ''}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ),
+                )}
+                <div ref={bottomRef} className="h-1" />
+              </div>
             </div>
           )}
         </div>
 
-        {/* 人类接管：Codeg 式居中大输入框（+ 打开技能面板，右侧圆形发送） */}
+        {/* 输入区：技能 chip 在框内，@ 浮层贴在框上方（absolute，不撑高文档流） */}
         <div className="px-4 pb-4 pt-1">
           {err && <div className="mx-auto mb-2 max-w-3xl">{ErrBar}</div>}
-          {/* 科研技能面板（Codeg 同款：搜索 + 分类 + 卡片网格，点卡片装提示词） */}
-          {showSkills && (
-            <div className="mx-auto mb-2.5 max-w-3xl rounded-[14px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] p-2.5 shadow-[var(--wb-shadow-sm)]">
-              <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                <SearchInput value={skillQ} onChange={setSkillQ} className="w-52" placeholder="搜技能…" />
-                <div className="flex flex-wrap gap-1">
-                  {['全部', ...SKILL_CATS].map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setSkillCat(c)}
-                      className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[11.5px] transition ${
-                        skillCat === c
-                          ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] font-medium text-[color:var(--wb-accent)]'
-                          : 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-border-strong)]'
-                      }`}
+          <div className="relative mx-auto max-w-3xl">
+            <SkillPicker
+              open={pickerOpen && pickerHost === 'chat'}
+              groups={pickerGroups}
+              query={pickerQ}
+              onQuery={setPickerQ}
+              onPick={addSkill}
+              onClose={closePicker}
+            />
+            <div
+              className="rounded-[20px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-md)] transition-[border-color,box-shadow] duration-150 focus-within:border-[color:var(--wb-accent)]/60 focus-within:shadow-[0_1px_3px_rgba(16,17,20,0.05),0_12px_32px_-16px_rgba(81,69,224,0.35)]"
+              data-tour="tour-chat-composer"
+            >
+              {/* 已挂载技能：输入框内的 chip，× 可摘掉 */}
+              {mounted.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 px-3 pt-3">
+                  {mounted.map((o) => (
+                    <span
+                      key={o.key}
+                      title={o.desc || o.path || o.group}
+                      className="inline-flex max-w-full items-center gap-1 rounded-[8px] border border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] px-2 py-1 text-[11.5px] font-medium text-[color:var(--wb-accent)]"
                     >
-                      {c}
-                    </button>
+                      <Icon
+                        name={o.group === 'GitHub 技能' ? 'gitBranch' : o.group === '科研技能' ? 'sparkle' : 'bookOpen'}
+                        size={11}
+                      />
+                      <span className="max-w-[180px] truncate">{o.name}</span>
+                      <button
+                        onClick={() => setMounted((prev) => prev.filter((x) => x.key !== o.key))}
+                        className="ml-0.5 rounded-full transition hover:opacity-70"
+                        aria-label={`移除技能 ${o.name}`}
+                      >
+                        <Icon name="close" size={10} />
+                      </button>
+                    </span>
                   ))}
                 </div>
+              )}
+              <textarea
+                ref={composerRef}
+                rows={3}
+                placeholder="今天帮你做些什么？@ 添加技能，/ 调用指令"
+                value={input}
+                onChange={(e: any) => onComposerChange(e.target.value, 'chat')}
+                onKeyDown={(e: any) => {
+                  // 浮层开着时 Enter 由 SkillPicker 接管（capture 阶段已拦，这里是双保险）
+                  if (pickerOpen && pickerHost === 'chat') return
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    takeover(false)
+                  }
+                }}
+                className="block w-full resize-none bg-transparent px-4 pt-3.5 text-[13.5px] leading-relaxed text-[color:var(--wb-text)] outline-none placeholder:text-[color:var(--wb-muted)]"
+              />
+              <div className="flex items-center gap-1 px-3 pb-2.5 pt-1">
+                <button
+                  onClick={() => openPicker('chat')}
+                  title="添加技能（也可直接输入 @）"
+                  className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
+                    pickerOpen && pickerHost === 'chat'
+                      ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
+                      : 'border-[color:var(--wb-border)] text-[color:var(--wb-muted)] hover:border-[color:var(--wb-border-strong)] hover:text-[color:var(--wb-text)]'
+                  }`}
+                >
+                  <Icon name="plus" size={15} />
+                </button>
+                <button
+                  onClick={() => setMarketOpen(true)}
+                  title="从 GitHub 技能市场安装"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--wb-border)] text-[color:var(--wb-muted)] transition hover:border-[color:var(--wb-border-strong)] hover:text-[color:var(--wb-text)]"
+                >
+                  <Icon name="gitBranch" size={14} />
+                </button>
+                <button
+                  onClick={() => takeover(true)}
+                  disabled={streaming || msgs.length === 0}
+                  title="重新生成上一轮"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--wb-border)] text-[color:var(--wb-muted)] transition hover:border-[color:var(--wb-border-strong)] hover:text-[color:var(--wb-text)] disabled:opacity-40"
+                >
+                  <Icon name="refresh" size={14} />
+                </button>
                 <span className="flex-1" />
-                <IconBtn
-                  icon="close"
-                  size="sm"
-                  ariaLabel="收起技能面板"
-                  onClick={() => setShowSkills(false)}
-                />
-              </div>
-              <div className="grid max-h-[38vh] gap-2 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
-                {SKILLS.filter(
-                  (sk) =>
-                    (skillCat === '全部' || sk.cat === skillCat) &&
-                    (!skillQ.trim() ||
-                      (sk.name + sk.desc + sk.prompt).toLowerCase().includes(skillQ.trim().toLowerCase())),
-                ).map((sk) => (
+                <span className="whitespace-nowrap text-[11px] text-[color:var(--wb-muted)]">Balanced</span>
+                {streaming ? (
                   <button
-                    key={sk.name}
-                    onClick={() => {
-                      setInput(sk.prompt)
-                      setShowSkills(false)
-                    }}
-                    className="group rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3 py-2.5 text-left transition hover:border-[color:var(--wb-accent)] hover:shadow-[var(--wb-shadow-sm)]"
-                    title="点击把技能提示词装进下方输入框，可再编辑"
+                    onClick={() => abortMapRef.current.get(sid ?? -1)?.abort()}
+                    title="停止生成"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--wb-danger)] text-white transition hover:opacity-90"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[12.5px] font-medium text-[color:var(--wb-text)] transition group-hover:text-[color:var(--wb-accent)]">
-                        {sk.name}
-                      </span>
-                      <span className="text-[10px] uppercase tracking-[0.14em] text-[color:var(--wb-muted)]">
-                        {sk.cat}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 line-clamp-1 text-[11.5px] text-[color:var(--wb-muted)]">{sk.desc}</div>
+                    <Icon name="close" size={15} />
                   </button>
-                ))}
-                {SKILLS.filter(
-                  (sk) =>
-                    (skillCat === '全部' || sk.cat === skillCat) &&
-                    (!skillQ.trim() ||
-                      (sk.name + sk.desc + sk.prompt).toLowerCase().includes(skillQ.trim().toLowerCase())),
-                ).length === 0 && (
-                  <div className="col-span-full py-4 text-center text-[12px] text-[color:var(--wb-muted)]">
-                    没有匹配的技能
-                  </div>
+                ) : (
+                  <button
+                    onClick={() => takeover(false)}
+                    disabled={!input.trim()}
+                    title="发送（Enter）"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--wb-accent)] text-white transition hover:opacity-90 disabled:opacity-40"
+                  >
+                    <Icon name="send" size={15} />
+                  </button>
                 )}
               </div>
             </div>
-          )}
-          <div className="mx-auto max-w-3xl rounded-[20px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-md)] transition-[border-color,box-shadow] duration-150 focus-within:border-[color:var(--wb-accent)]/60 focus-within:shadow-[0_1px_3px_rgba(16,17,20,0.05),0_12px_32px_-16px_rgba(81,69,224,0.35)]" data-tour="tour-chat-composer">
-            <textarea
-              rows={3}
-              placeholder="发送消息…"
-              value={input}
-              onChange={(e: any) => setInput(e.target.value)}
-              onKeyDown={(e: any) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  takeover(false)
-                }
-              }}
-              className="block w-full resize-none bg-transparent px-4 pt-3.5 text-[13.5px] leading-relaxed text-[color:var(--wb-text)] outline-none placeholder:text-[color:var(--wb-muted)]"
-            />
-            <div className="flex items-center gap-1 px-3 pb-2.5 pt-1">
-              <button
-                onClick={() => setShowSkills(!showSkills)}
-                title="科研技能面板"
-                className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
-                  showSkills
-                    ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
-                    : 'border-[color:var(--wb-border)] text-[color:var(--wb-muted)] hover:border-[color:var(--wb-border-strong)] hover:text-[color:var(--wb-text)]'
-                }`}
-              >
-                <Icon name="plus" size={15} />
-              </button>
-              <button
-                onClick={() => takeover(true)}
-                disabled={busy === 'send' || msgs.length === 0}
-                title="重跑上一阶段（用上一条提问重新生成）"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--wb-border)] text-[color:var(--wb-muted)] transition hover:border-[color:var(--wb-border-strong)] hover:text-[color:var(--wb-text)] disabled:opacity-40"
-              >
-                <Icon name="refresh" size={14} />
-              </button>
-              <span className="flex-1" />
-              <span className="whitespace-nowrap text-[11px] text-[color:var(--wb-muted)]">
-                Balanced
-              </span>
-              {busy === 'send' ? (
-                <button
-                  onClick={() => abortRef.current?.abort()}
-                  title="停止生成"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--wb-danger)] text-white transition hover:opacity-90"
-                >
-                  <Icon name="close" size={15} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => takeover(false)}
-                  disabled={!input.trim()}
-                  title="发送（Enter）"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--wb-accent)] text-white transition hover:opacity-90 disabled:opacity-40"
-                >
-                  <Icon name="send" size={15} />
-                </button>
-              )}
-            </div>
           </div>
+          <SkillMarket
+            open={marketOpen}
+            onClose={() => setMarketOpen(false)}
+            onInstalled={loadGhSkills}
+          />
         </div>
       </div>
     )
@@ -999,34 +1036,101 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
   // ------------------------------------------------------------ 启动面
   return (
     <div className="h-full overflow-y-auto">
-      <div className="sticky top-0 z-10">
-        <ChatTabs tab={tab} setTab={setTab} />
-      </div>
       <div className="mx-auto w-full max-w-[1240px] px-6 py-8 md:px-10 md:py-10">
         {/* Hero：研究工作区启动面 */}
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-[1.1fr_1fr]">
           <div className="space-y-5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3 py-1 text-[10.5px] font-medium uppercase tracking-[0.22em] text-[color:var(--wb-muted)]">
-              自动化科研
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3 py-1 text-[10.5px] font-medium uppercase tracking-[0.22em] text-[color:var(--wb-muted)]">
+                自动化科研
+              </span>
             </div>
             <h1 className="text-[28px] font-semibold leading-[1.3] text-[color:var(--wb-text)] md:text-[34px]">
-              由自治 AI 科研智能体驱动的课题工作区
+              课题 Quest：从契约到成文
             </h1>
             <div className="text-[11.5px] font-medium uppercase tracking-[0.26em] text-[color:var(--wb-accent)]">
-              调研 · 实验 · 发表
+              调研 · 计划 · 实验 · 成文
             </div>
             <p className="max-w-xl text-[13px] leading-relaxed text-[color:var(--wb-text-soft)]">
-              一题一 quest：开题时把「目标 / Baseline / 成功标准 / 硬约束」一次说清，AI 按受控节奏推进，
-              每一步可回看，人类随时接管。
+              一句话就是一个新课题：写下你想研究什么，回车直接开跑。
+              想把 Baseline / 成功标准一次说清，再用详细契约。
             </p>
-            <div className="flex flex-wrap items-center gap-2.5 pt-1">
-              <Btn variant="primary" className="!h-11 !px-6 !text-[13.5px]" onClick={() => setQuestOpen(true)}>
-                <Icon name="sparkle" size={15} />
-                Start Research · 开新课题
-              </Btn>
-              <Btn className="!h-11" onClick={() => setQuestOpen(true)}>
-                <Icon name="file" size={14} />
-                打开 Quest
+            {/* 快速开题：像聊天一样输入，回车 = 建会话 + 开跑；@ 可挂技能 */}
+            <div className="relative w-full max-w-xl">
+              <SkillPicker
+                open={pickerOpen && pickerHost === 'home'}
+                groups={pickerGroups}
+                query={pickerQ}
+                onQuery={setPickerQ}
+                onPick={addSkill}
+                onClose={closePicker}
+              />
+              <div
+                className="group w-full rounded-[14px] border bg-[color:var(--wb-surface)] px-3 py-2.5 shadow-[var(--wb-shadow-xs)] transition-[border-color,box-shadow] focus-within:border-[color:var(--wb-accent)] focus-within:shadow-[var(--wb-ring)] border-[color:var(--wb-border-strong)]"
+                onKeyDown={(e) => {
+                  if (pickerOpen && pickerHost === 'home') return
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    quickStart()
+                  }
+                }}
+                data-quick-start-wrapper
+              >
+                {mounted.length > 0 && (
+                  <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                    {mounted.map((o) => (
+                      <span
+                        key={o.key}
+                        className="inline-flex items-center gap-1 rounded-[8px] border border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] px-2 py-1 text-[11.5px] font-medium text-[color:var(--wb-accent)]"
+                      >
+                        <Icon name="bookOpen" size={11} />
+                        <span className="max-w-[160px] truncate">{o.name}</span>
+                        <button
+                          onClick={() => setMounted((prev) => prev.filter((x) => x.key !== o.key))}
+                          className="rounded-full transition hover:opacity-70"
+                          aria-label={`移除技能 ${o.name}`}
+                        >
+                          <Icon name="close" size={10} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <TextArea
+                    rows={1}
+                    value={quick}
+                    onChange={(v) => onComposerChange(v, 'home')}
+                    placeholder="要研究什么？例如：LLM agent 修复 OpenFOAM 报错的能力评测"
+                    className="!border-0 !bg-transparent !px-0 !py-1 focus:!shadow-none"
+                  />
+                  <Btn
+                    variant="primary"
+                    loading={busy === 'quest'}
+                    disabled={!quick.trim()}
+                    onClick={quickStart}
+                    className="mb-0.5 shrink-0"
+                  >
+                    <Icon name="arrowRight" size={14} />
+                    开跑
+                  </Btn>
+                </div>
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <button
+                    onClick={() => openPicker('home')}
+                    className="inline-flex items-center gap-1 rounded-full border border-[color:var(--wb-border)] px-2 py-1 text-[11px] text-[color:var(--wb-text-soft)] transition hover:border-[color:var(--wb-accent)] hover:text-[color:var(--wb-accent)]"
+                  >
+                    <Icon name="plus" size={11} />
+                    @ 添加技能
+                  </button>
+                  <span className="text-[11px] text-[color:var(--wb-muted)]">挂上的技能随第一句话一起生效</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
+              <Btn variant="ghost" size="sm" onClick={() => setQuestOpen(true)}>
+                <Icon name="clipboardCheck" size={13} />
+                详细课题契约（可选）
               </Btn>
             </div>
             <div className="space-y-1.5 pt-1 text-[11.5px] text-[color:var(--wb-muted)]">
@@ -1063,7 +1167,12 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
             title={`Quests（${sessions.length}）`}
             tourId="tour-chat-launch"
             extra={
-              <Btn onClick={() => setQuestOpen(true)}>
+              <Btn
+                onClick={() => {
+                  window.scrollTo?.({ top: 0, behavior: 'smooth' })
+                  document.querySelector<HTMLTextAreaElement>('[data-quick-start-wrapper] textarea')?.focus()
+                }}
+              >
                 <Icon name="plus" size={13} />
                 新课题
               </Btn>
@@ -1072,7 +1181,7 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
             {sessions.length === 0 ? (
               <Empty
                 text="还没有 quest"
-                hint="点「Start Research」开第一个课题：填契约 → 检查 kickoff prompt → 启动"
+                hint="在上面输入框写一句话研究目标，回车直接开跑；或点「详细课题契约」慢慢填"
               />
             ) : (
               <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
@@ -1212,6 +1321,12 @@ export default function Chat({ initialTab }: { initialTab?: 'chat' | 'flow' } = 
           </div>
         </div>
       </Modal>
+
+      <SkillMarket
+        open={marketOpen}
+        onClose={() => setMarketOpen(false)}
+        onInstalled={loadGhSkills}
+      />
     </div>
   )
 }

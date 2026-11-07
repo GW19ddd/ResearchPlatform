@@ -16,6 +16,7 @@ from routers import (
     ai_guard,
     auth as auth_router,
     backup,
+    browse,
     canvas,
     chat,
     dashboard,
@@ -24,8 +25,10 @@ from routers import (
     paper,
     plan,
     points,
+    rchat,
     research,
     settings,
+    skills_market,
     zotero,
 )
 
@@ -175,11 +178,14 @@ app.include_router(points.router)
 app.include_router(dashboard.router)
 app.include_router(settings.router)
 app.include_router(canvas.router)
+app.include_router(skills_market.router)
 app.include_router(zotero.router)
+app.include_router(rchat.router)
 app.include_router(chat.router)
 app.include_router(activity.router)
 app.include_router(gloss.router)
 app.include_router(litsearch.router)
+app.include_router(browse.router)
 app.include_router(ai_guard.router)
 app.include_router(backup.router)
 

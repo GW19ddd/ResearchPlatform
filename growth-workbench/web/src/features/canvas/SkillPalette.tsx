@@ -7,6 +7,8 @@
 import { useState } from 'react'
 import { Btn, Input } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { toast } from '../../components/toast'
+import { post } from '../../lib/api'
 import { NODE_ICON, TYPE_TILE, nodeChip, type Skill } from './canvas-shared'
 import { categoryTile, skillIcon, skillLabel, skillTile, soft } from './skill-meta'
 
@@ -25,7 +27,8 @@ export default function SkillPalette({
   onOpenSource,
   onAddNode,
   onPickSkill,
-  onClone,
+  onOpenMarket,
+  onInstalled,
 }: {
   cats: { name: string; skills: Skill[] }[]
   srcTab: 'all' | 'github' | 'builtin'
@@ -34,7 +37,10 @@ export default function SkillPalette({
   onOpenSource: (sid: string, sname: string) => void
   onAddNode: (ntype: string, skillId: string, x: number, y: number) => void
   onPickSkill?: (sid: string) => void
-  onClone: (url: string) => Promise<void>
+  /** 打开「技能市场」（搜 GitHub 上的 SKILL.md 一键装）；不传就只显示整仓克隆入口 */
+  onOpenMarket?: () => void
+  /** 装完/克隆完通知外层刷新技能列表 */
+  onInstalled?: () => void
 }) {
   const [cloneUrl, setCloneUrl] = useState('')
   const [cloning, setCloning] = useState(false)
@@ -164,32 +170,57 @@ export default function SkillPalette({
           「自定义」= 自己写 system 与指令，不依赖技能库，想怎么串就怎么串。
         </p>
         <div className="mt-2">
-          <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">
-            导入 GitHub 技能仓库（原样克隆，不改写）
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-[11.5px] text-[color:var(--wb-muted)]">从 GitHub 装技能</span>
           </div>
-          <Input
-            value={cloneUrl}
-            onChange={setCloneUrl}
-            placeholder="https://github.com/user/repo"
-            className="!text-[11.5px]"
-          />
-          <Btn
-            className="mt-1 w-full"
-            disabled={cloning || !cloneUrl.trim()}
-            onClick={async () => {
-              setCloning(true)
-              try {
-                await onClone(cloneUrl.trim())
-                setCloneUrl('')
-              } catch {
-                /* 失败提示由页面统一给出，这里只负责收状态 */
-              } finally {
-                setCloning(false)
-              }
-            }}
-          >
-            {cloning ? '克隆中…' : '↓ 克隆仓库'}
-          </Btn>
+          {onOpenMarket && (
+            <Btn
+              variant="primary"
+              size="sm"
+              className="w-full"
+              onClick={onOpenMarket}
+              title="搜索 GitHub 上带 SKILL.md 的技能包，按目录稀疏下载（不整仓 clone）"
+            >
+              <Icon name="grid" size={12} />
+              打开技能市场
+            </Btn>
+          )}
+          <div className="mt-1.5 text-[11px] text-[color:var(--wb-muted)]">
+            或粘已知仓库地址（整仓克隆，体积可能很大）
+          </div>
+          <div className="mt-1 flex gap-1">
+            <Input
+              value={cloneUrl}
+              onChange={setCloneUrl}
+              placeholder="https://github.com/user/repo"
+              className="!min-w-0 !flex-1 !text-[11.5px]"
+            />
+            <Btn
+              size="sm"
+              disabled={cloning || !cloneUrl.trim()}
+              title="git clone 整个仓库到 skills/github"
+              onClick={async () => {
+                setCloning(true)
+                try {
+                  const r = await post<any>(
+                    '/skills/market/install',
+                    { repo: cloneUrl.trim(), origin: 'clone' },
+                    { silent: true },
+                  )
+                  if (r.ok === false) throw new Error(r.message || '克隆失败')
+                  toast(r.message || '已导入', 'ok')
+                  setCloneUrl('')
+                  onInstalled?.()
+                } catch (e: any) {
+                  toast(`克隆失败：${e?.message || e}`, 'error')
+                } finally {
+                  setCloning(false)
+                }
+              }}
+            >
+              {cloning ? '…' : '克隆'}
+            </Btn>
+          </div>
         </div>
       </div>
     </div>
