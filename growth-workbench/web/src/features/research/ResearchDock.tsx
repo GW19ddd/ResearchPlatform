@@ -295,13 +295,13 @@ export function LiteraturePane({ run, onClose, width }: { run: RunState | null; 
     >
       {/* 栏头：文件标识 + 标题 + 命中数 + 导出 + 关闭叉（与报告栏一致） */}
       <div className="flex shrink-0 items-center gap-2 border-b border-[color:var(--wb-border)] px-3.5 py-2.5">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
           <Icon name="book" size={12} />
         </span>
         <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[color:var(--wb-text)]">
           文献检索
         </span>
-        <span className="shrink-0 whitespace-nowrap rounded-full bg-[color:var(--wb-accent-soft)] px-1.5 py-[1px] text-[10px] font-medium text-[color:var(--wb-accent-strong)]">
+        <span className="shrink-0 whitespace-nowrap rounded-[3px] bg-[color:var(--wb-accent-soft)] px-1.5 py-[1px] text-[10px] font-medium text-[color:var(--wb-accent-strong)]">
           {all.length} 篇
         </span>
         <Btn size="xs" variant="subtle" onClick={exportCsv} disabled={!all.length} title="导出 CSV">
@@ -316,7 +316,7 @@ export function LiteraturePane({ run, onClose, width }: { run: RunState | null; 
 
       {/* 白底正文：常驻面板高度写死为 flex-1，滚动只在内部 */}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-2.5">
-        <div className="min-h-full rounded-[12px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-4 py-3.5">
+        <div className="px-4 py-3">
           {/* 排序 / 语言筛选 */}
           <div className="flex flex-wrap items-center gap-1.5">
             <Segmented value={sort} onChange={setSort} options={SORT_OPTIONS} />

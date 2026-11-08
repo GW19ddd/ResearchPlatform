@@ -230,6 +230,15 @@ export default function Experiments() {
     load()
   }
 
+  /** 删除单个实验：列表 dock 与详情头都用它 */
+  const dropExp = async (id: number) => {
+    const name = exps.find((e) => e.id === id)?.name || '该实验'
+    if (!window.confirm(`删掉「${name}」？结果记录一起清掉，不可撤销`)) return
+    await del(`/experiments/${id}`)
+    if (id === sel) setSel(null)
+    load()
+  }
+
   const saveDetail = async (field: 'hypothesis' | 'design', value: string) => {
     if (sel === null) return
     await patch(`/experiments/${sel}`, { [field]: value }, { ok: false })
@@ -363,19 +372,87 @@ export default function Experiments() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        eyebrow="执行 · 01"
-        title="实验"
-        desc="假设 → 设计 → 记录 → 结论：每个实验都要闭环"
+    <PageHeader
+      eyebrow="执行 · 01"
+      title="实验"
+      desc="假设 → 设计 → 记录 → 结论：每个实验都要闭环"
+      actions={
+        <Btn variant="primary" onClick={() => setFormOpen(true)}>
+          新建实验
+        </Btn>
+      }
+    />
+
+    {current && (
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'agent', label: 'Agent 实验' },
+          { value: 'classic', label: '结果与运行' },
+        ]}
+        className="w-fit"
+      />
+    )}
+
+    {tab === 'agent' && current ? (
+      <>
+        {(anTask.error || failTask.error || reviewTask.error || auditTask.error) && (
+          <div className="flex flex-col gap-2">
+            {anTask.error && (
+              <AiError error={anTask.error} onRetry={analyze} retrying={anTask.busy} title="分析没有跑通，已有结论保持不变" />
+            )}
+            {failTask.error && (
+              <AiError error={failTask.error} onRetry={failAttrib} retrying={failTask.busy} title="归因没有跑通" />
+            )}
+            {reviewTask.error && (
+              <AiError error={reviewTask.error} onRetry={designReview} retrying={reviewTask.busy} title="预审没有跑通" />
+            )}
+            {auditTask.error && (
+              <AiError error={auditTask.error} onRetry={runAudit} retrying={auditTask.busy} title="审查没有跑通" />
+            )}
+          </div>
+        )}
+        <AgentLab
+          exp={current}
+        exps={exps}
+        onSelect={setSel}
+        onNew={() => setFormOpen(true)}
+        onDelete={dropExp}
+        onEditDesign={() => setDesignOpen(true)}
+        onChanged={() => {
+          if (sel !== null) loadResults(sel)
+          load()
+        }}
         actions={
-          <Btn variant="primary" onClick={() => setFormOpen(true)}>
-            新建实验
-          </Btn>
+          <>
+            <Btn size="xs" variant="ghost" onClick={designReview} loading={reviewTask.busy} title="开跑前先挑一遍设计毛病">
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <Icon name="lightbulb" size={12} /> 设计预审
+              </span>
+            </Btn>
+            <Btn size="xs" variant="ghost" onClick={analyze} loading={anTask.busy} title="基于全部结果验证假设">
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <Icon name="chart" size={12} /> 分析结果
+              </span>
+            </Btn>
+            <Btn size="xs" variant="ghost" onClick={failAttrib} loading={failTask.busy} title="只看失败样本归因">
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <Icon name="target" size={12} /> 失败归因
+              </span>
+            </Btn>
+            <Btn size="xs" variant="ghost" onClick={runAudit} loading={auditTask.busy} title="结构化审查：只查可溯源与一致性">
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <Icon name="shield" size={12} /> 结果审查
+              </span>
+            </Btn>
+          </>
         }
       />
-
-      <div className="grid gap-4 lg:grid-cols-5">
-        {/* 左：实验列表（筛选 + 多选） */}
+      </>
+    ) : (
+    <div className="grid gap-4 lg:grid-cols-5">
+      {/* 左：实验列表（筛选 + 多选） */}
         <Card
           title={`实验列表（${filtered.length}）`}
           className="lg:col-span-2"
@@ -484,12 +561,7 @@ export default function Experiments() {
                     size="sm"
                     tone="danger"
                     title="删除该实验"
-                    onClick={async () => {
-                      if (!window.confirm(`删掉「${current.name}」？结果记录一起清掉，不可撤销`)) return
-                      await del(`/experiments/${current.id}`)
-                      setSel(null)
-                      load()
-                    }}
+                    onClick={() => dropExp(current.id)}
                   />
                 </>
               }
@@ -501,69 +573,6 @@ export default function Experiments() {
                 </div>
               )}
             </Card>
-
-            {/* 形态切换 */}
-            <Segmented
-              value={tab}
-              onChange={setTab}
-              options={[
-                { value: 'agent', label: 'Agent 实验' },
-                { value: 'classic', label: '结果与运行' },
-              ]}
-              className="w-fit"
-            />
-
-            {tab === 'agent' && (
-              <>
-                {(anTask.error || failTask.error || reviewTask.error || auditTask.error) && (
-                  <div className="flex flex-col gap-2">
-                    {anTask.error && (
-                      <AiError error={anTask.error} onRetry={analyze} retrying={anTask.busy} title="分析没有跑通，已有结论保持不变" />
-                    )}
-                    {failTask.error && (
-                      <AiError error={failTask.error} onRetry={failAttrib} retrying={failTask.busy} title="归因没有跑通" />
-                    )}
-                    {reviewTask.error && (
-                      <AiError error={reviewTask.error} onRetry={designReview} retrying={reviewTask.busy} title="预审没有跑通" />
-                    )}
-                    {auditTask.error && (
-                      <AiError error={auditTask.error} onRetry={runAudit} retrying={auditTask.busy} title="审查没有跑通" />
-                    )}
-                  </div>
-                )}
-                <AgentLab
-                  exp={current}
-                  onChanged={() => {
-                    if (sel !== null) loadResults(sel)
-                    load()
-                  }}
-                  actions={
-                    <>
-                      <Btn size="xs" variant="ghost" onClick={designReview} loading={reviewTask.busy} title="开跑前先挑一遍设计毛病">
-                        <span className="flex items-center gap-1 whitespace-nowrap">
-                          <Icon name="lightbulb" size={12} /> 设计预审
-                        </span>
-                      </Btn>
-                      <Btn size="xs" variant="ghost" onClick={analyze} loading={anTask.busy} title="基于全部结果验证假设">
-                        <span className="flex items-center gap-1 whitespace-nowrap">
-                          <Icon name="chart" size={12} /> 分析结果
-                        </span>
-                      </Btn>
-                      <Btn size="xs" variant="ghost" onClick={failAttrib} loading={failTask.busy} title="只看失败样本归因">
-                        <span className="flex items-center gap-1 whitespace-nowrap">
-                          <Icon name="target" size={12} /> 失败归因
-                        </span>
-                      </Btn>
-                      <Btn size="xs" variant="ghost" onClick={runAudit} loading={auditTask.busy} title="结构化审查：只查可溯源与一致性">
-                        <span className="flex items-center gap-1 whitespace-nowrap">
-                          <Icon name="shield" size={12} /> 结果审查
-                        </span>
-                      </Btn>
-                    </>
-                  }
-                />
-              </>
-            )}
 
             {tab === 'classic' && (
               <>
@@ -810,6 +819,7 @@ export default function Experiments() {
           </Card>
         )}
       </div>
+      )}
 
       {/* AI 输出（统一一张卡，随内容渲染） */}
       {out && (

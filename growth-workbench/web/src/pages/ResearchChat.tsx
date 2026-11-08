@@ -363,18 +363,20 @@ export default function ResearchChat() {
         className="flex shrink-0 flex-col border-r border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)]"
         style={{ width: leftW, minWidth: 180, maxWidth: 400 }}
       >
-        <div className="flex items-center justify-between px-3 pb-2 pt-3">
+        <div className="flex items-center justify-between px-2.5 pb-1.5 pt-2.5">
           <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--wb-muted)]">
             Chats
           </span>
           <IconBtn icon="plus" size="sm" ariaLabel="新对话" onClick={newChat} />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {sessions.map((s) => (
             <div
               key={s.id}
-              className={`group flex items-center gap-1 rounded-[10px] px-2 py-[7px] transition ${
-                s.id === sid ? 'bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-sm)]' : 'hover:bg-[color:var(--wb-surface)]/60'
+              className={`group flex items-center gap-1 border-l-2 px-2 py-[7px] transition ${
+                s.id === sid
+                  ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-surface)]'
+                  : 'border-transparent hover:bg-[color:var(--wb-surface)]/50'
               }`}
             >
               <button onClick={() => openSession(s.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
@@ -413,22 +415,22 @@ export default function ResearchChat() {
           )}
 
           {/* 文档：历次「撰写报告」的产出沉淀（对标 Undermind 左栏 Documents） */}
-          <div className="mx-2 mt-2 border-t border-[color:var(--wb-border)]" />
-          <div className="px-1 pb-1 pt-2.5">
+          <div className="mt-1 border-t border-[color:var(--wb-border)]" />
+          <div className="px-2 pb-1.5 pt-2.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--wb-muted)]">
               文档
             </span>
           </div>
           {docs.map((d) => {
-            // 当前双栏打开的正是这篇 → 整行加深（与左栏「文献检索」激活态同款）
+            // 当前双栏打开的正是这篇 → 整行加深（与左栏会话激活态同款）
             const active = pane?.kind === 'report' && pane.docId === d.id
             return (
               <div
                 key={d.id}
-                className={`group flex items-center gap-1 rounded-[10px] px-2 py-[7px] transition ${
+                className={`group flex items-center gap-1 border-l-2 px-2 py-[7px] transition ${
                   active
-                    ? 'bg-[color:var(--wb-accent-soft)] shadow-[var(--wb-shadow-sm)]'
-                    : 'hover:bg-[color:var(--wb-surface)]/60'
+                    ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-surface)]'
+                    : 'border-transparent hover:bg-[color:var(--wb-surface)]/50'
                 }`}
               >
                 <button
@@ -462,20 +464,20 @@ export default function ResearchChat() {
             </p>
           )}
         </div>
-        <div className="flex flex-col gap-0.5 border-t border-[color:var(--wb-border)] p-2">
+        <div className="mt-1 flex flex-col border-t border-[color:var(--wb-border)]">
           {/* 与左栏「文档」对称的入口：点开在右侧双栏看本次检索结果 */}
           <button
             onClick={openLit}
-            className={`flex w-full items-center gap-2 rounded-[10px] px-2 py-2 text-[12px] transition ${
+            className={`flex w-full items-center gap-2 border-l-2 px-2 py-2 text-[12px] transition ${
               pane?.kind === 'literature'
-                ? 'bg-[color:var(--wb-accent-soft)] font-medium text-[color:var(--wb-accent-strong)]'
-                : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-surface)]'
+                ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-surface)] font-medium text-[color:var(--wb-accent-strong)]'
+                : 'border-transparent text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-surface)]/50'
             }`}
           >
             <Icon name="search" size={13} className="shrink-0 text-[color:var(--wb-muted)]" />
             文献检索
             {(run?.papers.length || 0) > 0 && (
-              <span className="rounded-full bg-[color:var(--wb-accent-soft)] px-1.5 py-[1px] text-[10px] text-[color:var(--wb-accent-strong)]">
+              <span className="rounded-[3px] bg-[color:var(--wb-accent-soft)] px-1.5 py-[1px] text-[10px] text-[color:var(--wb-accent-strong)]">
                 {run?.papers.length}
               </span>
             )}
@@ -483,7 +485,7 @@ export default function ResearchChat() {
           </button>
           <button
             onClick={() => nav('/literature')}
-            className="flex w-full items-center gap-2 rounded-[10px] px-2 py-2 text-[12px] text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-surface)]"
+            className="flex w-full items-center gap-2 border-l-2 border-transparent px-2 py-2 text-[12px] text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-surface)]/50"
           >
             <Icon name="book" size={13} className="text-[color:var(--wb-muted)]" />
             文献库
@@ -680,7 +682,7 @@ function ReportPane({ report, name, width, onClose }: { report: ChatMsg; name?: 
     >
       {/* 栏头：文件标识 + 标题 + 导出 + 关闭叉 */}
       <div className="flex shrink-0 items-center gap-2 border-b border-[color:var(--wb-border)] px-3.5 py-2.5">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
           <Icon name="file" size={12} />
         </span>
         <span
@@ -700,7 +702,7 @@ function ReportPane({ report, name, width, onClose }: { report: ChatMsg; name?: 
       </div>
       {/* 文档式白底正文：常驻面板高度写死为 flex-1，滚动只在内部 */}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-2.5">
-        <div className="min-h-full rounded-[12px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-6 py-5">
+        <div className="px-4 py-3">
           <ReportMd text={report.content} citations={report.citations} />
         </div>
       </div>
