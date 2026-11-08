@@ -14,7 +14,7 @@
  * 编排画布已拆成独立路由 /canvas；顶部工作台切换条由 App 层统一渲染，本页不再挂页签。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Btn, Card, Empty, IconBtn, Input, MdBlock, Modal, Pill, Select, TextArea } from '../components/ui'
+import { Btn, Card, Empty, IconBtn, Input, MdBlock, Modal, Pill, Select, Spinner, TextArea } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { del, get, patch, post } from '../lib/api'
 import { usePersist } from '../lib/state'
@@ -217,6 +217,9 @@ export default function Chat() {
   const [marketOpen, setMarketOpen] = useState(false)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const [busy, setBusy] = useState('')
+  /** 启动期门闸：挂载时若上次会话还在（chat.sid 持久化），要等 detail 拉回才能进工作区；
+   *  这期间不渲染启动面，否则每次进 /chat 都会先闪一下「长得像首页」的启动面再跳走。 */
+  const [booting, setBooting] = useState(true)
   // 流式按会话分桶：记录「当前正在生成」的会话，切走对话不中断、也不串台
   const [streamSid, setStreamSid] = useState<number | null>(null)
   const streaming = streamSid === sid
@@ -400,15 +403,22 @@ export default function Chat() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      get('/chat/context/options').then((r) => setCtxOptions(r.options || []))
-      loadGhSkills()
-      const list = await get('/chat/sessions')
-      if (cancelled) return
-      setSessions(list || [])
-      /** 画布「成果立项 Quest」跳 /chat?quest=<id> 时以 URL 为准；否则回退到上次会话 */
-      const fromUrl = Number(new URLSearchParams(window.location.search).get('quest') || 0)
-      const cur = fromUrl || Number(localStorage.getItem('wb:chat.sid') || 0)
-      if (cur && (list || []).some((s: any) => s.id === cur)) await open(cur)
+      try {
+        get('/chat/context/options').then((r) => setCtxOptions(r.options || []))
+        loadGhSkills()
+        const list = await get('/chat/sessions')
+        if (cancelled) return
+        setSessions(list || [])
+        /** 画布「成果立项 Quest」跳 /chat?quest=<id> 时以 URL 为准；否则回退到上次会话 */
+        const fromUrl = Number(new URLSearchParams(window.location.search).get('quest') || 0)
+        const cur = fromUrl || Number(localStorage.getItem('wb:chat.sid') || 0)
+        if (cur && (list || []).some((s: any) => s.id === cur)) await open(cur)
+      } catch {
+        /* 拉会话失败：照常落到启动面 */
+      } finally {
+        // 无论恢复成功与否，启动期结束 —— 后续 open() 走「启动面 → 工作区」的正常交互
+        if (!cancelled) setBooting(false)
+      }
     })()
     return () => {
       cancelled = true
@@ -696,6 +706,15 @@ export default function Chat() {
       {err}
     </div>
   )
+
+  // ------------------------------------------------------------ 启动期：恢复上次会话期间先给个静默的加载态，不渲染启动面
+  if (booting) {
+    return (
+      <div className="flex h-full items-center justify-center bg-[color:var(--wb-bg)]" aria-busy="true">
+        <Spinner className="h-5 w-5" />
+      </div>
+    )
+  }
 
   // ------------------------------------------------------------ Quest 工作区（Codeg 式：极简顶栏 + 居中问候/时间线 + 居中大输入框）
   if (sid && detail) {

@@ -1,29 +1,23 @@
 /**
- * 检索页：原本文献页里的「在线检索」分区与「AI 检索方案」移到这里，
- * 由左侧菜单栏统一进入，文献页只管文献库 / 对比矩阵 / 关联图，不再重复放检索。
+ * 检索页：主视图改为 Litmaps 式「大搜索框 → 检索过程 → 检索结果」三段发现流程，
+ * 入口仍在文献页页头的「在线检索」按钮。
  *
- * 数据链路不变：OpenAlex 检索结果仍走 POST /literature 入库，
- * 之后复用去重、AI 笔记、对比矩阵整条链路。
+ * 原来的 OpenAlex 命中列表收进底部可折叠的「经典检索」，AI 检索方案仍在页头 ——
+ * 两条老链路都没丢，只是不再跟新流程抢首屏。
  */
 import { useEffect, useState } from 'react'
-import {
-  Btn,
-  Input,
-  Loading,
-  MdBlock,
-  Modal,
-  PageHeader,
-} from '../components/ui'
+import { Btn, Input, Loading, MdBlock, Modal, PageHeader } from '../components/ui'
 import { AiError, AiMeta } from '../components/AiError'
 import { Icon } from '../components/Icon'
 import { get, post } from '../lib/api'
 import { useAiTask } from '../lib/hooks'
 import { usePersist } from '../lib/state'
 import LitSearchCard from '../features/literature/LitSearchCard'
+import Discover from '../features/literature/Discover'
 
 type Out = { title: string; text: string } | null
 
-export default function Search() {
+export default function Search({ embedded = false }: { embedded?: boolean }) {
   const [titles, setTitles] = useState<string[]>([])
   const loadTitles = async () => {
     try {
@@ -38,6 +32,7 @@ export default function Search() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const [classicOpen, setClassicOpen] = usePersist('lit.classicSearchOpen', false)
   const [topic, setTopic] = usePersist('lit.topic', '')
   const [out, setOut] = usePersist<Out>('lit.out', null)
   const kwTask = useAiTask<any>()
@@ -52,11 +47,9 @@ export default function Search() {
 
   return (
     <div className="flex flex-col gap-3.5">
-      <PageHeader
-        eyebrow="输入 · 检索"
-        title="检索"
-        desc="在线检索论文、生成布尔检索式；命中的文献一键入库，之后走文献库同一条链路"
-        actions={
+      {/* 独立路由时带完整页头；嵌入文献页 tab 时只留「检索方案」按钮，避免双页头 */}
+      {embedded ? (
+        <div className="flex items-center justify-end">
           <Btn
             onClick={() => {
               setPlanOpen(true)
@@ -66,10 +59,45 @@ export default function Search() {
             <Icon name="sparkle" size={13} />
             检索方案
           </Btn>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          eyebrow="输入 · 检索"
+          title="文献检索"
+          desc="以一篇论文为起点，顺着真实引用关系发现相关研究；命中一键入库，之后走文献库同一条链路"
+          actions={
+            <Btn
+              onClick={() => {
+                setPlanOpen(true)
+                setOut(null)
+              }}
+            >
+              <Icon name="sparkle" size={13} />
+              检索方案
+            </Btn>
+          }
+        />
+      )}
 
-      <LitSearchCard libTitles={titles} onImported={loadTitles} />
+      <Discover onImported={loadTitles} />
+
+      {/* 老链路：关键词 / DOI 命中列表，折叠收在底部 */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setClassicOpen(!classicOpen)}
+          className="flex items-center gap-1.5 text-[11.5px] text-[color:var(--wb-muted)] transition hover:text-[color:var(--wb-accent)]"
+        >
+          <Icon name="scan" size={13} />
+          经典关键词检索（OpenAlex 命中列表）
+          <Icon name={classicOpen ? 'chevronUp' : 'chevronDown'} size={12} />
+        </button>
+        {classicOpen && (
+          <div className="mt-2">
+            <LitSearchCard libTitles={titles} onImported={loadTitles} />
+          </div>
+        )}
+      </div>
 
       {/* AI 检索方案：原来挂在文献页页头，随检索一起搬到这里 */}
       <Modal

@@ -67,6 +67,7 @@ export function Card({
   footer,
   bodyClassName = '',
   tourId,
+  onClick,
 }: {
   title?: ReactNode
   extra?: ReactNode
@@ -76,12 +77,15 @@ export function Card({
   bodyClassName?: string
   /** 新手引导锚点：渲染成 section[data-tour]，不影响外观 */
   tourId?: string
+  /** 传了就把整张卡变成可点：自动补按压反馈与抬起效果（可选，不传时外观不变） */
+  onClick?: () => void
 }) {
   const hasHead = !!title || !!extra
   return (
     <section
       data-tour={tourId}
-      className={`overflow-hidden rounded-[var(--wb-radius-lg)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-xs)] ${className}`}
+      onClick={onClick}
+      className={`${onClick ? 'wb-press-soft wb-lift cursor-pointer' : ''} overflow-hidden rounded-[var(--wb-radius-lg)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-xs)] ${className}`}
     >
       {hasHead && (
         <header className="flex min-h-[46px] items-center justify-between gap-3 border-b border-[color:var(--wb-border)] px-4 py-2.5">
@@ -133,7 +137,7 @@ export function Btn({
 }) {
   // whitespace-nowrap：中文没有词边界，窄容器里会退化成「一个字一行」
   const base =
-    'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] border font-medium transition-all duration-150 active:translate-y-[0.5px] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:translate-y-0'
+    'wb-press inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] border font-medium transition-all duration-150 active:translate-y-[0.5px] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:translate-y-0'
   const sizes: Record<string, string> = {
     xs: 'px-2 py-[2px] text-[11.5px]',
     sm: 'px-2.5 py-[4px] text-[12px]',
@@ -210,7 +214,7 @@ export function IconBtn({
       aria-label={ariaLabel || title}
       disabled={disabled}
       onClick={onClick}
-      className={`inline-flex shrink-0 items-center justify-center rounded-[8px] transition disabled:cursor-not-allowed disabled:opacity-40 ${sizes[size]} ${tones[tone]} ${className}`}
+      className={`wb-press-strong inline-flex shrink-0 items-center justify-center rounded-[8px] transition disabled:cursor-not-allowed disabled:opacity-40 ${sizes[size]} ${tones[tone]} ${className}`}
     >
       <Icon name={icon} size={iconSize} />
     </button>
@@ -481,7 +485,7 @@ export function StatCard({
     <div
       onClick={onClick}
       className={`relative overflow-hidden rounded-[var(--wb-radius-lg)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-4 py-4 shadow-[var(--wb-shadow-xs)] transition-all duration-200 ${
-        onClick ? 'wb-lift cursor-pointer' : ''
+        onClick ? 'wb-press-soft wb-lift cursor-pointer' : ''
       }`}
     >
       <div className="flex items-center justify-between gap-2">
@@ -561,7 +565,7 @@ export function Segmented<T extends string>({
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={`whitespace-nowrap rounded-[8px] px-2.5 py-[4px] text-[12px] transition-all duration-150 ${
+          className={`wb-press-strong whitespace-nowrap rounded-[8px] px-2.5 py-[4px] text-[12px] transition-all duration-150 ${
             value === o.value
               ? 'bg-[color:var(--wb-surface)] font-medium text-[color:var(--wb-text)] shadow-[var(--wb-shadow-xs)]'
               : 'text-[color:var(--wb-text-soft)] hover:text-[color:var(--wb-text)]'
@@ -624,6 +628,36 @@ export function MdBlock({ text }: { text: string }) {
 
 // ---------------------------------------------------------------- 浮层
 
+/**
+ * 浮层退出过渡：open 变 false 后先播退出动画，再真正卸载。
+ * 之前是 if (!open) return null 直接消失，和「不要突然闪现」相冲。
+ * 系统开了减少动态效果就把时长归零，立刻卸载。
+ */
+export function usePresence(open: boolean, ms = 200) {
+  const reduce =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const dur = reduce ? 0 : ms
+  const [mounted, setMounted] = useState(open)
+  const [leaving, setLeaving] = useState(false)
+  useEffect(() => {
+    if (open) {
+      setMounted(true)
+      setLeaving(false)
+      return
+    }
+    if (!mounted) return
+    setLeaving(true)
+    const t = window.setTimeout(() => {
+      setMounted(false)
+      setLeaving(false)
+    }, dur)
+    return () => window.clearTimeout(t)
+  }, [open, mounted, dur])
+  return { mounted, leaving }
+}
+
 function useEscClose(open: boolean, onClose: () => void) {
   useEffect(() => {
     if (!open) return
@@ -651,15 +685,19 @@ export function Modal({
   width?: string
 }) {
   useEscClose(open, onClose)
-  if (!open) return null
+  const { mounted, leaving } = usePresence(open, 180)
+  if (!mounted) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${leaving ? 'pointer-events-none' : ''}`}
+      aria-hidden={leaving || undefined}
+    >
       <div
-        className="wb-anim-fade absolute inset-0 bg-[rgba(16,17,20,0.36)] backdrop-blur-[3px]"
+        className={`absolute inset-0 bg-[rgba(16,17,20,0.36)] backdrop-blur-[3px] ${leaving ? 'wb-overlay-out' : 'wb-overlay-in'}`}
         onClick={onClose}
       />
       <div
-        className={`wb-anim-pop relative w-full ${width} overflow-hidden rounded-[20px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)]`}
+        className={`relative w-full ${width} overflow-hidden rounded-[20px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)] ${leaving ? 'wb-dialog-out' : 'wb-dialog-in'}`}
       >
         {title && (
           <header className="flex items-center justify-between gap-3 border-b border-[color:var(--wb-border)] px-5 py-3.5">
@@ -694,12 +732,16 @@ export function Drawer({
   footer?: ReactNode
 }) {
   useEscClose(open, onClose)
-  if (!open) return null
+  const { mounted, leaving } = usePresence(open, 200)
+  if (!mounted) return null
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="wb-anim-fade absolute inset-0 bg-[rgba(16,17,20,0.34)] backdrop-blur-[3px]" onClick={onClose} />
+    <div className={`fixed inset-0 z-50 ${leaving ? 'pointer-events-none' : ''}`} aria-hidden={leaving || undefined}>
+      <div
+        className={`absolute inset-0 bg-[rgba(16,17,20,0.34)] backdrop-blur-[3px] ${leaving ? 'wb-overlay-out' : 'wb-overlay-in'}`}
+        onClick={onClose}
+      />
       <aside
-        className={`wb-anim-slide absolute right-0 top-0 flex h-full ${width} max-w-[92vw] flex-col border-l border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)]`}
+        className={`absolute right-0 top-0 flex h-full ${width} max-w-[92vw] flex-col border-l border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)] ${leaving ? 'wb-drawer-out' : 'wb-drawer-in'}`}
       >
         <header className="flex min-h-[56px] shrink-0 items-center justify-between gap-2 border-b border-[color:var(--wb-border)] px-5 py-3">
           <div className="min-w-0 flex-1 text-[14px] font-semibold tracking-[-0.01em] text-[color:var(--wb-text)]">
@@ -729,22 +771,23 @@ export function PageHeader({
   title: ReactNode
   desc?: ReactNode
   actions?: ReactNode
-  /** 标题上方的小字引导（如分组名 / 当前阶段），只在需要交代语境时给 */
+  /** 标题左侧的小字引导（如分组名 / 当前阶段），只在需要交代语境时给 */
   eyebrow?: ReactNode
 }) {
+  /** 紧凑单行：模块页的操作区才是主角，页头只做一条轻量定位行（大标题时代已废弃） */
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-      <div className="min-w-0">
+    <div className="wb-anim-rise mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
         {eyebrow && (
-          <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
+          <span className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
             {eyebrow}
-          </div>
+          </span>
         )}
-        <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-[color:var(--wb-text)]">
+        <h1 className="text-[15.5px] font-semibold leading-snug tracking-[-0.01em] text-[color:var(--wb-text)]">
           {title}
         </h1>
         {desc && (
-          <p className="mt-1.5 max-w-[68ch] text-[12.5px] leading-relaxed text-[color:var(--wb-muted)]">
+          <p className="min-w-0 max-w-[72ch] text-[12px] leading-relaxed text-[color:var(--wb-muted)]">
             {desc}
           </p>
         )}
@@ -796,7 +839,7 @@ export function SearchInput({
             onChange('')
             ref.current?.focus()
           }}
-          className="flex h-5 w-5 items-center justify-center rounded text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+          className="wb-press-strong flex h-5 w-5 items-center justify-center rounded text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
           aria-label="清空搜索"
         >
           <Icon name="close" size={12} />
@@ -946,7 +989,7 @@ export function Details({
         <span className="whitespace-nowrap">{summary}</span>
       </button>
       {open && (
-        <div className="border-t border-[color:var(--wb-border)] px-2.5 py-2 text-[11.5px] text-[color:var(--wb-text-soft)]">
+        <div className="wb-view-enter border-t border-[color:var(--wb-border)] px-2.5 py-2 text-[11.5px] text-[color:var(--wb-text-soft)]">
           {children}
         </div>
       )}

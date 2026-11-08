@@ -5,10 +5,11 @@
  * 笔记 / PDF / Gloss 在 features/literature/*，Zotero 同步与对比矩阵也各自独立成组件。
  * 列表永远是全量拉回本地再切片分页 —— 这是本地单机应用，翻页不该产生请求。
  *
- * 在线检索与 AI 检索方案已移到独立「检索」页（/search，左侧菜单栏进入），
- * 本页不再重复放检索入口。
+ * 在线检索（OpenAlex 一键入库）仍走独立 /search 页，但入口从侧栏「工具」收进本页页头，
+ * 侧栏只保留「站点快搜」，避免两个「检索」并列造成重复感。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AiError } from '../components/AiError'
 import {
   Btn,
@@ -24,7 +25,6 @@ import {
   SearchInput,
   Segmented,
   Select,
-  StatCard,
 } from '../components/ui'
 import {
   BulkBar,
@@ -40,14 +40,13 @@ import {
 } from '../components/BulkBar'
 import { toast } from '../components/toast'
 import { Icon } from '../components/Icon'
-import SignatureCard from '../components/SignatureCard'
 import { del, get, patch, post } from '../lib/api'
 import { useAiTask, useIdemKey } from '../lib/hooks'
 import { usePersist } from '../lib/state'
 import LiteratureDrawer from '../features/literature/LiteratureDrawer'
 import MatrixTable from '../features/literature/MatrixTable'
 import PdfModal from '../features/literature/PdfModal'
-import RelationGraph from '../features/literature/RelationGraph'
+import Search from './Search'
 import { STATUS, collsOf, inCollection } from '../features/literature/literature-shared'
 
 const STATUS_DOT: Record<string, string> = {
@@ -58,11 +57,11 @@ const STATUS_DOT: Record<string, string> = {
 
 const EMPTY_FORM = { title: '', authors: '', year: '', venue: '', url: '' }
 
-type LitTab = 'library' | 'matrix' | 'graph'
+type LitTab = 'library' | 'matrix' | 'search'
 const TABS: { value: LitTab; label: string }[] = [
   { value: 'library', label: '文献库' },
   { value: 'matrix', label: '对比矩阵' },
-  { value: 'graph', label: '关联图' },
+  { value: 'search', label: '检索' },
 ]
 
 const LIT_COLS: ExportCol[] = [
@@ -78,6 +77,7 @@ const LIT_COLS: ExportCol[] = [
 ]
 
 export default function Literature() {
+  const nav = useNavigate()
   const [items, setItems] = useState<any[]>([])
   const [matrix, setMatrix] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -97,10 +97,11 @@ export default function Literature() {
   const [page, setPage] = usePersist('lit.page', 1)
   const [pageSize, setPageSize] = usePersist('lit.pageSize', 20)
 
-  // 各分区独立成屏，点按钮切换，不再一页铺到底
-  // 兼容旧的持久化值（在线检索已搬到 /search、Zotero 同步搬到设置里）：非法值一律回落到文献库
-  const [tab, setTab] = usePersist<LitTab>('lit.tab', 'library')
-  const activeTab: LitTab = TABS.some((t) => t.value === tab) ? tab : 'library'
+  // 视图状态由 URL 的 ?tab= 唯一决定：侧栏「文献库 / 对比矩阵 / 关联图」三个子项可直达、
+  // 刷新保留、菜单高亮精确匹配。非法 / 缺失值一律回落「文献库」（旧的 lit.tab 本地持久化不再参与）。
+  const loc = useLocation()
+  const urlTab = new URLSearchParams(loc.search).get('tab')
+  const activeTab: LitTab = TABS.some((t) => t.value === urlTab) ? (urlTab as LitTab) : 'library'
 
   // Zotero 分类树浏览
   const [tree, setTree] = useState<any[]>([])
@@ -137,9 +138,9 @@ export default function Literature() {
 
   const loadMatrix = async () => setMatrix(await get('/literature/matrix'))
 
-  /** 切到对比矩阵时重拉一次，避免在其他分区导入文献后看到旧矩阵 */
+  /** 切视图 = 换 URL；对比矩阵顺带重拉一次，避免在其他视图导入文献后看到旧矩阵 */
   const switchTab = (v: LitTab) => {
-    setTab(v)
+    nav(`/literature?tab=${v}`)
     if (v === 'matrix') loadMatrix().catch(() => {})
   }
 
@@ -270,16 +271,6 @@ export default function Literature() {
       .sort((a, b) => b.list.length - a.list.length)
   }, [paged, groupBy])
 
-  const counts = useMemo(
-    () => ({
-      total: items.length,
-      todo: items.filter((i) => i.status === 'todo').length,
-      reading: items.filter((i) => i.status === 'reading').length,
-      done: items.filter((i) => i.status === 'done').length,
-    }),
-    [items],
-  )
-
   /** 改筛选条件一律回到第一页，否则会出现「筛完停在第 7 页、内容是空的」 */
   const resetTo = (fn: () => void) => {
     fn()
@@ -398,7 +389,7 @@ export default function Literature() {
     return (
       <div
         key={l.id}
-        className={`group cursor-pointer rounded-[12px] border px-3 py-2.5 transition hover:shadow-[var(--wb-shadow-sm)] ${
+        className={`wb-press-soft group cursor-pointer rounded-[12px] border px-3 py-2.5 transition hover:shadow-[var(--wb-shadow-sm)] ${
           multi && bulk.has(l.id)
             ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)]'
             : 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] hover:border-[color:var(--wb-border-strong)]'
@@ -511,57 +502,27 @@ export default function Literature() {
         title="文献"
         desc="录入 → 同步 → 精读笔记 → 横向对比，闭环到 Related Work"
         actions={
-          <Btn variant="primary" onClick={() => setAddOpen(true)}>
-            <Icon name="plus" size={13} />
-            新增文献
-          </Btn>
-        }
-      />
-
-      {/* 首屏招牌：把技术含量最高的两个产出视图从 tab 里提出来 */}
-      <SignatureCard
-        eyebrow="文献 · 两个产出视图"
-        title="从一篇论文长出一张引文网络"
-        desc="确定性力导向布局 + OpenAlex 双向扩边，扩出来的文献自动入库；动态维度对比矩阵直接服务 Related Work。"
-        icon="book"
-        metrics={[
-          { label: '馆藏', value: counts.total },
-          { label: '已读', value: counts.done, tone: 'ok' },
-          { label: '待读', value: counts.todo },
-          { label: '在读', value: counts.reading },
-        ]}
-        action={
-          <>
-            <Btn variant="primary" size="sm" onClick={() => switchTab('graph')}>打开关联图</Btn>
-            <Btn size="sm" onClick={() => switchTab('matrix')}>打开对比矩阵</Btn>
-          </>
+          <div className="flex items-center gap-2">
+            <Btn variant="primary" onClick={() => setAddOpen(true)}>
+              <Icon name="plus" size={13} />
+              新增文献
+            </Btn>
+          </div>
         }
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Segmented value={activeTab} onChange={switchTab} options={TABS} />
         <span className="text-[11.5px] text-[color:var(--wb-muted)]">
-          分区独立成屏，点按钮切换；DOI / 批量检索入库在「工具 → 在线检索」，Zotero 同步在「设置」里
+          分区独立成屏，点按钮切换；在线检索在「检索」标签，Zotero 同步在「设置」里
         </span>
       </div>
 
-      <div className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">概览指标</div>
-      {/* 概览条：不必撑满整行，四张卡收成紧凑一排 */}
-      <div className="grid grid-cols-2 gap-3 sm:max-w-[620px] sm:grid-cols-4">
-        <StatCard label="文献总数" value={counts.total} unit="篇" tone="accent" />
-        <StatCard label="待读" value={counts.todo} unit="篇" />
-        <StatCard label="在读" value={counts.reading} unit="篇" tone="warn" />
-        <StatCard
-          label="已读"
-          value={counts.done}
-          unit="篇"
-          tone="ok"
-          hint={counts.total ? `完成度 ${Math.round((counts.done / counts.total) * 100)}%` : undefined}
-        />
-      </div>
-
+      {activeTab === 'search' && <Search embedded />}
       {activeTab === 'library' && (
       <Card
+        key="library"
+        className="wb-view-enter"
         title="文献库"
         tourId="tour-lit-library"
         extra={
@@ -719,6 +680,7 @@ export default function Literature() {
       )}
 
       {activeTab === 'matrix' && (
+        <div key="matrix" className="wb-view-enter">
         <MatrixTable
           matrix={matrix}
           onAddDim={async () => {
@@ -735,10 +697,7 @@ export default function Literature() {
             await post('/literature/matrix', { literature_id, dim_name, dim_value: value })
           }}
         />
-      )}
-
-      {activeTab === 'graph' && (
-        <RelationGraph onChanged={reloadAll} />
+        </div>
       )}
 
       {/* 录入 */}
@@ -784,7 +743,7 @@ export default function Literature() {
             onChange={(v) => setForm({ ...form, url: v })}
           />
           <p className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
-            这里适合随手补一条；DOI / 关键词批量检索入库走侧栏「工具 → 在线检索」，Zotero 批量同步在「设置」里。
+            这里适合随手补一条；DOI / 关键词批量检索入库走页头「在线检索」，Zotero 批量同步在「设置」里。
           </p>
         </div>
       </Modal>

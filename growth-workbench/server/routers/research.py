@@ -1,5 +1,8 @@
 """科研一站式流程：创新点 / 文献 / 实验。"""
+import hashlib
 import json
+import os
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -316,6 +319,66 @@ def list_reviews(idea_id: int):
     )
 
 
+@router.post("/ideas/{idea_id}/to-experiment")
+async def idea_to_experiment(idea_id: int):
+    """创新点 → 实验假设（fast 模式）：LLM 从创新点起草可证伪假设与实验设计，落库并回填 idea_id。"""
+    idea = row_or_404("ideas", idea_id)
+    scores = (
+        f"新颖 {idea.get('novelty') or 3} / 可行 {idea.get('feasibility') or 3} / "
+        f"影响 {idea.get('impact') or 3} / 工作量 {idea.get('effort') or 3}"
+    )
+    prompt = f"""你是一名严谨的方法论研究者。下面是一个候选创新点，请把它转成一个可证伪、可执行的实验方案。
+
+创新点标题：{idea.get('title') or ''}
+一句话主张：{idea.get('one_liner') or '（无）'}
+方向：{idea.get('direction') or '（无）'}
+分类：{idea.get('category') or '（无）'}
+评分：{scores}
+备注（缺陷 / 验证路径 / 风险）：{idea.get('notes') or '（无）'}
+
+严格输出一个 JSON 对象（不要 markdown 包裹）：
+{{"name": "实验短名（<=20 字，体现被测方法 + 核心变量）",
+  "hypothesis": "可证伪假设（一句话：如果做了 X，则在 Y 上显著优于/不同于 Z，因为…）",
+  "design": "实验设计要点（3-6 条：数据集 / 基线 / 变量控制 / 评价指标 / 所需算力或工具，具体到可落地）"}}
+
+硬规则：
+1. 假设必须可证伪、可量化，禁止「提升效果」这类空话
+2. design 必须具体到能在 1-2 周内跑通，禁止泛泛而谈
+3. 只用创新点里真实给出的信息，不编造数据或结论
+4. 只输出 JSON 对象本身"""
+    data, env = await llm.complete_json_result(
+        prompt, mode="fast", task="idea-to-exp", max_tokens=2048
+    )
+    if not env["ok"]:
+        return {"ok": False, "error": env["error"]}
+    if not isinstance(data, dict):
+        return {
+            "ok": False,
+            "error": {"kind": "bad_format", "label": "格式错误", "message": "模型未返回有效 JSON"},
+        }
+    name = (
+        str(data.get("name") or idea.get("title") or f"实验 #{idea_id}").strip()[:80]
+        or f"实验 #{idea_id}"
+    )
+    hypothesis = str(data.get("hypothesis") or "").strip()[:2000] or None
+    design = str(data.get("design") or "").strip()[:4000] or None
+    eid = execute(
+        """INSERT INTO experiments (name, hypothesis, design, status, idea_id,
+           config_json, conclusion, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)""",
+        (name, hypothesis, design, "planned", idea_id, None, None, now(), now()),
+    )
+    # 创新点进入「已选定」态（selected 不触发积分，直接 UPDATE；更高状态不回退）
+    if idea.get("status") in ("captured", "screening"):
+        execute("UPDATE ideas SET status='selected' WHERE id=?", (idea_id,))
+    exp = dict(row_or_404("experiments", eid))
+    exp["ok"] = True
+    exp["provider"] = env["provider"]
+    exp["model"] = env["model"]
+    exp["tokens_in"] = env["tokens_in"]
+    exp["tokens_out"] = env["tokens_out"]
+    return exp
+
+
 # ============================ 文献 ============================
 
 
@@ -331,6 +394,12 @@ class LitIn(BaseModel):
     notes: str | None = None
     tags: str | None = None
     idea_id: int | None = None
+    doi: str | None = None
+    openalex_id: str | None = None
+    # 在线检索入库时附带的真实引用边（OpenAlex 短 ID）：
+    # cites = 本文引用的馆藏文献；cited_by = 馆藏中引用本文的文献
+    cites: list[str] | None = None
+    cited_by: list[str] | None = None
 
 
 _LIT_SQL = """
@@ -353,8 +422,8 @@ def create_literature(body: LitIn):
     ts = now()
     lid = execute(
         """INSERT INTO literature (title, authors, year, venue, url, status, rating,
-           relevance, notes, tags, idea_id, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           relevance, notes, tags, idea_id, doi, openalex_id, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             body.title,
             body.authors,
@@ -367,10 +436,23 @@ def create_literature(body: LitIn):
             body.notes,
             body.tags,
             body.idea_id,
+            body.doi,
+            body.openalex_id,
             ts,
             ts,
         ),
     )
+    # 在线检索入库：把快照里与馆藏已有文献的真实引用边落到 lit_edges
+    for oa, as_target in ((body.cites, False), (body.cited_by, True)):
+        for short_id in (oa or [])[:40]:
+            if not short_id or short_id == body.openalex_id:
+                continue
+            other = query(
+                "SELECT id FROM literature WHERE openalex_id=? LIMIT 1", (short_id,)
+            )
+            if other:
+                src, tgt = (other[0]["id"], lid) if as_target else (lid, other[0]["id"])
+                _ensure_edge(src, tgt)
     return row_or_404("literature", lid)
 
 
@@ -408,6 +490,7 @@ def delete_literature(lit_id: int):
     row_or_404("literature", lit_id)
     execute("DELETE FROM lit_matrix WHERE literature_id=?", (lit_id,))
     execute("DELETE FROM lit_notes WHERE literature_id=?", (lit_id,))
+    execute("DELETE FROM lit_painpoints WHERE literature_id=?", (lit_id,))
     execute("DELETE FROM lit_edges WHERE source_id=? OR target_id=?", (lit_id, lit_id))
     execute("DELETE FROM literature WHERE id=?", (lit_id,))
     return {"ok": True}
@@ -415,12 +498,13 @@ def delete_literature(lit_id: int):
 
 @router.post("/literature/bulk-delete")
 def bulk_delete_literature(body: IdsIn):
-    """批量删文献：连带清掉它的笔记与对比矩阵单元格。"""
+    """批量删文献：连带清掉它的笔记、痛点与对比矩阵单元格。"""
     ids = [int(i) for i in body.ids if i is not None]
     if not ids:
         return {"deleted": 0}
     _delete_where("lit_matrix", "literature_id", ids)
     _delete_where("lit_notes", "literature_id", ids)
+    _delete_where("lit_painpoints", "literature_id", ids)
     placeholders = ",".join("?" * len(ids))
     execute(f"DELETE FROM lit_edges WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})", (*ids, *ids))
     _delete_where("literature", "id", ids)
@@ -621,6 +705,115 @@ def update_note(note_id: int, body: dict):
 def delete_note(note_id: int):
     execute("DELETE FROM lit_notes WHERE id=?", (note_id,))
     return {"ok": True}
+
+
+# ---- 文献痛点（阶段③：文献 → 痛点表 → 备选创新点） ----
+
+
+class PainpointIn(BaseModel):
+    focus: str | None = None  # 用户指定的提炼侧重（如「关注训练效率的局限」）
+
+
+@router.post("/literature/{lit_id}/painpoints")
+async def extract_painpoints(lit_id: int, body: PainpointIn | None = None):
+    """AI 从一篇文献提炼「研究机会视角」的痛点，逐条带原文证据；落库 status=new。"""
+    lit = row_or_404("literature", lit_id)
+    notes = query(
+        "SELECT section, content FROM lit_notes WHERE literature_id=? ORDER BY sort_order", (lit_id,)
+    )
+    note_lines = [f"- [{n['section']}] {(n['content'] or '')[:400]}" for n in notes[:20]]
+    abstract = (lit.get("abstract") or "")[:2000]
+    focus_line = f"\n用户侧重点：{body.focus.strip()[:200]}" if body and body.focus and body.focus.strip() else ""
+    prompt = f"""文献：{lit.get('title') or ''}
+摘要/总结：{abstract or '（无）'}
+
+阅读笔记（如有）：
+{chr(10).join(note_lines) if note_lines else '（无）'}{focus_line}
+
+请从「研究机会」视角提炼这篇文献描述或暴露的现有方法痛点。只输出 JSON（不要 markdown 包裹）：
+{{"items": [
+  {{"content": "痛点描述（一句话，具体到方法/场景/问题）", "evidence": "原文证据（引述或转述一句，注明出自哪个部分）", "direction": "可能的突破方向（可选）"}}
+]}}
+
+硬规则：
+1. 只准提炼摘要/笔记里实际有支撑的痛点，禁止虚构文献没提的局限
+2. ≤5 条，按研究价值排序；文献确实没有真实痛点就输出空列表
+3. 痛点要具体到「可辨识」层级，禁止「泛化性差」这类空话"""
+    data, env = await llm.complete_json_result(prompt, mode="fast", task="lit-painpoints", max_tokens=2048)
+    if not env["ok"]:
+        return {"ok": False, "items": [], "error": env["error"]}
+    saved = []
+    raw_items = data.get("items") if isinstance(data, dict) else None
+    for it in (raw_items or [])[:5]:
+        if not isinstance(it, dict):
+            continue
+        content = str(it.get("content") or "").strip()[:300]
+        if not content:
+            continue
+        pid = execute(
+            "INSERT INTO lit_painpoints (literature_id, content, evidence, direction, status, created_at) VALUES (?,?,?,?,?,?)",
+            (
+                lit_id,
+                content,
+                str(it.get("evidence") or "").strip()[:300] or None,
+                str(it.get("direction") or "").strip()[:200] or None,
+                "new",
+                now(),
+            ),
+        )
+        saved.append({"id": pid, "content": content})
+    return {
+        "ok": True, "items": saved, "error": None,
+        "provider": env["provider"], "model": env["model"],
+        "tokens_in": env["tokens_in"], "tokens_out": env["tokens_out"],
+    }
+
+
+@router.get("/painpoints")
+def list_painpoints(status: str | None = None):
+    if status:
+        return query(
+            """SELECT p.*, l.title AS lit_title FROM lit_painpoints p
+               LEFT JOIN literature l ON l.id=p.literature_id
+               WHERE p.status=? ORDER BY p.id DESC""",
+            (status,),
+        )
+    return query(
+        """SELECT p.*, l.title AS lit_title FROM lit_painpoints p
+           LEFT JOIN literature l ON l.id=p.literature_id
+           ORDER BY p.id DESC"""
+    )
+
+
+@router.delete("/painpoints/{pp_id}")
+def delete_painpoint(pp_id: int):
+    row_or_404("lit_painpoints", pp_id)
+    execute("DELETE FROM lit_painpoints WHERE id=?", (pp_id,))
+    return {"ok": True}
+
+
+@router.post("/painpoints/{pp_id}/to-idea")
+def painpoint_to_idea(pp_id: int):
+    """痛点 → 创新点（captured 态，notes 里保留文献出处与证据，可溯源）。"""
+    pp = row_or_404("lit_painpoints", pp_id)
+    lit = query("SELECT title FROM literature WHERE id=?", (pp["literature_id"],))
+    src = f"来自文献：{lit[0]['title'] if lit else '#' + str(pp['literature_id'])}"
+    ts = now()
+    iid = execute(
+        """INSERT INTO ideas (title, one_liner, direction, novelty, feasibility,
+           impact, effort, status, category, notes, created_at, updated_at)
+           VALUES (?,?,?,3,3,3,3,'captured','痛点',?,?,?)""",
+        (
+            (pp["direction"] or pp["content"])[:80],
+            pp["content"],
+            pp["direction"],
+            f"{src} ｜ 痛点：{pp['content']} ｜ 证据：{pp['evidence'] or '无'}",
+            ts,
+            ts,
+        ),
+    )
+    execute("UPDATE lit_painpoints SET status='converted' WHERE id=?", (pp_id,))
+    return row_or_404("ideas", iid)
 
 
 @router.get("/literature/matrix")
@@ -1041,19 +1234,41 @@ def update_experiment(exp_id: int, body: dict):
 def delete_experiment(exp_id: int):
     row_or_404("experiments", exp_id)
     execute("DELETE FROM exp_results WHERE experiment_id=?", (exp_id,))
+    execute("DELETE FROM exp_runs WHERE experiment_id=?", (exp_id,))
+    execute("DELETE FROM exp_messages WHERE experiment_id=?", (exp_id,))
+    _drop_ws(exp_id)
     execute("DELETE FROM experiments WHERE id=?", (exp_id,))
     return {"ok": True}
 
 
+def _drop_ws(exp_id: int):
+    """连 Agent 工作区一起清（data/exp_ws/{id}/，纯本实验的产物）。"""
+    import shutil
+
+    import config
+
+    shutil.rmtree(config.DATA_DIR / "exp_ws" / str(exp_id), ignore_errors=True)
+
+
 @router.post("/experiments/bulk-delete")
 def bulk_delete_experiments(body: IdsIn):
-    """批量删实验：连带清掉下面的结果记录。"""
+    """批量删实验：连带清掉下面的结果记录与运行记录。"""
     ids = [int(i) for i in body.ids if i is not None]
     if not ids:
         return {"deleted": 0}
     _delete_where("exp_results", "experiment_id", ids)
+    _delete_where("exp_runs", "experiment_id", ids)
+    _delete_where("exp_messages", "experiment_id", ids)
+    for i in ids:
+        _drop_ws(i)
     _delete_where("experiments", "id", ids)
     return {"deleted": len(ids)}
+
+
+# 数据口径三分层（借鉴 Open Science experiment-suite 的 provenance 契约）：
+# measured=真实测得 / simulated=模拟(须可复现) / illustrative=示意(不能进结论)
+PROV_LEVELS = {"measured", "simulated", "illustrative"}
+PROV_LABELS = {"measured": "实测", "simulated": "模拟", "illustrative": "示意"}
 
 
 class ResultIn(BaseModel):
@@ -1062,6 +1277,7 @@ class ResultIn(BaseModel):
     success: int = 0
     metrics_json: str | None = None
     notes: str | None = None
+    provenance: str = "measured"
 
 
 @router.get("/experiments/{exp_id}/results")
@@ -1077,9 +1293,10 @@ def list_results(exp_id: int):
 
 @router.post("/experiments/{exp_id}/results")
 def add_result(exp_id: int, body: ResultIn):
+    prov = body.provenance if body.provenance in PROV_LEVELS else "measured"
     rid = execute(
         """INSERT INTO exp_results (experiment_id, case_name, method, success,
-           metrics_json, notes, created_at) VALUES (?,?,?,?,?,?,?)""",
+           metrics_json, notes, provenance, created_at) VALUES (?,?,?,?,?,?,?,?)""",
         (
             exp_id,
             body.case_name,
@@ -1087,6 +1304,7 @@ def add_result(exp_id: int, body: ResultIn):
             body.success,
             body.metrics_json,
             body.notes,
+            prov,
             now(),
         ),
     )
@@ -1099,24 +1317,170 @@ def delete_result(result_id: int):
     return {"ok": True}
 
 
+# ---- AI 科研图表：读结果记录 → 图表 spec（图与数据表同源） ----
+CHART_TYPES = {"bar", "line", "scatter"}
+
+
+def _numeric_metrics(metrics_json: str | None) -> dict[str, float]:
+    try:
+        raw = json.loads(metrics_json or "{}")
+    except Exception:
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for k, v in raw.items():
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if f == f:  # 拒绝 NaN
+            out[str(k)[:40]] = f
+    return out
+
+
+def _sanitize_chart(data) -> dict | None:
+    """图表 spec 校验：数值强转、维度对齐、超限截断；不合格一律返回 None。"""
+    if not isinstance(data, dict):
+        return None
+    ctype = str(data.get("type") or "")
+    if ctype == "none":
+        reason = str(data.get("reason") or "").strip()[:300]
+        return {"type": "none", "reason": reason} if reason else None
+    if ctype not in CHART_TYPES:
+        return None
+    title = str(data.get("title") or "").strip()[:120] or "实验图表"
+    x_label = str(data.get("x_label") or "").strip()[:60]
+    y_label = str(data.get("y_label") or "").strip()[:60]
+    note = str(data.get("note") or "").strip()[:300]
+
+    def _num(v) -> float | None:
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return None
+        return f if f == f else None
+
+    if ctype == "scatter":
+        pts = []
+        for p in (data.get("points") or [])[:200]:
+            if not isinstance(p, dict):
+                continue
+            x, y = _num(p.get("x")), _num(p.get("y"))
+            if x is None or y is None:
+                continue
+            pts.append({"x": x, "y": y, "label": str(p.get("label") or "").strip()[:60] or None})
+        if len(pts) < 2:
+            return None
+        return {"type": ctype, "title": title, "x_label": x_label, "y_label": y_label,
+                "note": note, "points": pts}
+
+    cats = [str(c).strip()[:40] for c in (data.get("categories") or []) if str(c).strip()][:20]
+    if not cats:
+        return None
+    series = []
+    for s in (data.get("series") or [])[:4]:
+        if not isinstance(s, dict):
+            continue
+        vals_raw = s.get("values")
+        if not isinstance(vals_raw, list) or len(vals_raw) != len(cats):
+            continue
+        vals = [_num(v) for v in vals_raw]
+        if any(v is None for v in vals):
+            continue
+        series.append({"name": str(s.get("name") or "系列").strip()[:60], "values": vals})
+    if not series:
+        return None
+    return {"type": ctype, "title": title, "x_label": x_label, "y_label": y_label,
+            "note": note, "categories": cats, "series": series}
+
+
+@router.post("/experiments/{exp_id}/chart")
+async def experiment_chart(exp_id: int):
+    """AI 科研图表：结果记录 → Recharts spec。只准用记录里真实存在的数字。"""
+    exp = row_or_404("experiments", exp_id)
+    results = query("SELECT * FROM exp_results WHERE experiment_id=? ORDER BY id", (exp_id,))
+    rows_src = []
+    for r in results:
+        m = _numeric_metrics(r["metrics_json"])
+        if m:
+            rows_src.append({
+                "n": r["id"],
+                "case": r["case_name"],
+                "method": r["method"] or "-",
+                "口径": PROV_LABELS.get(r.get("provenance") or "measured", "实测"),
+                "指标": m,
+            })
+    if len(rows_src) < 2:
+        return {"ok": False, "chart": None, "error": {
+            "kind": "no_data", "label": "可画的数据点不足",
+            "message": f"共 {len(rows_src)} 条含数值指标的结果记录，至少需要 2 条才能成图。",
+            "hint": "在结果记录里补几条带指标 JSON 的记录（如 {\"acc\": 0.87}）再生成图表。",
+        }}
+    data_lines = [json.dumps(r, ensure_ascii=False) for r in rows_src]
+    prompt = f"""实验「{exp['name']}」（假设：{exp.get('hypothesis') or '（无）'}）
+
+结果记录（n=记录 id）：
+{chr(10).join(data_lines)}
+
+请为这些结果设计一张论文风格的科研图表。只输出 JSON（不要 markdown 包裹）：
+{{
+  "type": "bar" 或 "line" 或 "scatter",
+  "title": "图表标题（中文、简短）",
+  "x_label": "x 轴含义", "y_label": "y 轴含义（带单位或 %）",
+  "categories": ["x 轴各刻度标签"],
+  "series": [{{"name": "系列名", "values": [与 categories 等长的数值数组]}}],
+  "points": [{{"x": 数值, "y": 数值, "label": "点标注（可选）"}}],
+  "note": "一句话说明数据来源与口径（如：仅含实测口径 n=3,5,6）"
+}}
+
+字段取舍：bar/line 填 categories+series（points 留空数组）；scatter 只填 points。
+硬规则：
+1. 只准用上面结果记录里真实存在的数字，禁止推算/补全/平滑出记录里没有的数据点
+2. 系列数 ≤4，刻度 ≤20；不同口径（实测/模拟/示意）的数据禁止混进同一系列，必须在 note 里分开说明
+3. 分组对比用 bar；趋势用 line；两组数值指标的相关性（如 参数量 vs acc）用 scatter
+4. 数据确实不适合画图时输出 {{"type": "none", "reason": "原因"}}"""
+    data, env = await llm.complete_json_result(prompt, mode="fast", task="exp-chart", max_tokens=3072)
+    if not env["ok"]:
+        return {"ok": False, "chart": None, "error": env["error"]}
+    chart = _sanitize_chart(data)
+    return {
+        "ok": chart is not None, "chart": chart, "error": None if chart else {
+            "kind": "bad_spec", "label": "图表数据校验没通过",
+            "message": "AI 返回的图表 spec 缺少必需字段或数值与记录对不上，请重试。",
+            "hint": "重试一次通常就好；若反复失败，检查结果记录的指标 JSON 是否都是数值。",
+        },
+        "provider": env["provider"], "model": env["model"],
+        "tokens_in": env["tokens_in"], "tokens_out": env["tokens_out"],
+    }
+
+
 @router.post("/experiments/{exp_id}/analysis")
 async def analyze_experiment(exp_id: int):
     exp = row_or_404("experiments", exp_id)
     results = query("SELECT * FROM exp_results WHERE experiment_id=?", (exp_id,))
     lines = [
         f"- {r['case_name']} | 方法={r['method'] or '-'} | 成功={bool(r['success'])} | "
+        f"口径={PROV_LABELS.get(r.get('provenance') or 'measured', '实测')} | "
         f"指标={r['metrics_json'] or '{}'} | 备注={r['notes'] or '-'}"
         for r in results
     ]
+    prov_warn = ""
+    non_measured = [r for r in results if (r.get("provenance") or "measured") != "measured"]
+    if non_measured:
+        prov_warn = (
+            f"\n注意：其中 {len(non_measured)} 条是模拟/示意口径的数据，"
+            "不是真实测得——分析时必须与实测数据分开评估，禁止混在一个口径里下结论。"
+        )
     prompt = f"""实验名称：{exp['name']}
 假设：{exp.get('hypothesis') or '（无）'}
 设计：{exp.get('design') or '（无）'}
 
 结果明细（{len(results)} 条）：
-{chr(10).join(lines) if lines else "（暂无结果）"}
+{chr(10).join(lines) if lines else "（暂无结果）"}{prov_warn}
 
 请输出：
-1. 假设是否成立，依据是什么（只对上面数据负责，不要外推）
+1. 假设是否成立，依据是什么（只对上面数据负责，不要外推；若含模拟/示意数据，结论只基于实测口径）
 2. 失败样本的共同特征与可能根因（分条，按可能性排序）
 3. 结果汇总表（Markdown 表格）
 4. 下一步该补的最小实验（具体、可在 1-2 天内做完）
@@ -1215,6 +1579,215 @@ async def experiment_design_review(exp_id: int, body: DesignReviewIn | None = No
         return {"ok": False, "result": "", "error": env["error"]}
     return {
         "ok": True, "result": env["content"], "error": None,
+        "provider": env["provider"], "model": env["model"],
+        "tokens_in": env["tokens_in"], "tokens_out": env["tokens_out"],
+    }
+
+
+# ============================ 运行溯源 Runs（借鉴 Open Science record_run） ============================
+
+_RUN_SURFACES = {"local": "本地", "ssh": "SSH", "slurm": "Slurm", "modal": "Modal 云"}
+_RUN_STATUSES = {"ok": "成功", "failed": "失败", "running": "运行中"}
+
+
+def _norm_path(p: str) -> str:
+    """Windows 大小写不敏感，归一化后比较输出路径是否撞车。"""
+    return os.path.normcase(os.path.normpath(p))
+
+
+def _file_entry(raw: str) -> dict | None:
+    """逐文件钉码：存在则记 {path,size,sha1[:16]}；缺失记 size=0 + missing（抓取被跳过的信号）。"""
+    p = (raw or "").strip().strip('"').strip("'")
+    if not p:
+        return None
+    f = Path(p)
+    try:
+        if f.is_file():
+            data = f.read_bytes()
+            return {"path": p, "size": len(data), "sha1": hashlib.sha1(data).hexdigest()[:16]}
+    except OSError:
+        pass
+    return {"path": p, "size": 0, "sha1": "", "missing": True}
+
+
+class RunIn(BaseModel):
+    command: str
+    surface: str = "local"        # local / ssh / slurm / modal
+    status: str = "ok"            # ok / failed / running
+    host: str | None = None
+    job_id: str | None = None
+    wall_ms: int | None = None
+    notes: str | None = None
+    env_text: str | None = None   # pip freeze 全文；落库存 sha1 内容寻址 hash
+    code_paths: list[str] = []    # 参与本 run 的代码/脚本路径
+    output_paths: list[str] = []  # 本 run 产出的结果文件路径（登记后不可复用）
+
+
+@router.get("/experiments/{exp_id}/runs")
+def list_runs(exp_id: int):
+    return query("SELECT * FROM exp_runs WHERE experiment_id=? ORDER BY id DESC", (exp_id,))
+
+
+@router.post("/experiments/{exp_id}/runs")
+def register_run(exp_id: int, body: RunIn):
+    row_or_404("experiments", exp_id)
+    if body.surface not in _RUN_SURFACES:
+        raise HTTPException(422, f"surface 只支持：{' / '.join(_RUN_SURFACES)}")
+    if body.status not in _RUN_STATUSES:
+        raise HTTPException(422, f"status 只支持：{' / '.join(_RUN_STATUSES)}")
+    if not body.command.strip():
+        raise HTTPException(422, "command 不能为空")
+
+    code = [e for e in (_file_entry(x) for x in body.code_paths) if e]
+    outs = [e for e in (_file_entry(x) for x in body.output_paths) if e]
+
+    # 不可变输出路径：新 run 不得登记到本实验已用过的输出路径上——
+    # 「重跑悄悄覆盖旧结果」在机制上被禁止，要重跑就开新目录。
+    if outs:
+        used: set[str] = set()
+        for prev in query("SELECT output_json FROM exp_runs WHERE experiment_id=?", (exp_id,)):
+            try:
+                for f in json.loads(prev["output_json"] or "[]"):
+                    used.add(_norm_path(f.get("path", "")))
+            except Exception:
+                pass
+        conflict = sorted({f["path"] for f in outs if _norm_path(f["path"]) in used})
+        if conflict:
+            raise HTTPException(
+                409,
+                "输出路径已被旧 run 占用，禁止覆盖旧结果（重跑请换新目录）："
+                + "；".join(conflict[:6]),
+            )
+
+    ts = now()
+    run_id = hashlib.sha1(f"{exp_id}|{ts}|{body.command}".encode()).hexdigest()[:16]
+    env_text = (body.env_text or "").strip()
+    env_hash = hashlib.sha1(env_text.encode()).hexdigest()[:16] if env_text else None
+    rid = execute(
+        """INSERT INTO exp_runs (experiment_id, run_id, command, surface, status, host, job_id,
+           wall_ms, notes, env_text, env_hash, code_json, output_json, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            exp_id, run_id, body.command.strip(), body.surface, body.status,
+            body.host, body.job_id, body.wall_ms, body.notes,
+            env_text or None, env_hash,
+            json.dumps(code, ensure_ascii=False), json.dumps(outs, ensure_ascii=False), ts,
+        ),
+    )
+    return row_or_404("exp_runs", rid)
+
+
+@router.delete("/exp_runs/{run_id}")
+def delete_run(run_id: int):
+    execute("DELETE FROM exp_runs WHERE id=?", (run_id,))
+    return {"ok": True}
+
+
+# ============================ 结果审查（借鉴 Open Science reviewer） ============================
+
+_AUDIT_CHECKS = {"traceability", "stats", "domain", "integrity", "coverage"}
+_AUDIT_LABELS = {
+    "traceability": "溯源",
+    "stats": "统计",
+    "domain": "领域",
+    "integrity": "完整性",
+    "coverage": "覆盖",
+}
+
+
+def _sanitize_findings(data) -> tuple[str, list[dict]]:
+    """结构化 findings 契约：最多 8 条，level/check 白名单，evidence 必填——没有证据就降级成 ok note。"""
+    if not isinstance(data, dict):
+        return "", []
+    note = str(data.get("note") or "").strip()[:300]
+    out: list[dict] = []
+    for f in (data.get("findings") or [])[:8]:
+        if not isinstance(f, dict):
+            continue
+        level = str(f.get("level") or "").strip().lower()
+        if level not in {"error", "warn", "ok"}:
+            continue
+        check = str(f.get("check") or "").strip().lower()
+        if check not in _AUDIT_CHECKS:
+            check = "traceability"
+        title = str(f.get("title") or "").strip()[:200]
+        evidence = str(f.get("evidence") or "").strip()[:600]
+        if not title:
+            continue
+        if not evidence:
+            # Evidence or silence：没有证据的 finding 不配独立成条
+            level = "ok"
+            evidence = "（未给出证据）"
+        out.append({"level": level, "check": check, "title": title, "evidence": evidence})
+    out.sort(key=lambda x: {"error": 0, "warn": 1, "ok": 2}[x["level"]])
+    return note, out
+
+
+@router.post("/experiments/{exp_id}/audit")
+async def audit_experiment(exp_id: int):
+    """结果审查：验证可溯源性与内部一致性，never truth。只基于工作台内记录，缺证据直说。"""
+    exp = row_or_404("experiments", exp_id)
+    results = query("SELECT * FROM exp_results WHERE experiment_id=?", (exp_id,))
+    runs = query(
+        "SELECT * FROM exp_runs WHERE experiment_id=? ORDER BY id DESC LIMIT 20", (exp_id,)
+    )
+
+    res_lines = [
+        f"- [{PROV_LABELS.get(r.get('provenance') or 'measured', '实测')}] "
+        f"case={r['case_name']} | 方法={r['method'] or '-'} | 成功={bool(r['success'])} | "
+        f"指标={r['metrics_json'] or '{}'} | 备注={r['notes'] or '-'}"
+        for r in results
+    ]
+    run_lines = []
+    for r in runs:
+        try:
+            outs = json.loads(r["output_json"] or "[]")
+        except Exception:
+            outs = []
+        missing = [f["path"] for f in outs if f.get("missing")]
+        run_lines.append(
+            f"- run={r['run_id']} | surface={r['surface']} | status={r['status']} | "
+            f"command={r['command']} | 输出文件={len(outs)} 个"
+            + (f" | 缺失文件={missing}" if missing else "")
+        )
+
+    prompt = f"""你是科研工作台的结果审查员。职责是 verify traceability and internal consistency, never truth——
+你只检查「记录是否可溯源、数字是否自洽」，绝不宣称实验本身正确。
+
+实验「{exp['name']}」
+假设：{exp.get('hypothesis') or '（未填写）'}
+设计：{exp.get('design') or '（未填写）'}
+
+结果记录（{len(results)} 条，口径已标注）：
+{chr(10).join(res_lines) if res_lines else "（无结果记录）"}
+
+运行溯源记录（{len(runs)} 条，含 sha1 文件指纹）：
+{chr(10).join(run_lines) if run_lines else "（无运行记录）"}
+
+按以下五类检查（只查有记录可对照的项，没记录的项直接跳过，不要硬凑）：
+- traceability 溯源：结论数字是否都能在结果记录里找到出处；运行记录里的输出文件是否真的有 sha1（missing=抓取被跳过）；声称跑了 A 方法但记录里没有对应 run
+- stats 统计：成功率/指标汇总是否与明细一致；样本量是否支撑结论；有没有拿模拟口径的数据当实测用
+- domain 领域：指标单位/量纲是否自洽；成功判定标准是否前后一致
+- integrity 完整性：同一 case 名重复记录且数字打架；指标 JSON 语法是否可解析
+- coverage 覆盖：设计里写了但结果里完全没有的 case/基线/消融项
+
+只基于上面的记录，禁止编造记录里不存在的数字。输出 JSON：
+{{"note": "一句话说明检查了什么、跳过了什么",
+  "findings": [
+    {{"level": "error|warn|ok", "check": "traceability|stats|domain|integrity|coverage",
+      "title": "问题一句话", "evidence": "具体证据：哪条记录/哪个字段+原文数字"}}
+  ]}}
+要求：≤8 条按严重度排序；每条 finding 必须带 evidence（引用记录原文数字/字段名），没有证据就不要单独立条；
+没问题就少输出，可以用 level=ok 报一条「已检查、未发现」；不奉承不凑数。"""
+    data, env = await llm.complete_json_result(prompt, mode="fast", task="exp-audit", max_tokens=3072)
+    if not env["ok"]:
+        return {"ok": False, "note": "", "findings": [], "error": env["error"]}
+    note, findings = _sanitize_findings(data)
+    return {
+        "ok": True,
+        "note": note or "（模型未给出说明）",
+        "findings": findings,
+        "error": None,
         "provider": env["provider"], "model": env["model"],
         "tokens_in": env["tokens_in"], "tokens_out": env["tokens_out"],
     }

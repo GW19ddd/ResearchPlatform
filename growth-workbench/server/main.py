@@ -20,6 +20,7 @@ from routers import (
     canvas,
     chat,
     dashboard,
+    expagent,
     gloss,
     litsearch,
     paper,
@@ -171,6 +172,7 @@ def health():
 
 app.include_router(auth_router.router)
 app.include_router(research.router)
+app.include_router(expagent.router)
 app.include_router(paper.router)
 app.include_router(plan.router)
 app.include_router(advisor.router)

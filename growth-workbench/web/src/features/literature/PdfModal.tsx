@@ -4,14 +4,14 @@
  * 自己扛「定位 → 候选 → 重新定位」全套流程，对外只有 (item, onClose)。
  * 侧边抽屉只负责笔记与 Gloss，两者互不依赖，PDF 这一块可以单独替换。
  */
-import { useEffect, useState } from 'react'
-import { Btn, IconBtn, Input, Loading, Pill, Spinner } from '../../components/ui'
+import { useEffect, useRef, useState } from 'react'
+import { Btn, IconBtn, Input, Loading, Pill, Spinner, usePresence } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import PdfViewer from '../../components/PdfViewer'
 import { get, patch } from '../../lib/api'
 
 export default function PdfModal({
-  item,
+  item: _item,
   onClose,
   onChanged,
 }: {
@@ -19,6 +19,12 @@ export default function PdfModal({
   onClose: () => void
   onChanged?: () => void
 }) {
+  /** 同 LiteratureDrawer：关闭时保留最后一次 item，退出动画期间 PDF 不会突然变空 */
+  const lastItem = useRef<any>(null)
+  if (_item) lastItem.current = _item
+  const presence = usePresence(!!_item, 180)
+  const item = _item || lastItem.current
+
   const [info, setInfo] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [path, setPath] = useState('')
@@ -46,17 +52,17 @@ export default function PdfModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, nonce])
 
-  // Esc 关闭：读 PDF 时手不会离开键盘
+  // Esc 关闭：读 PDF 时手不会离开键盘。退出动画期间不再监听（按 _item 判断）
   useEffect(() => {
-    if (!item) return
+    if (!_item) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [item, onClose])
+  }, [_item, onClose])
 
-  if (!item) return null
+  if (!presence.mounted || !item) return null
 
   const savePath = async () => {
     setBusy('save')
@@ -85,9 +91,17 @@ export default function PdfModal({
   const subtitle = [item.authors, item.year, item.venue].filter(Boolean).join(' · ')
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="wb-anim-fade absolute inset-0 bg-[rgba(16,24,40,0.55)]" onClick={onClose} />
-      <div className="wb-anim-pop relative flex h-[94vh] w-[min(1500px,96vw)] flex-col overflow-hidden rounded-[16px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)]">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 ${presence.leaving ? 'pointer-events-none' : ''}`}
+      aria-hidden={presence.leaving || undefined}
+    >
+      <div
+        className={`absolute inset-0 bg-[rgba(16,24,40,0.55)] ${presence.leaving ? 'wb-overlay-out' : 'wb-overlay-in'}`}
+        onClick={onClose}
+      />
+      <div
+        className={`relative flex h-[94vh] w-[min(1500px,96vw)] flex-col overflow-hidden rounded-[16px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)] ${presence.leaving ? 'wb-dialog-out' : 'wb-dialog-in'}`}
+      >
         {/* 标题栏 */}
         <header className="flex shrink-0 items-center gap-2 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[color:var(--wb-danger-soft)] text-[11.5px] font-semibold text-[color:var(--wb-danger)]">

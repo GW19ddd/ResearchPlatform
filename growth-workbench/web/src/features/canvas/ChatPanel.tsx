@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon, type IconName } from '../../components/Icon'
-import { IconBtn } from '../../components/ui'
+import { IconBtn, MdBlock } from '../../components/ui'
 
 /**
  * Undermind 式对话面板 —— 画布对话与研究对话（/research）共用：
@@ -32,6 +32,10 @@ export type ChatMsg = {
   queries?: string[]
   elapsed?: number
   skillTag?: string
+  /** 正文按 Markdown 渲染（默认纯文本；实验 Agent 等非流式场景用） */
+  md?: boolean
+  /** 消息附属块插槽（产物 chips / 执行块 / 落账条等），渲染在引用小签之后 */
+  extra?: ReactNode
 }
 
 export type ChipConf = { icon: IconName; label: string; text: string; tag: string; onClick?: () => void }
@@ -220,7 +224,7 @@ function AssistantMsg({
         </button>
       ) : (
         <div className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-[color:var(--wb-text)]">
-          {m.content}
+          {m.md ? <MdBlock text={m.content} /> : m.content}
         </div>
       )}
 
@@ -240,6 +244,9 @@ function AssistantMsg({
           ))}
         </div>
       )}
+
+      {/* 调用方自定义附属块（产物文件 / 执行记录 / 落账条…） */}
+      {m.extra}
 
       {/* 后续建议：右对齐胶囊（对标 Undermind 的追问 pills） */}
       {(m.suggests || []).length > 0 && (

@@ -69,6 +69,7 @@ function Flow({
   setEdges,
   onSelect,
   onDropSkill,
+  onNodeContext,
 }: {
   nodes: CNode[]
   setNodes: any
@@ -76,6 +77,7 @@ function Flow({
   setEdges: any
   onSelect: (key: string | null) => void
   onDropSkill: (skillId: string, x: number, y: number) => void
+  onNodeContext: (e: React.MouseEvent, key: string) => void
 }) {
   const { screenToFlowPosition } = useReactFlow()
 
@@ -119,6 +121,10 @@ function Flow({
         onEdgesChange={(ch) => setEdges((eds: Edge[]) => applyEdgeChanges(ch, eds))}
         onConnect={onConnect}
         onNodeClick={(e, n) => onSelect(n.id)}
+        onNodeContextMenu={(e, n) => {
+          e.preventDefault()
+          onNodeContext(e, n.id)
+        }}
         onPaneClick={() => onSelect(null)}
         fitView
         proOptions={{ hideAttribution: true }}
@@ -189,6 +195,21 @@ export default function Canvas() {
   const [chatBusy, setChatBusy] = useState(false)
   // 输出展开成居中大窗（侧栏 23rem 装不下长文本）
   const [bigOut, setBigOut] = useState(false)
+  // 右键节点菜单（Dify 式：运行此步骤 / 复制 / 展开输出 / 删除）
+  const [ctx, setCtx] = useState<{ x: number; y: number; key: string } | null>(null)
+  // 顶部「更多」下拉与「自动编排」行的折叠
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [autoOpen, setAutoOpen] = usePersist('canvas.autoOpen', false)
+  const moreRef = useRef<HTMLDivElement | null>(null)
+  // 点外部关闭「更多」菜单
+  useEffect(() => {
+    if (!moreOpen) return
+    const close = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [moreOpen])
   const [providers, setProviders] = useState<any[]>([])
   const [difyApps, setDifyApps] = useState<any[]>([])
   const [difyBase, setDifyBase] = useState('')
@@ -498,6 +519,30 @@ export default function Canvas() {
     setNodes((nds) => nds.filter((n) => n.id !== key))
     setEdges((eds: Edge[]) => eds.filter((e) => e.source !== key && e.target !== key))
     setSel(null)
+  }
+
+  /** 复制节点（Dify 式）：配置原样带走，位置偏移一点，名字加「副本」 */
+  const dupNode = (key: string) => {
+    const src = nodes.find((n) => n.id === key)
+    if (!src) return
+    const k = `n${keyRef.current++}`
+    setNodes((nds: CNode[]) => [
+      ...nds,
+      {
+        ...src,
+        id: k,
+        selected: true,
+        position: { x: src.position.x + 48, y: src.position.y + 48 },
+        data: {
+          ...src.data,
+          key: k,
+          title: src.data.title ? `${src.data.title} 副本` : '',
+          status: 'idle',
+        },
+      },
+    ] as CNode[])
+    setSel(k)
+    flash('已复制节点', 'ok')
   }
 
   // ---------------------------------------------------------------- 持久化 / 运行
@@ -938,20 +983,73 @@ export default function Canvas() {
             {!running && runStatus === 'failed' && <StatusTag tone="danger">有节点失败</StatusTag>}
             {!running && runStatus === 'done' && <StatusTag tone="ok">运行完成</StatusTag>}
             <span className="mx-1 hidden h-4 w-px bg-[color:var(--wb-border)] sm:block" />
-            <Btn onClick={() => createCanvas()}>新建</Btn>
-            <Btn onClick={() => setTplOpen(true)}>模板库（{templates.length}）</Btn>
-            <Btn onClick={saveAsTemplate} title="把当前这套流水线冻结成模板">
-              存为模板
-            </Btn>
-            <Btn variant="danger" onClick={delCanvas}>
-              删除画布
-            </Btn>
             <span className="mx-1 hidden h-4 w-px bg-[color:var(--wb-border)] sm:block" />
-            {layout === 'free' && (
-              <Btn onClick={() => fitRef.current?.()} title="把所有节点缩放到可视范围">
-                适合视图
+            {/* 低频操作收进「更多」，还工具栏一条干净的主线（Dify 式） */}
+            <div ref={moreRef} className="relative">
+              <Btn onClick={() => setMoreOpen(!moreOpen)}>
+                <Icon name="menu" size={13} />
+                更多
+                <Icon name="chevronDown" size={12} />
               </Btn>
-            )}
+              {moreOpen && (
+                <div className="absolute left-0 top-full z-30 mt-1 w-48 overflow-hidden rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] py-1 shadow-[var(--wb-shadow-md)]">
+                  {[
+                    {
+                      icon: 'plus',
+                      label: '新建画布',
+                      onClick: () => createCanvas(),
+                    },
+                    {
+                      icon: 'layers',
+                      label: `模板库（${templates.length}）`,
+                      onClick: () => setTplOpen(true),
+                    },
+                    {
+                      icon: 'copy',
+                      label: '存为模板',
+                      onClick: saveAsTemplate,
+                      title: '把当前这套流水线冻结成模板',
+                    },
+                    ...(layout === 'free'
+                      ? [
+                          {
+                            icon: 'scan',
+                            label: '适合视图',
+                            onClick: () => fitRef.current?.(),
+                            title: '把所有节点缩放到可视范围',
+                          },
+                        ]
+                      : []),
+                  ].map((it) => (
+                    <button
+                      key={it.label}
+                      type="button"
+                      title={it.title}
+                      onClick={() => {
+                        setMoreOpen(false)
+                        it.onClick()
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-[color:var(--wb-text)] hover:bg-[color:var(--wb-bg-subtle)]"
+                    >
+                      <Icon name={it.icon as any} size={13} className="text-[color:var(--wb-text-soft)]" />
+                      {it.label}
+                    </button>
+                  ))}
+                  <div className="my-1 h-px bg-[color:var(--wb-border)]" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreOpen(false)
+                      delCanvas()
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-[color:var(--wb-danger)] hover:bg-[color:var(--wb-danger-soft)]"
+                  >
+                    <Icon name="trash" size={13} />
+                    删除画布
+                  </button>
+                </div>
+              )}
+            </div>
             <Btn
               onClick={() => setLeftOpen(!leftOpen)}
               title={leftOpen ? '收起技能面板' : '展开技能面板'}
@@ -974,45 +1072,61 @@ export default function Canvas() {
             </Btn>
           </div>
 
-          {/* 第二行：一句话搭画布 */}
-          <div className="flex flex-wrap items-center gap-2 border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
-            <span className="text-[11.5px] font-medium text-[color:var(--wb-accent)]">
-              <Icon name="sparkle" size={13} />
-              一句话搭画布
-            </span>
-            <Input
-              value={autoTopic}
-              onChange={setAutoTopic}
-              className="!w-40"
-              placeholder="选题，如 ai单元测试"
-            />
-            <Input
-              value={autoConstraint}
-              onChange={setAutoConstraint}
-              className="!w-52"
-              placeholder="约束（时间 / 算力）"
-            />
-            <Btn onClick={autoBuild} loading={autoing}>
-              {autoing ? '搭建中…' : '自动编排'}
-            </Btn>
-            <Select
-              value=""
-              onChange={(v) => v && createCanvas(v)}
-              options={[
-                { value: '', label: '从模板新建…' },
-                ...templates.map((t) => ({
-                  value: t.key,
-                  label: `${t.name}${t.builtin === false ? '（我存的）' : ''}`,
-                })),
-              ]}
-            />
-            <span className="ml-auto truncate text-[11.5px] text-[color:var(--wb-muted)]">
-              {nodes.length} {layout === 'fixed' ? '步骤' : '节点'} /{' '}
-              {layout === 'fixed' ? Math.max(0, nodes.length - 1) : edges.length} 连线 ·{' '}
-              {layout === 'fixed' ? '顺序即执行顺序' : '点节点看配置与输出'}
-              {autoWhy ? ` · ${autoWhy}` : ''}
-            </span>
-          </div>
+          {/* 第二行：一句话搭画布（低频，默认折叠） */}
+          {autoOpen ? (
+            <div className="flex flex-wrap items-center gap-2 border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
+              <span className="text-[11.5px] font-medium text-[color:var(--wb-accent)]">
+                <Icon name="sparkle" size={13} />
+                一句话搭画布
+              </span>
+              <Input
+                value={autoTopic}
+                onChange={setAutoTopic}
+                className="!w-40"
+                placeholder="选题，如 ai单元测试"
+              />
+              <Input
+                value={autoConstraint}
+                onChange={setAutoConstraint}
+                className="!w-52"
+                placeholder="约束（时间 / 算力）"
+              />
+              <Btn onClick={autoBuild} loading={autoing}>
+                {autoing ? '搭建中…' : '自动编排'}
+              </Btn>
+              <Select
+                value=""
+                onChange={(v) => v && createCanvas(v)}
+                options={[
+                  { value: '', label: '从模板新建…' },
+                  ...templates.map((t) => ({
+                    value: t.key,
+                    label: `${t.name}${t.builtin === false ? '（我存的）' : ''}`,
+                  })),
+                ]}
+              />
+              <Btn size="sm" onClick={() => setAutoOpen(false)} title="收起这一行">
+                <Icon name="chevronUp" size={12} />
+                收起
+              </Btn>
+            </div>
+          ) : (
+            <div className="flex items-center justify-end border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-1">
+              <button
+                type="button"
+                onClick={() => setAutoOpen(true)}
+                className="flex items-center gap-1 text-[11.5px] text-[color:var(--wb-muted)] hover:text-[color:var(--wb-accent)]"
+              >
+                <Icon name="sparkle" size={12} />
+                一句话搭画布 / 从模板新建
+                <Icon name="chevronDown" size={11} />
+                <span className="ml-3">
+                  {nodes.length} {layout === 'fixed' ? '步骤' : '节点'}
+                  {autoWhy ? ` · ${autoWhy}` : ''}
+                </span>
+              </button>
+            </div>
+          )}
         </div>
 
         {runErr && (
@@ -1081,8 +1195,12 @@ export default function Canvas() {
                 setNodes={setNodes}
                 edges={edges}
                 setEdges={setEdges}
-                onSelect={setSel}
+                onSelect={(k) => {
+                  setSel(k)
+                  setCtx(null)
+                }}
                 onDropSkill={(sid, x, y) => addNode('skill', sid, x, y)}
+                onNodeContext={(e, key) => setCtx({ x: e.clientX, y: e.clientY, key })}
               />
             </ReactFlowProvider>
           )}
@@ -1182,6 +1300,91 @@ export default function Canvas() {
           </div>
         )}
       </Modal>
+
+      {/* 节点右键菜单（Dify 式）：任意点击 / 滚轮即关闭 */}
+      {ctx && (
+        <div
+          className="fixed inset-0 z-50"
+          onClick={() => setCtx(null)}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setCtx(null)
+          }}
+          onWheel={() => setCtx(null)}
+        >
+          <div
+            className="absolute w-52 overflow-hidden rounded-[12px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] py-1.5 shadow-[var(--wb-shadow-lg)]"
+            style={{
+              left: Math.min(ctx.x, window.innerWidth - 224),
+              top: Math.min(ctx.y, window.innerHeight - 260),
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-1 truncate border-b border-[color:var(--wb-border)] px-3 pb-1.5 text-[11px] text-[color:var(--wb-muted)]">
+              {nodes.find((n) => n.id === ctx.key)?.data.title || ctx.key}
+            </div>
+            {[
+              {
+                icon: 'refresh',
+                label: '运行此步骤',
+                disabled: running,
+                onClick: () => run(ctx.key),
+              },
+              {
+                icon: 'gear',
+                label: '打开配置',
+                disabled: false,
+                onClick: () => setSel(ctx.key),
+              },
+              {
+                icon: 'file',
+                label: '展开输出',
+                disabled: !(outputs[ctx.key] || '').trim(),
+                onClick: () => {
+                  setSel(ctx.key)
+                  setBigOut(true)
+                },
+              },
+              {
+                icon: 'copy',
+                label: '复制节点',
+                disabled: false,
+                onClick: () => dupNode(ctx.key),
+              },
+            ].map((it) => (
+              <button
+                key={it.label}
+                type="button"
+                disabled={it.disabled}
+                onClick={() => {
+                  setCtx(null)
+                  it.onClick()
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] ${
+                  it.disabled
+                    ? 'cursor-not-allowed text-[color:var(--wb-muted)]'
+                    : 'text-[color:var(--wb-text)] hover:bg-[color:var(--wb-bg-subtle)]'
+                }`}
+              >
+                <Icon name={it.icon as any} size={13} className="text-[color:var(--wb-text-soft)]" />
+                {it.label}
+              </button>
+            ))}
+            <div className="my-1 h-px bg-[color:var(--wb-border)]" />
+            <button
+              type="button"
+              onClick={() => {
+                setCtx(null)
+                delNode(ctx.key)
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-[color:var(--wb-danger)] hover:bg-[color:var(--wb-danger-soft)]"
+            >
+              <Icon name="trash" size={13} />
+              删除节点
+            </button>
+          </div>
+        </div>
+      )}
 
       <TemplateManager
         open={tplOpen}

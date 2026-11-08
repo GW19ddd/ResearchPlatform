@@ -80,6 +80,7 @@ export type IconName =
   | 'grid'
   | 'route'
   | 'award'
+  | 'sprout'
 
 const P: Record<IconName, ReactElement> = {
   sun: (
@@ -433,6 +434,23 @@ const P: Record<IconName, ReactElement> = {
       <circle cx="12" cy="9" r="5.5" />
       <path d="M12 6.3l1 2 2.2.3-1.6 1.6.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.6 2.2-.3z" />
       <path d="M8.5 13.8L7 21l5-2.6 5 2.6-1.5-7.2" />
+    </>
+  ),
+  /** 小树苗：关联图「起源圆」的标记；两片叶淡填充，茎与土线走描边 */
+  sprout: (
+    <>
+      <path d="M12 20.5v-8.2" />
+      <path
+        d="M12 13.6C9.2 13.6 6.6 12 6.4 9.1c2.9-.3 5.1 1.1 5.6 4.5z"
+        fill="currentColor"
+        fillOpacity=".16"
+      />
+      <path
+        d="M12 12.3c.2-3.4 2.2-5.7 5.6-6-.2 3-2.3 4.9-5.6 6z"
+        fill="currentColor"
+        fillOpacity=".16"
+      />
+      <path d="M8.7 20.5h6.6" />
     </>
   ),
 }

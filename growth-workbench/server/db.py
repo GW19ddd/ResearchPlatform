@@ -80,6 +80,16 @@ CREATE TABLE IF NOT EXISTS lit_edges (
   UNIQUE(source_id, target_id, edge_type)
 );
 
+CREATE TABLE IF NOT EXISTS lit_painpoints (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  literature_id INTEGER,
+  content TEXT NOT NULL,
+  evidence TEXT,
+  direction TEXT,
+  status TEXT DEFAULT 'new',
+  created_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS experiments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -101,6 +111,38 @@ CREATE TABLE IF NOT EXISTS exp_results (
   success INTEGER DEFAULT 0,
   metrics_json TEXT,
   notes TEXT,
+  provenance TEXT DEFAULT 'measured',
+  created_at TEXT
+);
+
+-- 运行溯源（借鉴 Open Science record_run）：一次运行一条记录，
+-- 代码/输出文件逐个 sha1 钉码，环境以内容寻址 hash 钉死。
+CREATE TABLE IF NOT EXISTS exp_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  experiment_id INTEGER,
+  run_id TEXT,
+  command TEXT,
+  surface TEXT DEFAULT 'local',
+  status TEXT DEFAULT 'ok',
+  host TEXT,
+  job_id TEXT,
+  wall_ms INTEGER,
+  notes TEXT,
+  env_text TEXT,
+  env_hash TEXT,
+  code_json TEXT,
+  output_json TEXT,
+  created_at TEXT
+);
+
+-- 实验 Agent 对话（借鉴 Open Science 会话形态）：user/assistant 轮次，
+-- assistant 轮的 meta_json 带本轮产物文件、执行的 run 与自动落账的结果。
+CREATE TABLE IF NOT EXISTS exp_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  experiment_id INTEGER,
+  role TEXT,
+  content TEXT,
+  meta_json TEXT,
   created_at TEXT
 );
 
@@ -414,6 +456,7 @@ MIGRATIONS = [
     ("canvas_node_outputs", "status", "TEXT"),
     ("canvas_node_outputs", "error_json", "TEXT"),
     ("chat_sessions", "stage", "TEXT DEFAULT 'survey'"),
+    ("exp_results", "provenance", "TEXT DEFAULT 'measured'"),
 ]
 
 

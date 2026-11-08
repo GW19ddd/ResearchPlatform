@@ -11,11 +11,9 @@ import {
   Pill,
   Progress,
   Select,
-  StatCard,
   StatusTag,
 } from '../components/ui'
 import { AiError, AiMeta } from '../components/AiError'
-import SignatureCard from '../components/SignatureCard'
 import { Icon } from '../components/Icon'
 import { get, patch, post } from '../lib/api'
 import { useAiTask } from '../lib/hooks'
@@ -124,52 +122,6 @@ export default function Paper() {
         title="论文"
         desc="七阶段流水线：阶段阻塞超过 3 天会亮红牌"
       />
-
-      {/* 首屏招牌：七阶段 + 阻塞红牌；stepper 与红牌不再被数字卡压在下面 */}
-      <SignatureCard
-        eyebrow="论文 · 七阶段流水线"
-        title="阶段卡住超过 3 天，会亮红牌"
-        desc="七个阶段逐个推进，阻塞达到 3 天自动红牌告警；写作体检 readiness 与章节双轨字数挂在阶段旁，卡点可一键诊断。"
-        icon="file"
-        tone={ov.blocked.length > 0 ? 'danger' : 'accent'}
-        metrics={[
-          { label: '当前阶段', value: ov.current?.name || '—' },
-          { label: '进度', value: `${ov.progress}%` },
-          { label: '阻塞', value: `${ov.blocked.length} 个`, tone: 'danger' },
-          { label: '字数', value: ov.words },
-        ]}
-        action={
-          ov.blocked.length > 0 ? (
-            <Btn variant="primary" size="sm" onClick={() => setActiveId(ov.blocked[0].id)}>
-              定位阻塞阶段
-            </Btn>
-          ) : undefined
-        }
-      />
-
-      <div className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">概览指标</div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="阶段进度" value={ov.progress} unit="%" tone="accent" />
-        <StatCard
-          label="字数"
-          value={ov.words}
-          unit="字"
-          hint={ov.target_words ? `目标 ${ov.target_words} 字 · 已完成 ${ov.word_progress}%` : '章节还没设目标字数'}
-        />
-        <StatCard
-          label="阻塞阶段"
-          value={ov.blocked.length}
-          unit="个"
-          tone={ov.blocked.length > 0 ? 'danger' : 'ok'}
-          hint={ov.blocked.length > 0 ? '在流水线里点中它，可跑卡点诊断' : '一切顺畅'}
-        />
-        <StatCard
-          label="当前阶段"
-          value={
-            <span className="text-[14px] font-semibold leading-snug">{ov.current?.name || '—'}</span>
-          }
-        />
-      </div>
 
       {/* 横向 stepper：阶段节点 + 连接线，点选查看详情 */}
       <Card title="阶段流水线" tourId="tour-paper-stages" bodyClassName="p-4 pb-5">

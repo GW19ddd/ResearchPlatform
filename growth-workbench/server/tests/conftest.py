@@ -67,6 +67,7 @@ def _clean_tables(tmp_db):
         "literature",
         "lit_notes",
         "lit_matrix",
+        "lit_edges",
         "experiments",
         "exp_results",
         "weekly_plans",
@@ -82,6 +83,9 @@ def _clean_tables(tmp_db):
         "canvases",
         "chat_messages",
         "chat_sessions",
+        "chat_findings",
+        "rchat_messages",
+        "rchat_sessions",
         "idempotency_keys",
     ):
         db.execute(f"DELETE FROM {t}")

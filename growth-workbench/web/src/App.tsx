@@ -8,6 +8,7 @@ import Search from './pages/Search'
 import Experiments from './pages/Experiments'
 import Paper from './pages/Paper'
 import Plan from './pages/Plan'
+import Overview from './pages/Overview'
 import Advisor from './pages/Advisor'
 import Points from './pages/Points'
 import Settings from './pages/Settings'
@@ -21,7 +22,7 @@ import { ToastHost } from './components/toast'
 import Tour from './components/Tour'
 import { Icon, IconName } from './components/Icon'
 import { ResizeHandle } from './components/ResizeHandle'
-import { Avatar, Btn, IconBtn, Input, Modal } from './components/ui'
+import { Avatar, Btn, IconBtn, Input, Modal, usePresence } from './components/ui'
 import { usePersist } from './lib/state'
 import { get } from './lib/api'
 import { displayNameOf, useAuth } from './lib/auth'
@@ -29,39 +30,51 @@ import SettingsPanel from './features/settings/SettingsPanel'
 
 /**
  * 三层信息架构：① 工作台（做科研的地方）→ ② 研究资产（产出的东西）→ ③ 节奏与工具（收纳）。
- * 工作台单独渲染成一组三卡，不塞进普通列表；术语字典见
+ * 工作台用与下方导航同款的普通列表项（不再用渐变大卡，避免层级倒挂）；术语字典见
  * docs/feature-ia-redesign-2026-11-08.md 第 5.3 节。
  */
-const WORKSPACES: { to: string; label: string; hint: string; icon: IconName; primary?: boolean }[] = [
-  { to: '/chat', label: '课题 Quest', hint: '契约 → 四阶段门禁 → 成文', icon: 'sparkle', primary: true },
+const WORKSPACES: { to: string; label: string; hint: string; icon: IconName }[] = [
+  { to: '/chat', label: '课题 Quest', hint: '契约 → 四阶段门禁 → 成文', icon: 'sparkle' },
   { to: '/canvas', label: '编排画布 Canvas', hint: '多步 AI 任务连成流水线', icon: 'layers' },
   { to: '/research', label: '调研 Research', hint: '找文献 → 自动入库 → 带引用报告', icon: 'message' },
 ]
 
-/** 工作台之外的导航分组；「工具」默认折叠，不占主线视觉权重 */
-const NAV_GROUPS: { group: string; foldable?: boolean; items: { to: string; label: string; icon: IconName }[] }[] = [
+type NavItem = { to: string; label: string; icon: IconName; badge?: boolean }
+
+/** 导航按「功能域」分组，并把页面内的视图提升为菜单直达项，让工具一眼看全：
+ *  - 「文献」三个视图用 ?tab= 指向同一页（URL 是唯一真源），菜单高亮按 pathname + search 精确匹配；
+ *  - 「画布 / 对话工作流」即工作台组的「编排画布 Canvas / 课题 Quest」，与页面顶部切换条一一对应；
+ *  - 「工具」常显，不再给折叠展开栏。
+ *  「在线检索」现为文献页第 4 个 tab（/literature?tab=search），侧栏直达；旧 /search 路由保留兼容。 */
+const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
+  {
+    group: '文献',
+    items: [
+      { to: '/literature?tab=library', label: '文献库', icon: 'book', badge: true },
+      { to: '/literature?tab=matrix', label: '对比矩阵', icon: 'grid' },
+      { to: '/literature?tab=search', label: '文献检索', icon: 'scan' },
+    ],
+  },
   {
     group: '研究资产',
     items: [
       { to: '/ideas', label: '创新点', icon: 'sparkle' },
-      { to: '/literature', label: '文献', icon: 'book' },
-      { to: '/experiments', label: '实验', icon: 'beaker' },
+      { to: '/experiments', label: '实验', icon: 'beaker', badge: true },
       { to: '/paper', label: '论文', icon: 'file' },
     ],
   },
   {
     group: '节奏',
     items: [
-      { to: '/plan', label: '计划复盘', icon: 'clock' },
+      { to: '/plan', label: '计划复盘', icon: 'clock', badge: true },
       { to: '/advisor', label: '导师', icon: 'phone' },
       { to: '/points', label: '激励规则', icon: 'star' },
     ],
   },
   {
     group: '工具',
-    foldable: true,
     items: [
-      { to: '/search', label: '在线检索', icon: 'scan' },
+      { to: '/stats', label: '概览指标', icon: 'chart' },
       { to: '/navigator', label: '站点快搜', icon: 'search' },
     ],
   },
@@ -119,7 +132,7 @@ function NavCount({ badge, collapsed }: { badge?: NavBadge; collapsed: boolean }
 }
 
 const itemCls = (active: boolean, collapsed: boolean) =>
-  `group relative flex items-center rounded-[9px] text-[12.5px] transition-colors duration-150 ${
+  `wb-press-soft group relative flex items-center rounded-[9px] text-[12.5px] transition-colors duration-150 ${
     collapsed ? 'h-8 justify-center px-0' : 'h-8 gap-2.5 px-2.5'
   } ${
     active
@@ -138,52 +151,27 @@ function BrandMark({ size = 30 }: { size?: number }) {
   )
 }
 
-/** ① 工作台：三个做科研的地方，一组三卡。主路径（课题 Quest）渐变高亮，另两个同级。 */
+/** ① 工作台：与下方「研究资产」同款普通列表项，只保留当前页 accent 高亮（不再用渐变大卡） */
 function WorkspaceGroup({ collapsed }: { collapsed: boolean }) {
   return (
     <div className={collapsed ? 'px-2 pb-1 pt-1' : 'px-3 pb-1 pt-1'}>
-      {!collapsed && (
-        <div className="px-1 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
+      {collapsed ? (
+        <div className="mx-1 my-2 border-t border-[color:var(--wb-border)]" />
+      ) : (
+        <div className="px-2.5 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
           工作台
         </div>
       )}
-      <div className={`flex flex-col ${collapsed ? 'gap-1' : 'gap-1.5'}`}>
+      <div className="flex flex-col gap-[2px]">
         {WORKSPACES.map((w) => (
           <NavLink
             key={w.to}
             to={w.to}
             title={collapsed ? w.label : w.hint}
-            className={({ isActive }) =>
-              `group relative flex items-center rounded-[11px] transition-all duration-150 ${
-                collapsed ? 'h-9 justify-center px-0' : 'h-[46px] gap-2.5 px-3'
-              } ${
-                w.primary
-                  ? 'font-semibold text-white shadow-[0_8px_18px_-8px_rgba(64,52,196,0.7)] bg-gradient-to-br from-[color:var(--wb-accent)] to-[color:var(--wb-accent-strong)] ' +
-                    (isActive ? 'ring-2 ring-white/70 ring-offset-1 ring-offset-[color:var(--wb-surface)]' : 'hover:brightness-105')
-                  : 'border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] ' +
-                    (isActive
-                      ? 'border-[color:var(--wb-accent)]/40 bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
-                      : 'text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-accent)]/50 hover:text-[color:var(--wb-accent)]')
-              }`
-            }
+            className={({ isActive }) => itemCls(isActive, collapsed)}
           >
-            <span
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] ${
-                w.primary ? 'bg-white/20' : 'bg-[color:var(--wb-bg-subtle)]'
-              }`}
-            >
-              <Icon name={w.icon} size={collapsed ? 18 : 16} />
-            </span>
-            {collapsed ? (
-              <span className="sr-only">{w.label}</span>
-            ) : (
-              <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                <span className="truncate text-[12.5px]">{w.label}</span>
-                <span className={`truncate text-[9.5px] font-normal ${w.primary ? 'text-white/80' : 'text-[color:var(--wb-muted)]'}`}>
-                  {w.hint}
-                </span>
-              </span>
-            )}
+            <Icon name={w.icon} size={15} />
+            {collapsed ? <span className="sr-only">{w.label}</span> : <span className="truncate">{w.label}</span>}
           </NavLink>
         ))}
       </div>
@@ -232,13 +220,25 @@ function Sidebar({
 }) {
   const { user, logout } = useAuth()
   const [menu, setMenu] = useState(false)
-  /** 「工具」分组默认折叠：低频入口不占主线视觉权重 */
-  const [toolsOpen, setToolsOpen] = usePersist('app.navToolsOpen', false)
   const menuRef = useDismiss(menu, () => setMenu(false))
+  /** 菜单关闭时先播退出动画再卸载，不要「啪」地消失 */
+  const menuPresence = usePresence(menu, 160)
   const name = displayNameOf(user)
+  const { pathname, search } = useLocation()
+
+  /** 带 ?tab= 的文献子项按 pathname + search 精确高亮，避免三个子项一起亮；
+   *  无 tab 参数时 /literature 默认高亮「文献库」。 */
+  const isItemActive = (to: string) => {
+    const [p, q] = to.split('?')
+    if (pathname !== p) return false
+    if (!q) return true
+    const want = new URLSearchParams(q).get('tab')
+    const got = new URLSearchParams(search).get('tab')
+    return got ? got === want : want === 'library'
+  }
 
   const menuItem =
-    'flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-[7px] text-left text-[12.5px] text-[color:var(--wb-text-soft)] transition-colors hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]'
+    'wb-press-soft flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-[7px] text-left text-[12.5px] text-[color:var(--wb-text-soft)] transition-colors hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]'
 
   return (
     <aside
@@ -262,7 +262,7 @@ function Sidebar({
           onClick={onToggle}
           title={collapsed ? '展开侧边栏（快捷键 [）' : '收起侧边栏（快捷键 [）'}
           aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}
-          className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] text-[color:var(--wb-muted)] transition-colors hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+          className="wb-press-strong mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] text-[color:var(--wb-muted)] transition-colors hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
         >
           <Icon name={collapsed ? 'chevronRight' : 'chevronLeft'} size={13} />
         </button>
@@ -283,47 +283,31 @@ function Sidebar({
           <NavCount badge={badges['/today']} collapsed={collapsed} />
         </NavLink>
 
-        {NAV_GROUPS.map((g, gi) => {
-          const folded = !!g.foldable && !toolsOpen && !collapsed
-          return (
-            <div key={gi}>
-              {g.group &&
-                (collapsed ? (
-                  gi > 0 && <div className="mx-1 my-2 border-t border-[color:var(--wb-border)]" />
-                ) : g.foldable ? (
-                  <button
-                    type="button"
-                    onClick={() => setToolsOpen((v) => !v)}
-                    aria-expanded={!folded}
-                    className="flex w-full items-center gap-1.5 px-2.5 pb-1 pt-4 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)] transition-colors hover:text-[color:var(--wb-text-soft)]"
-                  >
-                    <Icon name="chevronRight" size={11} className={folded ? '' : 'rotate-90'} />
-                    {g.group}
-                  </button>
-                ) : (
-                  <div className="px-2.5 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
-                    {g.group}
-                  </div>
-                ))}
-              {!folded && (
-                <div className="flex flex-col gap-[2px]">
-                  {g.items.map((n) => (
-                    <NavLink
-                      key={n.to}
-                      to={n.to}
-                      title={collapsed ? n.label : undefined}
-                      className={({ isActive }) => itemCls(isActive, collapsed)}
-                    >
-                      <Icon name={n.icon} size={15} />
-                      {collapsed ? <span className="sr-only">{n.label}</span> : <span className="truncate">{n.label}</span>}
-                      <NavCount badge={badges[n.to]} collapsed={collapsed} />
-                    </NavLink>
-                  ))}
-                </div>
-              )}
+        {NAV_GROUPS.map((g, gi) => (
+          <div key={gi}>
+            {collapsed ? (
+              gi > 0 && <div className="mx-1 my-2 border-t border-[color:var(--wb-border)]" />
+            ) : (
+              <div className="px-2.5 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
+                {g.group}
+              </div>
+            )}
+            <div className="flex flex-col gap-[2px]">
+              {g.items.map((n) => (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  title={collapsed ? n.label : undefined}
+                  className={() => itemCls(isItemActive(n.to), collapsed)}
+                >
+                  <Icon name={n.icon} size={15} />
+                  {collapsed ? <span className="sr-only">{n.label}</span> : <span className="truncate">{n.label}</span>}
+                  {n.badge && <NavCount badge={badges[n.to.split('?')[0]]} collapsed={collapsed} />}
+                </NavLink>
+              ))}
             </div>
-          )
-        })}
+          </div>
+        ))}
       </nav>
 
       {/* 底部工具：新手引导 + 左下角设置齿轮（常驻，折叠态只留图标） */}
@@ -355,7 +339,7 @@ function Sidebar({
           title={name || '账户'}
           aria-haspopup="menu"
           aria-expanded={menu}
-          className={`flex w-full items-center gap-2.5 rounded-[10px] p-1.5 transition-colors hover:bg-[color:var(--wb-bg-subtle)] ${
+          className={`wb-press-soft flex w-full items-center gap-2.5 rounded-[10px] p-1.5 transition-colors hover:bg-[color:var(--wb-bg-subtle)] ${
             collapsed ? 'justify-center' : ''
           }`}
         >
@@ -373,12 +357,15 @@ function Sidebar({
           )}
         </button>
 
-        {menu && (
+        {menuPresence.mounted && (
           <div
             role="menu"
-            className={`wb-anim-pop absolute bottom-[calc(100%-2px)] z-50 w-[232px] overflow-hidden rounded-[14px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] p-1.5 shadow-[var(--wb-shadow-lg)] ${
-              collapsed ? 'left-1/2 -translate-x-1/2' : 'left-2.5'
-            }`}
+            /* 折叠态用负 margin 居中而不是 -translate-x-1/2：
+               入场动画的 transform 会覆盖 Tailwind 的 translate，菜单会先跳一下再归位 */
+            style={collapsed ? { marginLeft: -116 } : undefined}
+            className={`absolute bottom-[calc(100%-2px)] z-50 w-[232px] overflow-hidden rounded-[14px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] p-1.5 shadow-[var(--wb-shadow-lg)] ${
+              menuPresence.leaving ? 'wb-overlay-out' : 'wb-anim-pop'
+            } ${collapsed ? 'left-1/2' : 'left-2.5'}`}
           >
             <div className="flex items-center gap-2.5 px-2 py-2">
               <Avatar name={name} hue={user?.avatar_hue} size={34} />
@@ -418,7 +405,7 @@ function Sidebar({
             <button
               type="button"
               role="menuitem"
-              className="flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-[7px] text-left text-[12.5px] text-[color:var(--wb-danger)] transition-colors hover:bg-[color:var(--wb-danger-soft)]"
+              className="wb-press-soft flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-[7px] text-left text-[12.5px] text-[color:var(--wb-danger)] transition-colors hover:bg-[color:var(--wb-danger-soft)]"
               onClick={() => {
                 setMenu(false)
                 logout()
@@ -436,7 +423,7 @@ function Sidebar({
 
 function Splash({ label = '正在打开工作台' }: { label?: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 bg-[color:var(--wb-bg)]">
+    <div className="wb-anim-fade flex h-full flex-col items-center justify-center gap-4 bg-[color:var(--wb-bg)]">
       <div className="relative">
         <span className="absolute -inset-3 rounded-[18px] bg-[color:var(--wb-accent)]/10 blur-md" aria-hidden />
         <span className="relative block">
@@ -586,11 +573,13 @@ export default function App() {
             </span>
           </div>
         )}
-        {/* key=path：路由切换时整页淡入，页面之间不再「硬切」 */}
+        {/* key=path：路由切换重播进入动画，整页柔和淡入而不是硬切。
+            只用 opacity —— 带 transform 的容器会成为内部 fixed 弹层的 containing block。
+            页面内 ?tab= 之类的视图切换由各页自己的 .wb-view-enter 负责，不重挂载整页。 */}
         <div
           key={path}
           className={
-            full ? 'wb-anim-fade min-h-0 flex-1' : 'wb-anim-fade mx-auto w-full max-w-[1240px] px-6 py-7 md:px-8'
+            full ? 'wb-page-enter min-h-0 flex-1' : 'wb-page-enter mx-auto w-full max-w-[1240px] px-6 py-7 md:px-8'
           }
         >
             <Routes>
@@ -604,6 +593,7 @@ export default function App() {
             <Route path="/experiments" element={<Experiments />} />
             <Route path="/paper" element={<Paper />} />
             <Route path="/plan" element={<Plan />} />
+            <Route path="/stats" element={<Overview />} />
             <Route path="/advisor" element={<Advisor />} />
             <Route path="/points" element={<Points />} />
             {/* 三个工作台各自独立：不再经 Chat 的 tab 转发，URL 就是唯一真源 */}
@@ -619,7 +609,7 @@ export default function App() {
           type="button"
           onClick={() => setNavOpen(true)}
           aria-label="打开导航"
-          className="fixed bottom-4 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text-soft)] shadow-[var(--wb-shadow-md)] lg:hidden"
+          className="wb-press-strong fixed bottom-4 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text-soft)] shadow-[var(--wb-shadow-md)] lg:hidden"
         >
           <Icon name="menu" size={18} />
         </button>
@@ -668,7 +658,7 @@ export default function App() {
                   onClick={() => setHueDraft(h)}
                   aria-label={`头像色相 ${h}`}
                   aria-pressed={hueDraft === h}
-                  className={`h-8 w-8 rounded-full transition-transform ${
+                  className={`wb-press-strong h-8 w-8 rounded-full transition-transform ${
                     hueDraft === h ? 'ring-2 ring-[color:var(--wb-text)] ring-offset-2' : 'hover:scale-105'
                   }`}
                   style={{

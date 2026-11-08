@@ -544,3 +544,171 @@ pre.markdown-block {
     animation: none;
   }
 }
+
+/* ============================================================
+   全站交互反馈：点击有按压、页面 / 视图不硬切、浮层有进出。
+
+   两条硬约束：
+   1) 页面 / 视图容器只能用 opacity。一旦带上 transform / filter / clip-path，
+      容器就会变成内部 position:fixed 元素的 containing block —— Modal、Drawer、
+      PdfModal 会改成相对该容器定位，弹层错位且盖不住全屏。带位移的入场只给
+      不含 fixed 后代的局部元素（PageHeader、弹层面板、toast）。
+   2) 按压用独立的 CSS scale 属性，不用 transform。很多元素靠 transform 做居中
+      （toast 的 -translate-x-1/2、头像菜单），用 transform 做按压会把它们顶歪；
+      独立 scale 与 transform 叠加而不互相覆盖。
+   ============================================================ */
+
+@keyframes wb-page-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* backwards：动画开始前就压住首帧，避免「先闪一下再淡入」；
+   动画结束不留 fill，opacity 回到默认 1，不残留 stacking context。 */
+.wb-page-enter {
+  animation: wb-page-in 0.28s var(--wb-ease) backwards;
+}
+.wb-view-enter {
+  animation: wb-page-in 0.22s var(--wb-ease) backwards;
+}
+
+/* 浮层进出：遮罩只淡，面板 / 抽屉带位移（它们内部没有 fixed 后代） */
+@keyframes wb-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes wb-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes wb-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes wb-dialog-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+}
+@keyframes wb-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes wb-drawer-out {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.wb-overlay-in {
+  animation: wb-overlay-in 0.24s ease-out both;
+}
+.wb-overlay-out {
+  animation: wb-overlay-out 0.18s ease-in both;
+}
+.wb-dialog-in {
+  animation: wb-dialog-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.wb-dialog-out {
+  animation: wb-dialog-out 0.18s ease-in both;
+}
+.wb-drawer-in {
+  animation: wb-drawer-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.wb-drawer-out {
+  animation: wb-drawer-out 0.2s ease-in both;
+}
+
+@keyframes wb-toast-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+.wb-toast-out {
+  animation: wb-toast-out 0.18s ease-in both;
+  pointer-events: none;
+}
+
+/* 显式按压：公共 UI 原语都挂这一类，回弹平滑、按下同时给缩放与亮度变化。
+   transition 用列举而不是简写覆盖，免得把组件自己的 background / border 过渡冲掉。 */
+.wb-press,
+.wb-press-soft,
+.wb-press-strong {
+  transition:
+    scale 0.13s var(--wb-ease),
+    filter 0.13s var(--wb-ease),
+    background-color 0.15s var(--wb-ease),
+    border-color 0.15s var(--wb-ease),
+    color 0.15s var(--wb-ease),
+    box-shadow 0.15s var(--wb-ease),
+    transform 0.15s var(--wb-ease),
+    opacity 0.15s var(--wb-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.wb-press:active:not(:disabled) {
+  scale: 0.97;
+  filter: brightness(0.97);
+}
+.wb-press-soft:active:not(:disabled) {
+  scale: 0.985;
+}
+.wb-press-strong:active:not(:disabled) {
+  scale: 0.9;
+  filter: brightness(0.95);
+}
+
+/* 兜底：各页面手写的原生 <button> / <a> / <select> 也要有反馈。
+   用 :where() 把特异性压到最低，上面 .wb-press* 的数值能正常覆盖；
+   同样只改独立 scale + filter，不碰元素自身 transform 定位。 */
+:where(button, a[href], select, [role='button'], [role='menuitem'], [role='tab'], [role='option'], summary):active:where(
+    :not(:disabled)
+  ):where(:not([aria-disabled='true'])) {
+  scale: 0.97;
+  filter: brightness(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 动效关掉，但保留「按下去」这一即时状态变化作为反馈（不是持续动画） */
+  .wb-press:active:not(:disabled),
+  .wb-press-soft:active:not(:disabled),
+  .wb-press-strong:active:not(:disabled),
+  :where(button, a[href], select, [role='button'], [role='menuitem'], [role='tab'], [role='option'], summary):active:where(
+      :not(:disabled)
+    ) {
+    scale: 1;
+    filter: brightness(0.94);
+  }
+}

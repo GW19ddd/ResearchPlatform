@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Btn, Card, Drawer, Empty, Input, MdBlock, PageHeader, Pill, ScoreBar, Select, TextArea } from '../components/ui'
-import SignatureCard from '../components/SignatureCard'
 import { AiError, AiMeta } from '../components/AiError'
 import {
   BulkBar,
@@ -17,6 +16,7 @@ import { toast } from '../components/toast'
 import { del, get, patch, post } from '../lib/api'
 import { useAiTask, useIdemKey } from '../lib/hooks'
 import { usePersist } from '../lib/state'
+import { useNavigate } from 'react-router-dom'
 
 const IDEA_COLS: ExportCol[] = [
   { key: 'title', label: '标题' },
@@ -115,6 +115,15 @@ export default function Ideas() {
   const [multi, setMulti] = useState(false)
   const [bulkDel, setBulkDel] = useState(false)
 
+  // 文献痛点 → 创新点：把待转化痛点直接喂到想法池
+  const [pps, setPps] = useState<any[]>([])
+  const [ppsBusy, setPpsBusy] = useState(false)
+  const [ppsErr, setPpsErr] = useState<any>(null)
+
+  const nav = useNavigate()
+  // 与实验页共享的「当前查看的实验」key：转实验成功后写它再跳实验页，实验页挂载即选中
+  const [, setExpSel] = usePersist<number | null>('exp.sel', null)
+
   const toggleMulti = () => {
     // 退出多选顺手清空勾选，否则下次进来会带着看不见的旧选择
     if (multi) bulk.clear()
@@ -124,9 +133,22 @@ export default function Ideas() {
   const load = async () => setIdeas(await get('/ideas'))
   const loadCats = async () => setCats((await get('/ideas/categories')).groups || [])
 
+  const reloadPps = async () => {
+    setPpsBusy(true)
+    try {
+      setPps(await get('/painpoints?status=new'))
+      setPpsErr(null)
+    } catch (e: any) {
+      setPpsErr(e)
+    } finally {
+      setPpsBusy(false)
+    }
+  }
+
   useEffect(() => {
     load()
     loadCats()
+    reloadPps()
   }, [])
 
   const add = async () => {
@@ -141,6 +163,33 @@ export default function Ideas() {
     } finally {
       setSaving(false)
     }
+  }
+
+  // 文献痛点 → 创新点：服务端已落库（notes 带文献出处溯源），这里只刷新两边列表
+  const ppToIdea = async (pid: number) => {
+    const r: any = await post(`/painpoints/${pid}/to-idea`, {}, { ok: '已转为创新点' })
+    if (!r || r.ok === false) return
+    setPps((list) => list.filter((p) => p.id !== pid))
+    load()
+    loadCats()
+  }
+
+  const dropPp = async (pid: number) => {
+    await del(`/painpoints/${pid}`)
+    setPps((list) => list.filter((p) => p.id !== pid))
+  }
+
+  // 创新点 → 实验假设：服务端用 LLM 起草假设+设计并落库，成功后跳实验页选中新实验
+  const toExperiment = async (id: number) => {
+    const r: any = await post(`/ideas/${id}/to-experiment`, {}, { ok: false, silent: true })
+    if (!r || r.ok === false) {
+      const e = r?.error
+      toast(e ? `${e.label || '生成失败'}：${e.message || ''}`.trim() : '实验生成失败', 'error')
+      return
+    }
+    setExpSel(r.id)
+    toast('已据创新点生成实验，跳转到实验页', 'ok')
+    nav('/experiments')
   }
 
   const setStatus = async (id: number, status: string) => {
@@ -442,6 +491,7 @@ export default function Ideas() {
           </Btn>
         ))}
         <Btn onClick={() => openDetail(i)}>编辑</Btn>
+        <Btn onClick={() => toExperiment(i.id)}>转为实验</Btn>
         <Btn
           variant="danger"
           onClick={async () => {
@@ -464,22 +514,46 @@ export default function Ideas() {
         desc="捕获 → 质疑 → 选定：想法先过三关，再进实验"
       />
 
-      {/* 首屏招牌：三关筛选进度，明确告诉用户现在卡在哪一步 */}
-      <SignatureCard
-        eyebrow="创新点 · 三关筛选"
-        title="风暴、质疑、入库：想法要过三关"
-        desc="AI 结构化头脑风暴出候选（defect / mve / risk），三角色质疑逐轮打磨，验证选定后才进实验；质疑历史可回看。"
-        icon="sparkle"
-        steps={[
-          { label: '已捕获', value: ideas.filter((i) => i.status === 'captured').length, active: true },
-          { label: '筛选中', value: ideas.filter((i) => i.status === 'screening').length },
-          { label: '已验证 / 选定', value: ideas.filter((i) => ['validated', 'selected'].includes(i.status)).length },
-        ]}
-        metrics={[
-          { label: '合计', value: ideas.length },
-          { label: '已放弃', value: ideas.filter((i) => i.status === 'dropped').length },
-        ]}
-      />
+      {/* 文献 → 痛点 → 创新点：把待转化痛点直接喂到想法池 */}
+      <Card title={`来自文献的痛点（待转化 ${pps.length}）`}>
+        {ppsBusy ? (
+          <div className="text-[12px] text-[color:var(--wb-muted)]">加载中…</div>
+        ) : ppsErr ? (
+          <AiError error={ppsErr} title="痛点加载失败" onRetry={reloadPps} retrying={ppsBusy} />
+        ) : pps.length === 0 ? (
+          <Empty text="没有待转化的文献痛点。去文献页给某篇点「提炼痛点」，就会在这里出现" />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {pps.map((p: any) => (
+              <div
+                key={p.id}
+                className="rounded-lg border border-[color:var(--wb-border)] p-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-medium text-[color:var(--wb-text)]">{p.content}</div>
+                  {p.evidence && (
+                    <div className="mt-0.5 text-[12px] text-[color:var(--wb-text-soft)]">证据：{p.evidence}</div>
+                  )}
+                  {p.direction && (
+                    <div className="mt-0.5 text-[11.5px] text-[color:var(--wb-muted)]">方向：{p.direction}</div>
+                  )}
+                  <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">
+                    出处：{p.lit_title || `#${p.literature_id}`}
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-1">
+                  <Btn variant="primary" onClick={() => ppToIdea(p.id)}>
+                    转为创新点
+                  </Btn>
+                  <Btn variant="ghost" onClick={() => dropPp(p.id)}>
+                    丢弃
+                  </Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card title="捕获新想法" className="md:col-span-1" tourId="tour-idea-form">
@@ -781,6 +855,7 @@ export default function Ideas() {
                 <Btn variant="ghost" onClick={() => setDetail(null)}>
                   关闭
                 </Btn>
+                <Btn onClick={() => toExperiment(detail.id)}>转为实验</Btn>
                 <Btn variant="primary" onClick={saveDetail} loading={dbusy === 'save'}>
                   保存
                 </Btn>

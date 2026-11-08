@@ -5,14 +5,17 @@
  * 对外只暴露「传入哪条文献 / 关闭 / 写操作后通知外层刷新 / 打开居中 PDF」几个口子。
  * PDF 阅读本身不在这里 —— 那是一个居中的大浮层（PdfModal），侧栏只留给文字类内容。
  */
-import { useEffect, useState } from 'react'
-import { Btn, Empty, IconBtn, Input, MdBlock, Pill, Select, TextArea } from '../../components/ui'
+import { useEffect, useRef, useState } from 'react'
+import { Btn, Empty, IconBtn, Input, MdBlock, Pill, Select, TextArea, usePresence } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { AiError } from '../../components/AiError'
+import { toast } from '../../components/toast'
 import { del, get, patch, post, put } from '../../lib/api'
 import { usePersist } from '../../lib/state'
 import { STATUS } from './literature-shared'
 
 export default function LiteratureDrawer({
-  item,
+  item: _item,
   nonce = 0,
   onClose,
   onMutated,
@@ -28,6 +31,13 @@ export default function LiteratureDrawer({
   /** 打开居中的 PDF 浮层；由页面统一控制，抽屉自己先让位 */
   onOpenPdf?: () => void
 }) {
+  /** 关闭时保留最后一次 item：先播退出动画再卸载，期间内容不会突然变空。
+   *  prop 改名 _item 后重新声明 item，组件内所有 item.xxx 引用都不用改。 */
+  const lastItem = useRef<any>(null)
+  if (_item) lastItem.current = _item
+  const presence = usePresence(!!_item, 200)
+  const item = _item || lastItem.current
+
   const [notes, setNotes] = useState<any[]>([])
   const [tab, setTab] = usePersist('lit.detail.tab', 'notes')
   const [editing, setEditing] = useState<{ id: number; text: string } | null>(null)
@@ -40,11 +50,21 @@ export default function LiteratureDrawer({
   const [gpdfdir, setGpdfdir] = useState('')
   const [absEdit, setAbsEdit] = useState<string | null>(null)
   const [dbusy, setDbusy] = useState('')
+  // 痛点（阶段③：文献 → 痛点表 → 备选创新点）
+  const [pps, setPps] = useState<any[]>([])
+  const [ppFocus, setPpFocus] = useState('')
+  const [ppBusy, setPpBusy] = useState(false)
+  const [ppErr, setPpErr] = useState<any>(null)
 
   const id = item?.id
   const status = item?.status || 'todo'
 
   const reloadNotes = async (lid: number) => setNotes(await get(`/literature/${lid}/notes`))
+
+  const reloadPps = async (lid: number) => {
+    const all = await get('/painpoints')
+    setPps((all as any[]).filter((p) => p.literature_id === lid))
+  }
 
   // 换一篇文献就重新拉一遍：笔记 / PDF 路径 / Gloss 候选
   useEffect(() => {
@@ -54,8 +74,10 @@ export default function LiteratureDrawer({
     setEditing(null)
     setAbsEdit(null)
     setDbusy('')
+    setPpErr(null)
     ;(async () => {
       await reloadNotes(item.id)
+      reloadPps(item.id).catch(() => setPps([]))
       try {
         const st = await get('/gloss/status')
         setGstatus(st)
@@ -70,7 +92,7 @@ export default function LiteratureDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, nonce])
 
-  if (!item) return null
+  if (!presence.mounted || !item) return null
 
   const saveGlossCfg = async () => {
     setDbusy('gloss-cfg')
@@ -117,6 +139,39 @@ export default function LiteratureDrawer({
     await reloadNotes(item.id)
   }
 
+  const extractPps = async () => {
+    setPpBusy(true)
+    setPpErr(null)
+    try {
+      const r: any = await post(
+        `/literature/${item.id}/painpoints`,
+        { focus: ppFocus.trim() || null },
+        { ok: false },
+      )
+      if (r && r.ok === false) {
+        setPpErr(r.error || { kind: 'unknown', label: '提炼没有跑通', message: '请重试' })
+      } else {
+        toast(r.items?.length ? `提炼出 ${r.items.length} 条痛点` : '这篇没有提炼出有支撑的痛点', r.items?.length ? 'ok' : 'info')
+      }
+      await reloadPps(item.id)
+    } catch (e: any) {
+      setPpErr(e?.body?.error || { kind: 'network', label: '请求失败', message: String(e) })
+    } finally {
+      setPpBusy(false)
+    }
+  }
+
+  const ppToIdea = async (pid: number) => {
+    await post(`/painpoints/${pid}/to-idea`, {})
+    toast('已转为创新点（创新点页可见）', 'ok')
+    await reloadPps(item.id)
+  }
+
+  const dropPp = async (pid: number) => {
+    await del(`/painpoints/${pid}`)
+    await reloadPps(item.id)
+  }
+
   const savePdfPath = async () => {
     await patch(`/literature/${item.id}`, { pdf_path: pdfPath })
     onMutated?.()
@@ -152,13 +207,19 @@ export default function LiteratureDrawer({
 
   const TABS = [
     { k: 'notes', label: `笔记（${notes.length}）` },
+    { k: 'painpoints', label: `痛点（${pps.length}）` },
     { k: 'gloss', label: 'Gloss 旁注' },
   ]
 
   return (
     <>
-      <div className="fixed inset-0 z-30 bg-[rgba(16,24,40,0.28)]" onClick={onClose} />
-      <div className="wb-anim-slide fixed right-0 top-0 z-40 flex h-full w-full max-w-[38rem] flex-col border-l border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)]">
+      <div
+        className={`fixed inset-0 z-30 bg-[rgba(16,24,40,0.28)] ${presence.leaving ? 'wb-overlay-out pointer-events-none' : 'wb-overlay-in'}`}
+        onClick={onClose}
+      />
+      <div
+        className={`fixed right-0 top-0 z-40 flex h-full w-full max-w-[38rem] flex-col border-l border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)] ${presence.leaving ? 'wb-drawer-out pointer-events-none' : 'wb-drawer-in'}`}
+      >
         {/* 第一行：标题 · 作者/年份 · 打开 PDF · 状态 · 关闭 */}
         <div className="flex shrink-0 items-center gap-2 border-b border-[color:var(--wb-border)] px-4 py-2.5">
           <span
@@ -325,6 +386,65 @@ export default function LiteratureDrawer({
                     </div>
                   )}
                 </details>
+              )}
+            </div>
+          ) : tab === 'painpoints' ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Btn variant="primary" onClick={extractPps} loading={ppBusy} disabled={!item.id}>
+                    {ppBusy ? '提炼中…' : pps.length ? '重新提炼痛点' : 'AI 提炼痛点'}
+                  </Btn>
+                  <Input
+                    placeholder="侧重（可选），例：关注训练效率的局限"
+                    value={ppFocus}
+                    onChange={setPpFocus}
+                  />
+                </div>
+                <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+                  从这篇文献提炼「研究机会」视角的痛点，逐条带原文证据；转成创新点后会带文献出处。
+                </span>
+              </div>
+
+              {ppErr && (
+                <AiError error={ppErr} onRetry={extractPps} retrying={ppBusy} title="痛点提炼没有跑通" />
+              )}
+
+              {pps.length === 0 && !ppBusy ? (
+                <Empty text="这篇还没有痛点记录" hint="提炼出来的痛点是「文献 → 备选创新点」流水线的原料，可在创新点页一键转正。" />
+              ) : (
+                pps.map((p) => (
+                  <div key={p.id} className="rounded-[10px] border border-[color:var(--wb-border)] p-3">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color:var(--wb-warn-soft)] text-[color:var(--wb-warn)]">
+                        <Icon name="alert" size={11} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[12.5px] leading-relaxed text-[color:var(--wb-text)]">{p.content}</div>
+                        {p.evidence && (
+                          <div className="mt-1.5 border-l-2 border-[color:var(--wb-border)] pl-2 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
+                            证据：{p.evidence}
+                          </div>
+                        )}
+                        {p.direction && (
+                          <div className="mt-1 text-[11.5px] leading-relaxed text-[color:var(--wb-accent)]">
+                            方向：{p.direction}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {p.status === 'converted' ? (
+                          <Pill tone="green">已转创新点</Pill>
+                        ) : (
+                          <Btn size="xs" variant="primary" onClick={() => ppToIdea(p.id)}>
+                            转创新点
+                          </Btn>
+                        )}
+                        <IconBtn icon="trash" size="sm" tone="danger" title="删除该痛点" onClick={() => dropPp(p.id)} />
+                      </div>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           ) : (

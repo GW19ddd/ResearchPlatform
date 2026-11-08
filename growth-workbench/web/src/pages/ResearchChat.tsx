@@ -64,8 +64,9 @@ const CHIPS: ChipConf[] = [
   { icon: 'book', label: '文献检索', text: '', tag: '文献检索' },
 ]
 
-/** 右侧附属栏：报告文档 / 文献检索二选一，始终只开一栏，保持「对话 + 一栏」的双栏 */
-type Pane = { kind: 'report'; msg: ChatMsg } | { kind: 'literature' }
+/** 右侧附属栏：报告文档 / 文献检索二选一，始终只开一栏，保持「对话 + 一栏」的双栏。
+ *  docId 只在从左栏「文档」点开时带上，用于给该文档项加选中态；聊天卡入口不带。 */
+type Pane = { kind: 'report'; msg: ChatMsg; docId?: number } | { kind: 'literature' }
 
 export default function ResearchChat() {
   const nav = useNavigate()
@@ -127,6 +128,7 @@ export default function ResearchChat() {
     setPane({
       kind: 'report',
       msg: { role: 'assistant', content: d.content, kind: 'report', citations: cached },
+      docId: d.id,
     })
     if (cached.length) return
     try {
@@ -139,7 +141,7 @@ export default function ResearchChat() {
       docCitsRef.current[d.id] = cits
       setPane((prev) =>
         prev?.kind === 'report' && prev.msg.content === d.content
-          ? { kind: 'report', msg: { ...prev.msg, citations: cits } }
+          ? { ...prev, msg: { ...prev.msg, citations: cits } }
           : prev,
       )
     } catch {
@@ -417,22 +419,43 @@ export default function ResearchChat() {
               文档
             </span>
           </div>
-          {docs.map((d) => (
-            <div
-              key={d.id}
-              className="group flex items-center gap-1 rounded-[10px] px-2 py-[7px] transition hover:bg-[color:var(--wb-surface)]/60"
-            >
-              <button
-                onClick={() => openDoc(d)}
-                className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                title="打开报告"
+          {docs.map((d) => {
+            // 当前双栏打开的正是这篇 → 整行加深（与左栏「文献检索」激活态同款）
+            const active = pane?.kind === 'report' && pane.docId === d.id
+            return (
+              <div
+                key={d.id}
+                className={`group flex items-center gap-1 rounded-[10px] px-2 py-[7px] transition ${
+                  active
+                    ? 'bg-[color:var(--wb-accent-soft)] shadow-[var(--wb-shadow-sm)]'
+                    : 'hover:bg-[color:var(--wb-surface)]/60'
+                }`}
               >
-                <Icon name="file" size={12} className="shrink-0 text-[color:var(--wb-muted)]" />
-                <span className="truncate text-[12px] text-[color:var(--wb-text-soft)]">{d.title}</span>
-              </button>
-              <span className="shrink-0 text-[10px] text-[color:var(--wb-muted)]">{relTime(d.created_at)}</span>
-            </div>
-          ))}
+                <button
+                  onClick={() => openDoc(d)}
+                  aria-current={active ? 'true' : undefined}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  title="打开报告"
+                >
+                  <Icon
+                    name="file"
+                    size={12}
+                    className={`shrink-0 ${active ? 'text-[color:var(--wb-accent)]' : 'text-[color:var(--wb-muted)]'}`}
+                  />
+                  <span
+                    className={`truncate text-[12px] ${
+                      active
+                        ? 'font-medium text-[color:var(--wb-accent-strong)]'
+                        : 'text-[color:var(--wb-text-soft)]'
+                    }`}
+                  >
+                    {d.title}
+                  </span>
+                </button>
+                <span className="shrink-0 text-[10px] text-[color:var(--wb-muted)]">{relTime(d.created_at)}</span>
+              </div>
+            )
+          })}
           {!docs.length && (
             <p className="px-2 py-2 text-[11px] leading-relaxed text-[color:var(--wb-muted)]">
               点「撰写报告」生成的报告会沉淀在这里，随时回看。

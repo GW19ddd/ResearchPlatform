@@ -27,7 +27,7 @@ export default function WorkspaceTabs() {
             type="button"
             onClick={() => nav(t.to)}
             title={t.hint}
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-[10px] px-3 py-[7px] text-[12px] font-medium transition ${
+            className={`wb-press flex items-center gap-1.5 whitespace-nowrap rounded-[10px] px-3 py-[7px] text-[12px] font-medium transition ${
               active
                 ? 'bg-[color:var(--wb-text)] text-white'
                 : 'border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-accent)]/50 hover:text-[color:var(--wb-accent)]'
