@@ -225,7 +225,7 @@ export default function Experiments() {
                 <div
                   key={e.id}
                   onClick={() => (multi ? bulk.toggle(e.id) : setSel(e.id))}
-                  className={`cursor-pointer rounded-lg border p-3 transition ${
+                  className={`cursor-pointer rounded-[var(--wb-radius)] border p-3 transition ${
                     multi && bulk.has(e.id)
                       ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)]'
                       : sel === e.id
@@ -339,7 +339,7 @@ export default function Experiments() {
                         <button
                           aria-label="删除该结果"
                           title="删除该结果"
-                          className="flex h-6 w-6 items-center justify-center rounded-[7px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-danger-soft)] hover:text-[color:var(--wb-danger)]"
+                          className="flex h-6 w-6 items-center justify-center rounded-[var(--wb-radius)] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-danger-soft)] hover:text-[color:var(--wb-danger)]"
                           onClick={async () => {
                             await del(`/results/${r.id}`)
                             if (sel !== null) loadResults(sel)

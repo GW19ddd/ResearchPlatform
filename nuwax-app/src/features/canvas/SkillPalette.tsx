@@ -47,7 +47,7 @@ export default function SkillPalette({
             <button
               key={t.v}
               onClick={() => setSrcTab(t.v)}
-              className={`flex-1 rounded-[7px] px-1 py-0.5 text-[11.5px] transition ${
+              className={`flex-1 rounded-[var(--wb-radius)] px-1 py-0.5 text-[11.5px] transition ${
                 srcTab === t.v
                   ? 'bg-[color:var(--wb-accent)] font-medium text-white'
                   : 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-border)]'
@@ -80,7 +80,7 @@ export default function SkillPalette({
                   e.dataTransfer.effectAllowed = 'move'
                 }}
                 title={s.desc}
-                className="group mb-1 cursor-grab rounded-[9px] border border-[color:var(--wb-border)] px-2 py-1.5 text-[11.5px] leading-snug text-[color:var(--wb-text)] transition hover:border-[color:var(--wb-border-strong)] hover:bg-[color:var(--wb-surface-alt)] active:cursor-grabbing"
+                className="group mb-1 cursor-grab rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] px-2 py-1.5 text-[11.5px] leading-snug text-[color:var(--wb-text)] transition hover:border-[color:var(--wb-border-strong)] hover:bg-[color:var(--wb-surface-alt)] active:cursor-grabbing"
               >
                 <div className="flex items-center gap-1">
                   <span className="truncate font-medium">{s.name}</span>
@@ -119,7 +119,7 @@ export default function SkillPalette({
             <Btn
               key={b.t}
               size="sm"
-              className={b.t === 'prompt' ? '!border-violet-300 !bg-violet-50 !text-violet-700' : ''}
+              className={b.t === 'prompt' ? '!border-[color:var(--wb-accent)]/40 !bg-[color:var(--wb-accent-soft)] !text-[color:var(--wb-accent)]' : ''}
               onClick={() => onAddNode(b.t, '', 120 + Math.random() * 120, 120 + Math.random() * 120)}
             >
               + {b.l}

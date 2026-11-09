@@ -30,7 +30,7 @@ export default function TemplateManager({
   const mine = templates.filter((t) => t.builtin === false)
 
   const Row = ({ t }: { t: TemplateInfo }) => (
-    <div className="flex items-center gap-2 rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3 py-2">
+    <div className="flex items-center gap-2 rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3 py-2">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[12.5px] font-medium text-[color:var(--wb-text)]">
@@ -65,7 +65,7 @@ export default function TemplateManager({
             我存的模板
           </div>
           {mine.length === 0 ? (
-            <p className="rounded-[10px] border border-dashed border-[color:var(--wb-border-strong)] px-3 py-2 text-[11.5px] text-[color:var(--wb-muted)]">
+            <p className="rounded-[var(--wb-radius)] border border-dashed border-[color:var(--wb-border-strong)] px-3 py-2 text-[11.5px] text-[color:var(--wb-muted)]">
               还没有。在画布上把流水线连好，点工具栏「存为模板」就能冻结成一份，以后一句话复用。
             </p>
           ) : (

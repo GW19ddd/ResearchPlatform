@@ -65,7 +65,7 @@ export function AiError({
 }) {
   const detail = (error.detail || '').trim()
   return (
-    <div className="rounded-[12px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-3.5 py-3">
+    <div className="rounded-[var(--wb-radius)] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-3.5 py-3">
       <div className="flex items-start gap-2">
         <Icon name="alert" size={15} className="mt-[1px] text-[color:var(--wb-danger)]" />
         <div className="min-w-0 flex-1">

@@ -111,11 +111,11 @@ export default function Points() {
           <div style={{ height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#E3DED2" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#6B675E' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#6B675E' }} />
                 <Tooltip />
-                <Line type="monotone" dataKey="累计" stroke="#185FA5" strokeWidth={2} />
+                <Line type="monotone" dataKey="累计" stroke="#2F5D50" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -140,7 +140,7 @@ export default function Points() {
               <Empty text="暂无押注" />
             ) : (
               bets.map((b) => (
-                <div key={b.id} className="flex items-center justify-between gap-2 rounded-lg border border-[color:var(--wb-border)] px-3 py-2">
+                <div key={b.id} className="flex items-center justify-between gap-2 rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[12px] text-[color:var(--wb-text)]">{b.title}</div>
                     <div className="text-[11.5px] text-[color:var(--wb-muted)]">
@@ -174,7 +174,7 @@ export default function Points() {
           </div>
           <div className="mt-3 flex flex-col gap-1">
             {rewards.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-lg border border-[color:var(--wb-border)] px-3 py-2">
+              <div key={r.id} className="flex items-center justify-between rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] px-3 py-2">
                 <div>
                   <div className="text-[12px] text-[color:var(--wb-text)]">{r.name}</div>
                   <div className="text-[11.5px] text-[color:var(--wb-muted)]">
@@ -227,7 +227,7 @@ export default function Points() {
                 <span className="text-[color:var(--wb-text-soft)]">{l.reason}</span>
                 <span className="flex items-center gap-2">
                   <span className="text-[11.5px] text-[color:var(--wb-muted)]">{String(l.created_at).slice(0, 16)}</span>
-                  <span className={l.delta >= 0 ? 'text-emerald-600' : 'text-[color:var(--wb-danger)]'}>
+                  <span className={l.delta >= 0 ? 'text-[color:var(--wb-ok)]' : 'text-[color:var(--wb-danger)]'}>
                     {l.delta >= 0 ? '+' : ''}
                     {l.delta}
                   </span>

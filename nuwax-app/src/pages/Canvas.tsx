@@ -91,13 +91,13 @@ function Flow({
         proOptions={{ hideAttribution: true }}
         className="bg-[color:var(--wb-bg-subtle)]"
       >
-        <Background gap={16} size={1} color="#dce1ea" />
+        <Background gap={16} size={1} color="#E3DED2" />
         <Controls className="!bottom-3 !left-3" />
         <MiniMap
           pannable
           zoomable
-          className="!bottom-3 !right-3 !h-20 !w-32 !rounded-[10px] !border !border-[color:var(--wb-border)]"
-          maskColor="rgba(16,24,40,0.08)"
+          className="!bottom-3 !right-3 !h-20 !w-32 !rounded-[var(--wb-radius)] !border !border-[color:var(--wb-border)]"
+          maskColor="rgba(26, 26, 26,0.08)"
         />
       </ReactFlow>
     </div>
@@ -579,7 +579,7 @@ export default function Canvas() {
   if (err)
     return (
       <div className="p-6">
-        <div className="rounded-[12px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] p-4">
+        <div className="rounded-[var(--wb-radius)] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] p-4">
           <div className="flex items-start gap-2">
             <Icon name="alert" size={15} className="mt-[1px] text-[color:var(--wb-danger)]" />
             <div className="min-w-0">
@@ -744,7 +744,7 @@ export default function Canvas() {
         )}
         {!runErr && Object.keys(runErrors).length > 0 && (
           <div className="shrink-0 border-b border-[color:var(--wb-border)] px-3 py-2">
-            <div className="rounded-[10px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-3 py-2">
+            <div className="rounded-[var(--wb-radius)] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-3 py-2">
               <div className="text-[12px] font-medium text-[color:var(--wb-danger)]">
                 有 {Object.keys(runErrors).length} 个节点运行失败
               </div>
@@ -835,7 +835,7 @@ export default function Canvas() {
             title="这个节点运行失败"
           />
         ) : (
-          <div className="max-h-[60vh] overflow-y-auto rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
+          <div className="max-h-[60vh] overflow-y-auto rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
             <MdBlock text={sel ? outputs[sel] || '' : ''} />
           </div>
         )}
@@ -855,7 +855,7 @@ export default function Canvas() {
       {/* GitHub 原版 SKILL.md 查看器 */}
       {viewer && (
         <div
-          className="fixed inset-0 z-40 flex justify-end bg-[rgba(16,24,40,0.32)]"
+          className="fixed inset-0 z-40 flex justify-end bg-[rgba(26, 26, 26,0.32)]"
           onClick={() => setViewer(null)}
         >
           <div
@@ -866,7 +866,7 @@ export default function Canvas() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-[13px] font-medium text-[color:var(--wb-text)]">
                   <span className="truncate">{viewer.name}</span>
-                  <span className="shrink-0 rounded-full bg-[color:var(--wb-ok-soft)] px-2 py-[1px] text-[11.5px] text-[color:var(--wb-ok)]">
+                  <span className="shrink-0 rounded-[var(--wb-radius-sm)] bg-[color:var(--wb-ok-soft)] px-2 py-[1px] text-[11.5px] text-[color:var(--wb-ok)]">
                     GitHub 原版 · 未改写
                   </span>
                 </div>
@@ -881,7 +881,7 @@ export default function Canvas() {
             <div className="flex min-h-0 flex-1">
               <div className="w-52 shrink-0 overflow-y-auto border-r border-[color:var(--wb-border)] p-2">
                 <div
-                  className={`mb-1 cursor-pointer rounded-[7px] px-2 py-1 text-[11.5px] ${
+                  className={`mb-1 cursor-pointer rounded-[var(--wb-radius)] px-2 py-1 text-[11.5px] ${
                     !viewer.file
                       ? 'bg-[color:var(--wb-accent)] text-white'
                       : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
@@ -893,7 +893,7 @@ export default function Canvas() {
                 {viewer.files.map((f: any) => (
                   <div
                     key={f.path}
-                    className={`mb-0.5 cursor-pointer truncate rounded-[7px] px-2 py-1 text-[11.5px] ${
+                    className={`mb-0.5 cursor-pointer truncate rounded-[var(--wb-radius)] px-2 py-1 text-[11.5px] ${
                       viewer.file === f.path
                         ? 'bg-[color:var(--wb-accent)] text-white'
                         : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'

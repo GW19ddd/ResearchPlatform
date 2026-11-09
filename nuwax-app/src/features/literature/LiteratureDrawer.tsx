@@ -151,7 +151,7 @@ export default function LiteratureDrawer({
 
   return (
     <>
-      <div className="fixed inset-0 z-30 bg-[rgba(16,24,40,0.28)]" onClick={onClose} />
+      <div className="fixed inset-0 z-30 bg-[rgba(26, 26, 26,0.28)]" onClick={onClose} />
       <div className="wb-anim-slide fixed right-0 top-0 z-40 flex h-full w-full max-w-[38rem] flex-col border-l border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)]">
         {/* 第一行：标题 · 作者/年份 · 打开 PDF · 状态 · 关闭 */}
         <div className="flex shrink-0 items-center gap-2 border-b border-[color:var(--wb-border)] px-4 py-2.5">
@@ -195,7 +195,7 @@ export default function LiteratureDrawer({
             <button
               key={t.k}
               onClick={() => setTab(t.k)}
-              className={`flex-1 rounded-[8px] px-2 py-1.5 text-[12px] transition ${
+              className={`flex-1 rounded-[var(--wb-radius)] px-2 py-1.5 text-[12px] transition ${
                 tab === t.k
                   ? 'bg-[color:var(--wb-accent)] font-medium text-white'
                   : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
@@ -225,7 +225,7 @@ export default function LiteratureDrawer({
                 notes.map((n: any) => (
                   <div
                     key={n.id}
-                    className="rounded-[10px] border border-[color:var(--wb-border)] p-3"
+                    className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] p-3"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -296,7 +296,7 @@ export default function LiteratureDrawer({
               </div>
 
               {(item.notes || absEdit !== null) && (
-                <details className="rounded-[10px] border border-[color:var(--wb-border)] px-3 py-2">
+                <details className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] px-3 py-2">
                   <summary className="cursor-pointer text-[12px] text-[color:var(--wb-text-soft)]">
                     摘要 · 备注
                     <span className="ml-1 text-[11.5px] text-[color:var(--wb-muted)]">
@@ -326,7 +326,7 @@ export default function LiteratureDrawer({
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              <div className="rounded-[10px] border border-[color:var(--wb-border)] p-3">
+              <div className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[12.5px] font-medium text-[color:var(--wb-text)]">
                     Gloss（旁注）
@@ -404,7 +404,7 @@ export default function LiteratureDrawer({
                       <button
                         key={c.path}
                         onClick={() => setPdfPath(c.path)}
-                        className={`truncate rounded-[8px] px-2 py-1 text-left text-[11.5px] ${
+                        className={`truncate rounded-[var(--wb-radius)] px-2 py-1 text-left text-[11.5px] ${
                           pdfPath === c.path
                             ? 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
                             : 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-border)]'
@@ -421,7 +421,7 @@ export default function LiteratureDrawer({
                 </Btn>
                 {gres && (
                   <div
-                    className={`rounded-[10px] px-3 py-2 text-[12px] ${
+                    className={`rounded-[var(--wb-radius)] px-3 py-2 text-[12px] ${
                       gres.ok
                         ? 'bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]'
                         : 'bg-[color:var(--wb-danger-soft)] text-[color:var(--wb-danger)]'

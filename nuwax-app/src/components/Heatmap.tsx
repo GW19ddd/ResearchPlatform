@@ -7,7 +7,8 @@ export type HeatDay = {
   labels?: string[]
 }
 
-const LEVELS = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
+/* 单色墨绿阶：印刷品里的分级统计图用同一色相的深浅，不用 GitHub 那种跳色绿 */
+const LEVELS = ['#F2EFE8', '#D9E3DC', '#AFCCBC', '#6E9B84', '#2F5D50']
 
 function level(c: number, max: number) {
   if (!c) return 0
@@ -118,7 +119,7 @@ export default function Heatmap({
             tabIndex={0}
             aria-label="活跃热力图：方向键切换日期，Esc 取消选中"
             onKeyDown={onKey}
-            className="rounded-[4px] outline-none focus-visible:shadow-[var(--wb-ring)]"
+            className="rounded-[var(--wb-radius-sm)] outline-none focus-visible:shadow-[var(--wb-ring)]"
           >
             <g transform="translate(24, 16)">
               {months.map((m) => (
@@ -178,7 +179,7 @@ export default function Heatmap({
             <span
               key={i}
               style={{ background: c }}
-              className="inline-block h-2.5 w-2.5 rounded-sm"
+              className="inline-block h-2.5 w-2.5 rounded-[var(--wb-radius-sm)]"
             />
           ))}
           多
@@ -187,7 +188,7 @@ export default function Heatmap({
 
       {/* 明细区：高度固定，换日期 / 有没有 labels 都不会把下面的内容顶上顶下 */}
       <div
-        className="rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2"
+        className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2"
         style={{ height: 84 }}
       >
         {selected ? (
@@ -213,7 +214,7 @@ export default function Heatmap({
               <button
                 type="button"
                 onClick={() => setSelDate(null)}
-                className="ml-auto shrink-0 rounded-[6px] px-1.5 py-[1px] text-[11.5px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+                className="ml-auto shrink-0 rounded-[var(--wb-radius)] px-1.5 py-[1px] text-[11.5px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
               >
                 关闭
               </button>

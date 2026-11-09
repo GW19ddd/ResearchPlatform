@@ -17,10 +17,11 @@ import { usePersist } from '../lib/state'
 
 // recharts 把颜色写成 SVG 属性，var() 在属性里不生效，这里用令牌的十六进制值。
 // 改令牌时记得同步：C_SLEEP = --wb-ok，AXIS = --wb-muted，GRID = --wb-border。
-const C_FOCUS = '#4f46e5'
-const C_SLEEP = '#067a45'
-const AXIS = '#667085'
-const GRID = '#e3e6ea'
+/* recharts 不认 CSS 变量，图表色只能写字面量；数值与 --wb-* 令牌保持一致 */
+const C_FOCUS = '#2F5D50'
+const C_SLEEP = '#35566B'
+const AXIS = '#6B675E'
+const GRID = '#E3DED2'
 
 const HEAT_RANGES = [
   { value: '91', label: '3 个月' },
@@ -221,7 +222,7 @@ export default function Dashboard() {
       </Card>
 
       {data.paper.blocked?.length > 0 && (
-        <div className="rounded-[12px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-4 py-3">
+        <div className="rounded-[var(--wb-radius)] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-4 py-3">
           <div className="text-[13px] font-medium text-[color:var(--wb-danger)]">
             论文卡住了：{data.paper.blocked.map((b: any) => b.name).join('、')}
           </div>
@@ -275,8 +276,8 @@ export default function Dashboard() {
                     contentStyle={{
                       fontSize: 12,
                       borderRadius: 10,
-                      border: '1px solid #e3e6ea',
-                      boxShadow: '0 4px 12px rgba(16,24,40,0.08)',
+                      border: '1px solid #E3DED2',
+                      boxShadow: '0 4px 12px rgba(26, 26, 26,0.08)',
                     }}
                     formatter={(v: any, n: any, item: any) => {
                       if (n === '睡眠') {
@@ -376,7 +377,7 @@ export default function Dashboard() {
               {data.commitments.items.map((n: any) => (
                 <li
                   key={n.id}
-                  className="flex items-start justify-between gap-2 rounded-[10px] bg-[color:var(--wb-danger-soft)] px-3 py-2"
+                  className="flex items-start justify-between gap-2 rounded-[var(--wb-radius)] bg-[color:var(--wb-danger-soft)] px-3 py-2"
                 >
                   <span className="text-[12px] text-[color:var(--wb-danger)]">
                     {n.my_commitment || '（空）'}

@@ -92,12 +92,12 @@ export default function SuspectsCard() {
       </p>
 
       {err && (
-        <div className="mt-2 rounded-[9px] bg-[color:var(--wb-danger-soft)] px-3 py-2 text-[11.5px] text-[color:var(--wb-danger)]">
+        <div className="mt-2 rounded-[var(--wb-radius)] bg-[color:var(--wb-danger-soft)] px-3 py-2 text-[11.5px] text-[color:var(--wb-danger)]">
           {err}
         </div>
       )}
       {done && (
-        <div className="mt-2 rounded-[9px] bg-[color:var(--wb-ok-soft)] px-3 py-2 text-[11.5px] text-[color:var(--wb-ok)]">
+        <div className="mt-2 rounded-[var(--wb-radius)] bg-[color:var(--wb-ok-soft)] px-3 py-2 text-[11.5px] text-[color:var(--wb-ok)]">
           {done}
         </div>
       )}
@@ -116,7 +116,7 @@ export default function SuspectsCard() {
                 return (
                   <label
                     key={k}
-                    className="flex items-start gap-2 rounded-[10px] border border-[color:var(--wb-border)] px-3 py-2"
+                    className="flex items-start gap-2 rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] px-3 py-2"
                   >
                     <input
                       type="checkbox"

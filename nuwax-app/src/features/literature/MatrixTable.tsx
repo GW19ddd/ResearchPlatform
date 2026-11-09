@@ -18,7 +18,7 @@ export default function MatrixTable({
   onSaveCell: (literatureId: number, dim: string, value: string) => void
 }) {
   return (
-    <div className="rounded-[12px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-sm)]">
+    <div className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-sm)]">
       <div className="flex items-center justify-between gap-2 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-4 py-2.5">
         <h2 className="text-[13px] font-semibold text-[color:var(--wb-text)]">相关工作对比矩阵</h2>
         <Btn onClick={onAddDim}>加维度</Btn>
@@ -42,7 +42,7 @@ export default function MatrixTable({
                       <span className="flex items-center gap-1">
                         {d}
                         <button
-                          className="flex h-6 w-6 items-center justify-center rounded-[7px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-danger-soft)] hover:text-[color:var(--wb-danger)]"
+                          className="flex h-6 w-6 items-center justify-center rounded-[var(--wb-radius)] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-danger-soft)] hover:text-[color:var(--wb-danger)]"
                           onClick={() => onDropDim(d)}
                           title="删除该维度"
                           aria-label={`删除维度 ${d}`}
@@ -68,7 +68,7 @@ export default function MatrixTable({
                         <input
                           defaultValue={p.cells[d] || ''}
                           onBlur={(e) => onSaveCell(p.id, d, e.target.value)}
-                          className="w-full rounded-[6px] border border-transparent bg-transparent px-1 py-0.5 text-[12px] outline-none transition hover:border-[color:var(--wb-border-strong)] focus:border-[color:var(--wb-accent)] focus:bg-[color:var(--wb-surface)]"
+                          className="w-full rounded-[var(--wb-radius)] border border-transparent bg-transparent px-1 py-0.5 text-[12px] outline-none transition hover:border-[color:var(--wb-border-strong)] focus:border-[color:var(--wb-accent)] focus:bg-[color:var(--wb-surface)]"
                         />
                       </td>
                     ))}

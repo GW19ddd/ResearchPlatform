@@ -117,7 +117,7 @@ export default function Plan() {
               <Empty text="本周还没定成果" />
             ) : (
               week.outcomes.map((o: string, i: number) => (
-                <div key={i} className="flex items-start justify-between gap-2 rounded-lg bg-[color:var(--wb-surface-alt)] px-3 py-2">
+                <div key={i} className="flex items-start justify-between gap-2 rounded-[var(--wb-radius)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
                   <span className="text-[12px] text-[color:var(--wb-text)]">
                     {i + 1}. {o}
                   </span>
@@ -151,7 +151,7 @@ export default function Plan() {
               <Empty text="暂无任务" />
             ) : (
               week.tasks.map((t: any) => (
-                <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-[color:var(--wb-surface-alt)]">
+                <div key={t.id} className="flex items-center justify-between gap-2 rounded-[var(--wb-radius)] px-2 py-1.5 hover:bg-[color:var(--wb-surface-alt)]">
                   <label className="flex min-w-0 flex-1 items-center gap-2">
                     <input type="checkbox" checked={t.status === 'done'} onChange={() => toggleTask(t)} />
                     <span

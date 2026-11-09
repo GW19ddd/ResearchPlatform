@@ -26,32 +26,33 @@ export type CData = {
 
 export type CNode = Node<CData, 'cnode'>
 
-/** 每种节点一套配色：左侧竖条 + 淡色底，一眼能分清画布上是什么 */
+/** 五类节点统一纸底，只靠左侧竖条与图例文字的专色区分 —— 印刷图例的做法，
+ *  不再给整张节点铺亮蓝 / 亮紫 / 亮黄（那是这套界面里最后一处玩具感）。 */
 export const TYPE_STYLE: Record<string, { box: string; bar: string; chip: string }> = {
   input: {
-    box: 'border-sky-200 bg-sky-50/80',
-    bar: 'bg-sky-400',
-    chip: 'bg-sky-100 text-sky-700',
+    box: 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]',
+    bar: 'bg-[color:var(--wb-node-input)]',
+    chip: 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-node-input)]',
   },
   prompt: {
-    box: 'border-violet-200 bg-violet-50/80',
-    bar: 'bg-violet-400',
-    chip: 'bg-violet-100 text-violet-700',
+    box: 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]',
+    bar: 'bg-[color:var(--wb-node-prompt)]',
+    chip: 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-node-prompt)]',
   },
   skill: {
-    box: 'border-indigo-200 bg-indigo-50/80',
-    bar: 'bg-indigo-400',
-    chip: 'bg-indigo-100 text-indigo-700',
+    box: 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]',
+    bar: 'bg-[color:var(--wb-node-skill)]',
+    chip: 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-node-skill)]',
   },
   tool: {
-    box: 'border-emerald-200 bg-emerald-50/80',
-    bar: 'bg-emerald-400',
-    chip: 'bg-emerald-100 text-emerald-700',
+    box: 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]',
+    bar: 'bg-[color:var(--wb-node-tool)]',
+    chip: 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-node-tool)]',
   },
   output: {
-    box: 'border-amber-200 bg-amber-50/80',
-    bar: 'bg-amber-400',
-    chip: 'bg-amber-100 text-amber-700',
+    box: 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]',
+    bar: 'bg-[color:var(--wb-node-output)]',
+    chip: 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-node-output)]',
   },
 }
 
@@ -95,7 +96,7 @@ export function CanvasNode({ data, selected }: NodeProps<CNode>) {
   const chip = STATUS_CHIP[st] || STATUS_CHIP.idle
   return (
     <div
-      className={`relative w-56 overflow-hidden rounded-[12px] border px-3 py-2 text-[12px] shadow-[var(--wb-shadow-sm)] transition ${style.box} ${
+      className={`relative w-56 overflow-hidden rounded-[var(--wb-radius)] border px-3 py-2 text-[12px] shadow-[var(--wb-shadow-sm)] transition ${style.box} ${
         selected
           ? 'ring-2 ring-[color:var(--wb-accent)] ring-offset-1 ring-offset-white'
           : ''
@@ -111,7 +112,7 @@ export function CanvasNode({ data, selected }: NodeProps<CNode>) {
         <span className="truncate font-medium leading-snug text-[color:var(--wb-text)]">
           {data.title || data.key}
         </span>
-        <span className={`shrink-0 rounded-full px-1.5 text-[11.5px] leading-[17px] ${style.chip}`}>
+        <span className={`shrink-0 rounded-[var(--wb-radius-sm)] px-1.5 text-[11.5px] leading-[17px] ${style.chip}`}>
           {TYPE_LABEL[data.ntype]}
         </span>
       </div>

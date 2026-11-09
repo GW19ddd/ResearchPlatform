@@ -72,7 +72,7 @@ function ScorePicker({
             type="button"
             onClick={() => onChange(n)}
             title={`${label} ${n}`}
-            className={`h-4 w-5 rounded-sm transition ${
+            className={`h-4 w-5 rounded-[var(--wb-radius-sm)] transition ${
               n <= v ? 'bg-[color:var(--wb-accent)]' : 'bg-[color:var(--wb-border-strong)] hover:bg-[color:var(--wb-muted)]'
             }`}
           />
@@ -374,7 +374,7 @@ export default function Ideas() {
   const renderIdea = (i: any) => (
     <div
       key={i.id}
-      className={`rounded-lg border p-3 ${
+      className={`rounded-[var(--wb-radius)] border p-3 ${
         multi && bulk.has(i.id) ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)]' : 'border-[color:var(--wb-border)]'
       }`}
     >
@@ -490,7 +490,7 @@ export default function Ideas() {
                   <button
                     key={c.name}
                     onClick={() => setForm({ ...form, category: c.name })}
-                    className={`rounded-full border px-2 py-0.5 text-[11.5px] ${
+                    className={`rounded-[var(--wb-radius-sm)] border px-2 py-0.5 text-[11.5px] ${
                       form.category === c.name
                         ? 'border-[color:var(--wb-accent-strong)] bg-[color:var(--wb-accent)] text-white'
                         : 'border-[color:var(--wb-border)] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-border-strong)]'
@@ -584,7 +584,7 @@ export default function Ideas() {
             {cands.map((c: any, i: number) => (
               <div
                 key={i}
-                className={`rounded-lg border p-3 transition-colors ${
+                className={`rounded-[var(--wb-radius)] border p-3 transition-colors ${
                   picked.has(i) ? 'border-[color:var(--wb-accent-strong)] bg-[color:var(--wb-surface-alt)]' : 'border-[color:var(--wb-border)]'
                 }`}
               >
@@ -706,7 +706,7 @@ export default function Ideas() {
                   <button
                     key={c.name}
                     onClick={() => setCat(cat === c.name ? '' : c.name)}
-                    className={`rounded-full border px-2 py-0.5 text-[11.5px] ${
+                    className={`rounded-[var(--wb-radius-sm)] border px-2 py-0.5 text-[11.5px] ${
                       cat === c.name
                         ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent-strong)]'
                         : 'border-[color:var(--wb-border)] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-border-strong)]'
@@ -825,7 +825,7 @@ export default function Ideas() {
                     onChange={(v) => setField('notes', v)}
                   />
                   {detail.notes && (
-                    <div className="mt-2 rounded-lg border border-[color:var(--wb-border)] px-3 py-2">
+                    <div className="mt-2 rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] px-3 py-2">
                       <MdBlock text={detail.notes} />
                     </div>
                   )}
@@ -859,19 +859,19 @@ export default function Ideas() {
 
                 {dout && <AiMeta res={revTask.data || {}} />}
                 {dout && (
-                  <div className="rounded-lg bg-[color:var(--wb-surface-alt)] px-3 py-2">
+                  <div className="rounded-[var(--wb-radius)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
                     <MdBlock text={dout} />
                   </div>
                 )}
 
                 {reviews.length > 0 && (
-                  <details className="rounded-lg border border-[color:var(--wb-border)] px-3 py-2">
+                  <details className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] px-3 py-2">
                     <summary className="cursor-pointer text-[12px] text-[color:var(--wb-text-soft)]">
                       历史质疑（{reviews.length}）
                     </summary>
                     <div className="mt-2 flex flex-col gap-2">
                       {reviews.map((r: any) => (
-                        <div key={r.id} className="rounded-lg bg-[color:var(--wb-surface-alt)] px-2.5 py-2">
+                        <div key={r.id} className="rounded-[var(--wb-radius)] bg-[color:var(--wb-surface-alt)] px-2.5 py-2">
                           <div className="flex items-center gap-2 text-[11.5px] text-[color:var(--wb-muted)]">
                             <Pill tone="blue">
                               {REVIEW_ROLES.find((x) => x.value === r.role)?.label || r.role}

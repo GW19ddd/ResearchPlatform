@@ -288,7 +288,7 @@ export default function Literature() {
           )}
           <button
             onClick={() => resetTo(() => setColl(active ? '' : n.path))}
-            className={`flex min-w-0 flex-1 items-center justify-between rounded-[7px] px-1.5 py-0.5 text-[12px] transition ${
+            className={`flex min-w-0 flex-1 items-center justify-between rounded-[var(--wb-radius)] px-1.5 py-0.5 text-[12px] transition ${
               active
                 ? 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
                 : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
@@ -372,7 +372,7 @@ export default function Literature() {
     return (
       <div
         key={l.id}
-        className={`group cursor-pointer rounded-[12px] border px-3 py-2.5 transition hover:shadow-[var(--wb-shadow-sm)] ${
+        className={`group cursor-pointer rounded-[var(--wb-radius)] border px-3 py-2.5 transition hover:shadow-[var(--wb-shadow-sm)] ${
           multi && bulk.has(l.id)
             ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)]'
             : 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] hover:border-[color:var(--wb-border-strong)]'
@@ -388,7 +388,7 @@ export default function Literature() {
             />
           )}
           <span
-            className={`mt-[6px] h-[7px] w-[7px] shrink-0 rounded-full ${
+            className={`mt-[6px] h-[7px] w-[7px] shrink-0 rounded-[var(--wb-radius-sm)] ${
               STATUS_DOT[l.status] || STATUS_DOT.todo
             }`}
           />
@@ -409,7 +409,7 @@ export default function Literature() {
                 {cols.map((c) => (
                   <span
                     key={c}
-                    className="rounded-full bg-[color:var(--wb-bg-subtle)] px-2 py-[1px] text-[11.5px] text-[color:var(--wb-text-soft)]"
+                    className="rounded-[var(--wb-radius-sm)] bg-[color:var(--wb-bg-subtle)] px-2 py-[1px] text-[11.5px] text-[color:var(--wb-text-soft)]"
                     title={c}
                   >
                     {c.split(' / ').pop()}
@@ -554,7 +554,7 @@ export default function Literature() {
         )}
         <div className="flex gap-3">
           {tree.length > 0 && (
-            <div className="hidden w-52 shrink-0 self-start rounded-[10px] border border-[color:var(--wb-border)] p-2 lg:block">
+            <div className="hidden w-52 shrink-0 self-start rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] p-2 lg:block">
               <div className="mb-1 flex items-center justify-between px-1">
                 <span className="text-[11.5px] text-[color:var(--wb-muted)]">Zotero 分类树</span>
                 {coll && (
@@ -596,7 +596,7 @@ export default function Literature() {
               {coll && (
                 <>
                   <span>当前分类：</span>
-                  <span className="rounded-full bg-[color:var(--wb-accent-soft)] px-2 py-[1px] text-[color:var(--wb-accent)]">
+                  <span className="rounded-[var(--wb-radius-sm)] bg-[color:var(--wb-accent-soft)] px-2 py-[1px] text-[color:var(--wb-accent)]">
                     {coll}
                   </span>
                 </>
@@ -635,7 +635,7 @@ export default function Literature() {
                 {grouped.map((g) => (
                   <div key={g.name}>
                     <div className="mb-1 flex items-center gap-2 text-[12px] font-medium text-[color:var(--wb-text)]">
-                      <span className="rounded-full bg-[color:var(--wb-bg-subtle)] px-2 py-[1px]">
+                      <span className="rounded-[var(--wb-radius-sm)] bg-[color:var(--wb-bg-subtle)] px-2 py-[1px]">
                         {g.name}
                       </span>
                       <span className="text-[11.5px] font-normal text-[color:var(--wb-muted)]">
@@ -766,7 +766,7 @@ export default function Literature() {
           {kwTask.busy ? (
             <Loading text="正在生成检索方案…" />
           ) : out && !kwTask.error ? (
-            <div className="max-h-[52vh] overflow-y-auto rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] p-3">
+            <div className="max-h-[52vh] overflow-y-auto rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] p-3">
               <MdBlock text={out.text} />
               <AiMeta res={kwTask.data || {}} />
             </div>

@@ -5,46 +5,66 @@
 /* ============================================================
    设计令牌：全站颜色 / 圆角 / 阴影 / 间距的唯一来源。
    组件样式一律引用这些变量，改主题只需要动这一块。
+
+   方向：纸感中性灰底 + 纯白卡片 + 一点靛蓝。
+   所有文字用途的颜色都压过对比度（白底 ≥ 4.5:1），调浅前先量再改。
    ============================================================ */
 :root {
-  --wb-bg: #f5f6f8;
-  --wb-bg-subtle: #eef0f4;
-  --wb-surface: #ffffff;
-  --wb-surface-alt: #fafbfc;
-  --wb-border: #e3e6ea;
-  --wb-border-strong: #cfd4dc;
+  /* 纸：暖白纸面 + 一层更淡的纸纹灰，不用任何光晕或渐变 */
+  --wb-bg: #FBFAF7;
+  --wb-bg-subtle: #F2EFE8;
+  --wb-surface: #FFFFFF;
+  --wb-surface-alt: #FBF9F4;
+  --wb-border: #E3DED2;
+  --wb-border-strong: #CBC4B4;
 
-  --wb-text: #101828;
-  --wb-text-soft: #475467;
-  /* 次要文字色。原来是 #8a94a6，白底上只有 3.06:1，远低于 WCAG AA 的 4.5:1，
-     小字号的提示文字几乎看不清。这里压深到 4.97:1（白底）/ 4.60:1（页面底）。
-     改主题时别再调浅，这条线是硬底线。 */
-  --wb-muted: #667085;
+  /* 墨：三级文字。次要文字在纸底 5.40:1 / 白卡 5.63:1，过 AA。 */
+  --wb-text: #1A1A1A;
+  --wb-text-soft: #3D3B36;
+  --wb-muted: #6B675E;
 
-  --wb-accent: #4f46e5;
-  --wb-accent-soft: #eef2ff;
-  --wb-accent-strong: #4338ca;
+  /* 双专色：松绿作交互与链接，朱红作警示与章节编号，藏青作信息。
+     全部为低饱和印刷色，不做大面积填充，主按钮用墨黑细线框。 */
+  --wb-accent: #2F5D50;
+  --wb-accent-soft: #EAF0EC;
+  --wb-accent-strong: #24483E;
+  --wb-ok: #2F5D50;
+  --wb-ok-soft: #EAF0EC;
+  --wb-warn: #8A5A16;
+  --wb-warn-soft: #F7EEDC;
+  --wb-danger: #A4262C;
+  --wb-danger-soft: #F5EAE7;
+  --wb-info: #35566B;
+  --wb-info-soft: #E9EFF2;
 
-  /* 语义色同理：文字用途必须满足 4.5:1，软底上的小字也要过线 */
-  --wb-ok: #067a45;        /* 原 #0f9d58：白底 3.51:1，不达标 */
-  --wb-ok-soft: #e7f6ee;
-  --wb-warn: #b45309;
-  --wb-warn-soft: #fef4e6;
-  --wb-danger: #c4271b;    /* 原 #d92d20：软底上 4.23:1，不达标 */
-  --wb-danger-soft: #fdeceb;
-  --wb-info: #026aa2;
-  --wb-info-soft: #e8f4fb;
+  /* 画布五类节点的识别色：只画竖条与图例文字，不铺亮色底 */
+  --wb-node-input: #35566B;
+  --wb-node-prompt: #6B5B7B;
+  --wb-node-skill: #2F5D50;
+  --wb-node-tool: #8A5A16;
+  --wb-node-output: #A4262C;
 
-  --wb-radius-sm: 6px;
-  --wb-radius: 10px;
-  --wb-radius-lg: 14px;
+  /* 印刷式方角：几乎不倒圆，靠 1px 发丝线分组，不靠圆角和阴影 */
+  --wb-radius-sm: 2px;
+  --wb-radius: 3px;
+  --wb-radius-lg: 4px;
+  --wb-radius-xl: 6px;
 
-  --wb-shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.04);
-  --wb-shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
-  --wb-shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.04);
-  --wb-shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12), 0 2px 8px rgba(16, 24, 40, 0.06);
+  /* 卡片零阴影；只有浮层用一层淡影把自己从纸面上分开 */
+  --wb-shadow-xs: none;
+  --wb-shadow-sm: none;
+  --wb-shadow-md: 0 1px 2px rgba(26, 26, 26, 0.06);
+  --wb-shadow-lg: 0 10px 28px -12px rgba(26, 26, 26, 0.20);
 
-  --wb-ring: 0 0 0 3px rgba(79, 70, 229, 0.16);
+  --wb-ring: 0 0 0 2px rgba(47, 93, 80, 0.18);
+  --wb-ease: ease-out;
+
+  /* 正文系统无衬线；标题 / 编号 / 统计数字走衬线，像期刊版面 */
+  --wb-font-sans: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --wb-font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia,
+    'Times New Roman', 'Songti SC', 'SimSun', serif;
+  --wb-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 html,
@@ -53,16 +73,52 @@ body,
   height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
+  /* 纯纸色。不加光晕、不加渐变底纹 —— 那是 AI 生成界面的默认装饰 */
   background: var(--wb-bg);
   color: var(--wb-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  font-size: 13px;
-  line-height: 1.6;
+  font-family: var(--wb-font-sans);
+  font-size: 13.5px;
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* 标题字距保持自然（衬线标题压负字距反而糊），中文正文不断字 */
+h1,
+h2,
+h3 {
+  letter-spacing: 0.005em;
+  text-wrap: pretty;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+::selection {
+  background: rgba(164, 38, 44, 0.15);
+}
+
+/* 期刊式小号眉标：编号、栏名、卷期、表头 */
+.wb-serif {
+  font-family: var(--wb-font-serif);
+}
+.wb-running {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--wb-muted);
+}
+/* 细线分栏：靠线不靠卡片 */
+.wb-rule {
+  border-top: 1px solid var(--wb-border);
 }
 
 /* 键盘用户才看到焦点环，鼠标点击不打扰。
@@ -70,8 +126,8 @@ body {
    而且在 Windows 高对比度模式下会被系统直接抹掉，键盘用户会彻底失去焦点位置。 */
 :focus-visible {
   outline: 2px solid var(--wb-accent);
-  outline-offset: 1px;
-  border-radius: var(--wb-radius-sm);
+  outline-offset: 2px;
+  border-radius: 0;
 }
 
 /* 细滚动条：默认滚动条在浅色界面上非常抢戏 */
@@ -80,15 +136,15 @@ body {
   scrollbar-color: var(--wb-border-strong) transparent;
 }
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
   background: var(--wb-border-strong);
-  border-radius: 999px;
+  border-radius: 2px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
@@ -119,6 +175,41 @@ table,
   stroke-width: 2;
 }
 
+/* ------------------------------------------------------------
+   通用表面：卡片 / 内嵌块 / 入场节奏
+   ------------------------------------------------------------ */
+.wb-panel {
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-lg);
+  box-shadow: var(--wb-shadow-xs);
+}
+
+.wb-inset {
+  background: var(--wb-surface-alt);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius);
+}
+
+/* 表单控件默认铺满父容器，但用 :where() 把特异性压到 0 ——
+   这样组件上传 `w-20 / w-40` 这类宽度类时能正常覆盖，不必写 !important。
+   （以前基类里写 w-full，两个类同权重、按 CSS 顺序 w-full 永远赢，
+   结果窄输入框全被撑满，旁边的中文标签被挤成一个字一行。） */
+:where(.wb-input-w) {
+  width: 100%;
+}
+
+/* 可点卡片：只换边框和纸色，不抬起、不加阴影。印刷物不会浮起来。 */
+.wb-lift {
+  transition:
+    border-color 0.12s ease-out,
+    background-color 0.12s ease-out;
+}
+.wb-lift:hover {
+  border-color: var(--wb-border-strong);
+  background: var(--wb-surface-alt);
+}
+
 @keyframes wb-fade-in {
   from {
     opacity: 0;
@@ -127,28 +218,19 @@ table,
     opacity: 1;
   }
 }
-@keyframes wb-pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-@keyframes wb-slide-in-right {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: none;
-  }
-}
+/* 旧版的弹跳 / 滑入动画统一降级为纯淡入：自实现浮层也走这一套 */
 @keyframes wb-spin {
   to {
     transform: rotate(360deg);
   }
+}
+/* 入场只淡入，不位移、不逐个弹跳 */
+.wb-anim-rise {
+  animation: wb-fade-in 0.15s ease-out both;
+}
+.wb-stagger > * {
+  animation: wb-fade-in 0.15s ease-out both;
+  animation-delay: calc(var(--i, 0) * 20ms);
 }
 
 /* 系统开了「减少动态效果」就别再晃了：入场动画改成直接出现，
@@ -172,11 +254,9 @@ table,
 .wb-anim-fade {
   animation: wb-fade-in 0.16s ease-out;
 }
-.wb-anim-pop {
-  animation: wb-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-}
+.wb-anim-pop,
 .wb-anim-slide {
-  animation: wb-slide-in-right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: wb-fade-in 0.14s ease-out both;
 }
 
 .wb-spinner {
@@ -211,7 +291,7 @@ table,
 pre.markdown-block {
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--wb-font-mono);
   font-size: 12px;
   line-height: 1.7;
   background: var(--wb-surface-alt);
@@ -225,7 +305,7 @@ pre.markdown-block {
 /* ---- Markdown 渲染（react-markdown + remark-gfm）---- */
 .markdown-block {
   font-size: 12.5px;
-  line-height: 1.75;
+  line-height: 1.8;
   color: var(--wb-text-soft);
   word-break: break-word;
   max-height: 480px;
@@ -295,8 +375,9 @@ pre.markdown-block {
 }
 .markdown-block blockquote {
   margin: 0.6em 0;
-  padding: 0.2em 0 0.2em 0.8em;
-  border-left: 3px solid var(--wb-border-strong);
+  padding: 0.3em 0 0.3em 0.9em;
+  border-left: 2px solid var(--wb-accent);
+  background: var(--wb-surface-alt);
   color: var(--wb-muted);
 }
 .markdown-block hr {
@@ -308,7 +389,7 @@ pre.markdown-block {
   background: var(--wb-bg-subtle);
   border-radius: 4px;
   padding: 0.1em 0.35em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--wb-font-mono);
   font-size: 11.5px;
 }
 .markdown-block pre {
@@ -334,7 +415,7 @@ pre.markdown-block {
 .markdown-block th,
 .markdown-block td {
   border: 1px solid var(--wb-border);
-  padding: 5px 9px;
+  padding: 6px 10px;
   text-align: left;
   vertical-align: top;
 }
@@ -369,10 +450,112 @@ pre.markdown-block {
   transform-origin: 0 0;
 }
 .pdfjs-page .textLayer ::selection {
-  background: rgba(79, 70, 229, 0.28);
+  background: rgba(47, 93, 80, 0.22);
 }
 .pdfjs-page .textLayer span::-moz-selection {
-  background: rgba(79, 70, 229, 0.28);
+  background: rgba(47, 93, 80, 0.22);
+}
+
+/* ============================================================
+   交互反馈（学术版）：只变色、只淡入，不缩放、不弹跳、不抬起。
+
+   两条硬约束仍然成立：
+   1) 页面 / 视图容器只能用 opacity。一旦带上 transform / filter / clip-path，
+      容器就会变成内部 position:fixed 元素的 containing block —— Modal、Drawer
+      会改成相对该容器定位，弹层错位且盖不住全屏。
+   2) 按压只用 filter / 边框色，不碰 transform 与 scale：印刷式界面不做弹性
+      反馈，也不该让靠 transform 居中的 toast 被顶歪。
+   ============================================================ */
+
+@keyframes wb-page-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* backwards：动画开始前就压住首帧，避免「先闪一下再淡入」；
+   动画结束不留 fill，opacity 回到默认 1，不残留 stacking context。 */
+.wb-page-enter {
+  animation: wb-page-in 0.15s ease-out backwards;
+}
+.wb-view-enter {
+  animation: wb-page-in 0.12s ease-out backwards;
+}
+
+/* 浮层进出：遮罩、面板、抽屉、toast 一律只淡。
+   位移与缩放是 AI 生成界面的惯性装饰，学术工具里只会显得轻浮。 */
+@keyframes wb-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes wb-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.wb-overlay-in {
+  animation: wb-overlay-in 0.14s ease-out both;
+}
+.wb-overlay-out {
+  animation: wb-overlay-out 0.12s ease-in both;
+}
+.wb-dialog-in,
+.wb-drawer-in {
+  animation: wb-overlay-in 0.14s ease-out both;
+}
+.wb-dialog-out,
+.wb-drawer-out {
+  animation: wb-overlay-out 0.12s ease-in both;
+}
+.wb-toast-out {
+  animation: wb-overlay-out 0.12s ease-in both;
+  pointer-events: none;
+}
+
+/* 按压：只给一点亮度变化，不缩放、不回弹、不改几何。
+   transition 列举而非简写，免得把组件自己的 background / border 过渡冲掉。 */
+.wb-press,
+.wb-press-soft,
+.wb-press-strong {
+  transition:
+    filter 0.1s ease-out,
+    background-color 0.12s ease-out,
+    border-color 0.12s ease-out,
+    color 0.12s ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+.wb-press:active:not(:disabled),
+.wb-press-soft:active:not(:disabled),
+.wb-press-strong:active:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+/* 兜底：各页面手写的原生按钮 / 链接 / 下拉也有反馈，同样不改几何。 */
+:where(button, a[href], select, [role='button'], [role='menuitem'], [role='tab'], [role='option'], summary):active:where(
+    :not(:disabled)
+  ):where(:not([aria-disabled='true'])) {
+  filter: brightness(0.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 本来就没有持续动画；保留即时变色作为反馈 */
+  .wb-press:active:not(:disabled),
+  .wb-press-soft:active:not(:disabled),
+  .wb-press-strong:active:not(:disabled),
+  :where(button, a[href], select, [role='button'], [role='menuitem'], [role='tab'], [role='option'], summary):active:where(
+      :not(:disabled)
+    ) {
+    filter: brightness(0.92);
+  }
 }
 
 /* ============================================================

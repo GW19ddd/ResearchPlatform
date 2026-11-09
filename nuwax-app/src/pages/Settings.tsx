@@ -193,7 +193,7 @@ export default function Settings() {
         title="① API 设置 · 模型供应商"
         extra={
           <div className="flex items-center gap-2">
-            {saved && <span className="text-[12px] text-emerald-600">{saved}</span>}
+            {saved && <span className="text-[12px] text-[color:var(--wb-ok)]">{saved}</span>}
             <Btn onClick={addProvider}>新增供应商</Btn>
           </div>
         }
@@ -211,7 +211,7 @@ export default function Settings() {
             const isDefault = cfg.default_provider === p.id
             const isOpen = openProv.has(p.id)
             return (
-              <div key={p.id} className="rounded-lg border border-[color:var(--wb-border)]">
+              <div key={p.id} className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)]">
                 {/* 收起态：一行摘要 */}
                 <div className="flex flex-wrap items-center gap-2 p-3">
                   <button
@@ -313,7 +313,7 @@ export default function Settings() {
                     {msg[p.id] && (
                       <p
                         className={`mt-1 text-[11.5px] ${
-                          msg[p.id].startsWith('连通正常') ? 'text-emerald-600' : 'text-[color:var(--wb-text-soft)]'
+                          msg[p.id].startsWith('连通正常') ? 'text-[color:var(--wb-ok)]' : 'text-[color:var(--wb-text-soft)]'
                         }`}
                       >
                         {msg[p.id]}
@@ -332,7 +332,7 @@ export default function Settings() {
         title="② Dify 设置"
         extra={
           <div className="flex items-center gap-2">
-            {difySaved && <span className="text-[12px] text-emerald-600">{difySaved}</span>}
+            {difySaved && <span className="text-[12px] text-[color:var(--wb-ok)]">{difySaved}</span>}
             <Btn onClick={addDifyApp}>新增应用</Btn>
             <Btn variant="primary" onClick={saveDify}>
               保存全部
@@ -399,7 +399,7 @@ export default function Settings() {
           {(dify?.apps || []).map((a: any, i: number) => {
             const editing = editApp === a.id
             return (
-              <div key={a.id} className="rounded-lg border border-[color:var(--wb-border)] p-3">
+              <div key={a.id} className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] p-3">
                 {!editing ? (
                   /* 只读态 */
                   <div className="flex flex-wrap items-center gap-2">

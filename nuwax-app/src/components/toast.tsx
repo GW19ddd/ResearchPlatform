@@ -7,7 +7,7 @@ import { Icon, IconName } from './Icon'
  */
 export type ToastTone = 'ok' | 'error' | 'info'
 
-type Item = { id: number; text: string; tone: ToastTone }
+type Item = { id: number; text: string; tone: ToastTone; leaving?: boolean }
 
 let seq = 0
 let items: Item[] = []
@@ -17,20 +17,29 @@ function emit() {
   for (const fn of listeners) fn([...items])
 }
 
-export function toast(text: string, tone: ToastTone = 'info', ms = 2600) {
-  const id = ++seq
-  items = [...items, { id, text, tone }]
+/** 先标记 leaving 播退出动画，180ms 后才真正移除，不要「啪」地消失 */
+function dismiss(id: number) {
+  const target = items.find((x) => x.id === id)
+  if (!target || target.leaving) return
+  items = items.map((x) => (x.id === id ? { ...x, leaving: true } : x))
   emit()
   window.setTimeout(() => {
     items = items.filter((x) => x.id !== id)
     emit()
-  }, ms)
+  }, 180)
+}
+
+export function toast(text: string, tone: ToastTone = 'info', ms = 2600) {
+  const id = ++seq
+  items = [...items, { id, text, tone }]
+  emit()
+  window.setTimeout(() => dismiss(id), ms)
 }
 
 const TONES: Record<ToastTone, string> = {
-  ok: 'border-[color:var(--wb-ok)]/30 bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]',
+  ok: 'border-[color:var(--wb-ok)]/25 bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]',
   error:
-    'border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] text-[color:var(--wb-danger)]',
+    'border-[color:var(--wb-danger)]/25 bg-[color:var(--wb-danger-soft)] text-[color:var(--wb-danger)]',
   info: 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text)]',
 }
 
@@ -50,7 +59,10 @@ export function ToastHost() {
       {list.map((t) => (
         <div
           key={t.id}
-          className={`wb-anim-pop pointer-events-auto flex max-w-[80vw] items-start gap-2 rounded-[10px] border px-3 py-2 text-[12.5px] shadow-[var(--wb-shadow-md)] ${TONES[t.tone]}`}
+          role="status"
+          className={`pointer-events-auto flex max-w-[80vw] items-start gap-2 rounded-[var(--wb-radius)] border px-3 py-2 text-[12.5px] shadow-[var(--wb-shadow-md)] ${
+            t.leaving ? 'wb-toast-out' : 'wb-anim-fade'
+          } ${TONES[t.tone]}`}
         >
           <Icon name={ICONS[t.tone]} size={14} className="mt-[2px]" />
           <span className="break-words">{t.text}</span>

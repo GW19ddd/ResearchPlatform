@@ -104,14 +104,14 @@ export default function Paper() {
           {ov.stages.map((s: any) => {
             const tone =
               s.status === 'done'
-                ? 'border-emerald-300 bg-emerald-50'
+                ? 'border-[color:var(--wb-ok)]/30 bg-[color:var(--wb-ok-soft)]'
                 : s.status === 'blocked'
-                ? 'border-rose-400 bg-[color:var(--wb-danger-soft)]'
+                ? 'border-[color:var(--wb-danger)]/40 bg-[color:var(--wb-danger-soft)]'
                 : s.status === 'doing'
                 ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-surface-alt)]'
                 : 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]'
             return (
-              <div key={s.id} className={`w-[150px] rounded-lg border p-2 ${tone}`}>
+              <div key={s.id} className={`w-[150px] rounded-[var(--wb-radius)] border p-2 ${tone}`}>
                 <div className="text-[12px] font-medium text-[color:var(--wb-text)]">{s.name}</div>
                 <div className="mt-1">
                   <Select
@@ -150,7 +150,7 @@ export default function Paper() {
         ) : (
           <div className="flex flex-col gap-2">
             {ov.stages.map((s: any) => (
-              <div key={s.id} className="rounded-lg border border-[color:var(--wb-border)] p-3">
+              <div key={s.id} className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] p-3">
                 <div className="flex items-center justify-between">
                   <div className="text-[13px] font-medium text-[color:var(--wb-text)]">{s.name}</div>
                   {s.status === 'blocked' && (
@@ -193,7 +193,7 @@ export default function Paper() {
               return (
                 <div key={s.id} className="flex items-center gap-3">
                   <span className="w-28 shrink-0 text-[12px] text-[color:var(--wb-text)]">{s.name}</span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color:var(--wb-bg-subtle)]">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-[var(--wb-radius-sm)] bg-[color:var(--wb-bg-subtle)]">
                     <div className="h-full bg-[color:var(--wb-accent)]" style={{ width: `${pct}%` }} />
                   </div>
                   <Input

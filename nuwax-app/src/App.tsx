@@ -18,14 +18,14 @@ import { usePersist } from './lib/state'
 /** 侧边栏按科研流程分段：输入 → 执行 → 复盘 → 激励 */
 const NAV_GROUPS: { group: string; items: { to: string; label: string; icon: IconName }[] }[] = [
   {
-    group: '输入',
+    group: 'I. 输入',
     items: [
       { to: '/ideas', label: '创新点', icon: 'sparkle' },
       { to: '/literature', label: '文献', icon: 'book' },
     ],
   },
   {
-    group: '执行',
+    group: 'II. 执行',
     items: [
       { to: '/experiments', label: '实验', icon: 'beaker' },
       { to: '/paper', label: '论文', icon: 'file' },
@@ -33,14 +33,14 @@ const NAV_GROUPS: { group: string; items: { to: string; label: string; icon: Ico
     ],
   },
   {
-    group: '复盘',
+    group: 'III. 复盘',
     items: [
       { to: '/plan', label: '计划复盘', icon: 'clock' },
       { to: '/advisor', label: '导师', icon: 'phone' },
     ],
   },
   {
-    group: '激励',
+    group: 'IV. 激励',
     items: [{ to: '/points', label: '积分', icon: 'star' }],
   },
   {
@@ -52,14 +52,27 @@ const NAV_GROUPS: { group: string; items: { to: string; label: string; icon: Ico
   },
 ]
 
+/** 激活态只靠左侧竖线与墨色文字，不用彩色软底 */
 const itemCls = (active: boolean, collapsed: boolean) =>
-  `group relative flex items-center rounded-[9px] text-[12.5px] transition ${
-    collapsed ? 'justify-center px-0 py-[7px]' : 'gap-2 px-2.5 py-[6px]'
+  `wb-press-soft group relative flex h-8 items-center rounded-[var(--wb-radius-sm)] text-[12.5px] transition-colors duration-150 ${
+    collapsed ? 'justify-center px-0' : 'gap-2.5 px-2.5'
   } ${
     active
-      ? 'bg-[color:var(--wb-accent-soft)] font-medium text-[color:var(--wb-accent)]'
-      : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]'
+      ? 'font-medium text-[color:var(--wb-text)]'
+      : 'text-[color:var(--wb-muted)] hover:text-[color:var(--wb-text)]'
   }`
+
+/** 品牌标记：方形墨章，不用渐变、不用投影、不用彩色块 */
+function BrandMark({ size = 30 }: { size?: number }) {
+  return (
+    <div
+      className="wb-serif flex shrink-0 items-center justify-center border border-[color:var(--wb-text)] bg-[color:var(--wb-surface)] font-medium text-[color:var(--wb-text)]"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.46) }}
+    >
+      研
+    </div>
+  )
+}
 
 function Sidebar({
   collapsed,
@@ -70,24 +83,18 @@ function Sidebar({
 }) {
   return (
     <aside
-      className={`flex h-full shrink-0 flex-col border-r border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] transition-[width] duration-200 ${
+      className={`flex h-full shrink-0 flex-col border-r border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] transition-[width] duration-200 ${
         collapsed ? 'w-[58px]' : 'w-[188px]'
       }`}
     >
-      <div
-        className={`flex items-center gap-2 px-3 pb-3 pt-4 ${
-          collapsed ? 'flex-col gap-2 px-0' : ''
-        }`}
-      >
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[color:var(--wb-accent)] text-[13px] font-bold text-white shadow-[var(--wb-shadow-xs)]">
-          研
-        </div>
+      <div className={`flex items-center gap-2.5 pb-2 pt-4 ${collapsed ? 'flex-col px-0' : 'px-4'}`}>
+        <BrandMark />
         {!collapsed && (
           <div className="min-w-0 flex-1">
             <div className="truncate text-[12.5px] font-semibold text-[color:var(--wb-text)]">
               科研工作台
             </div>
-            <div className="truncate text-[10.5px] text-[color:var(--wb-muted)]">创新 · 文献 · 实验</div>
+            <div className="truncate text-[9px] tracking-[0.06em] text-[color:var(--wb-muted)]">RESEARCH NOTES</div>
           </div>
         )}
         <button
@@ -95,7 +102,7 @@ function Sidebar({
           onClick={onToggle}
           title={collapsed ? '展开侧边栏（快捷键 [）' : '收起侧边栏（快捷键 [）'}
           aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] border border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface-alt)] text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+          className="wb-press-strong mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--wb-radius-sm)] text-[color:var(--wb-muted)] transition-colors hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
         >
           <Icon name={collapsed ? 'chevronRight' : 'chevronLeft'} size={13} />
         </button>
@@ -109,7 +116,7 @@ function Sidebar({
           {({ isActive }) => (
             <>
               {isActive && (
-                <span className="absolute left-0 top-1/2 h-4 w-[2.5px] -translate-y-1/2 rounded-r-full bg-[color:var(--wb-accent)]" />
+                <span className="absolute left-0 top-1/2 h-4 w-[2.5px] -translate-y-1/2 rounded-r-[var(--wb-radius-sm)] bg-[color:var(--wb-accent)]" />
               )}
               <Icon name="sun" size={15} />
               {!collapsed && <span className="truncate">今日</span>}
@@ -124,9 +131,7 @@ function Sidebar({
               (collapsed ? (
                 gi > 0 && <div className="mx-1 my-2 border-t border-[color:var(--wb-border)]" />
               ) : (
-                <div className="px-2.5 pb-1 pt-1.5 text-[11.5px] font-medium uppercase tracking-wider text-[color:var(--wb-muted)]">
-                  {g.group}
-                </div>
+                <div className="wb-running px-2.5 pb-1 pt-3">{g.group}</div>
               ))}
             <div className="flex flex-col gap-[1px]">
               {g.items.map((n) => (
@@ -134,7 +139,7 @@ function Sidebar({
                   {({ isActive }) => (
                     <>
                       {isActive && (
-                        <span className="absolute left-0 top-1/2 h-4 w-[2.5px] -translate-y-1/2 rounded-r-full bg-[color:var(--wb-accent)]" />
+                        <span className="absolute left-0 top-1/2 h-4 w-[2.5px] -translate-y-1/2 rounded-r-[var(--wb-radius-sm)] bg-[color:var(--wb-accent)]" />
                       )}
                       <Icon name={n.icon} size={15} />
                       {collapsed ? (
@@ -151,17 +156,20 @@ function Sidebar({
         ))}
       </nav>
 
-      {collapsed ? (
-        <div className="border-t border-[color:var(--wb-border)] py-2 text-center text-[9px] text-[color:var(--wb-muted)]">
-          SQLite
-        </div>
-      ) : (
-        <div className="border-t border-[color:var(--wb-border)] px-4 py-3 text-[10.5px] leading-relaxed text-[color:var(--wb-muted)]">
-          数据存本地 SQLite
-          <br />
-          可一键导出 Markdown / CSV
-        </div>
-      )}
+      <div className="shrink-0 border-t border-[color:var(--wb-border)] p-2.5">
+        {collapsed ? (
+          <div
+            className="text-center text-[9px] font-medium text-[color:var(--wb-muted)]"
+            title="数据存本地 · 可导出 Markdown / CSV"
+          >
+            DB
+          </div>
+        ) : (
+          <div className="px-1 text-[10.5px] leading-relaxed text-[color:var(--wb-muted)]">
+            本地存档 · 可导出 MD / CSV
+          </div>
+        )}
+      </div>
     </aside>
   )
 }
@@ -190,7 +198,7 @@ export default function App() {
       {/* 窄屏：抽屉式导航（点遮罩或左上角按钮收起）；宽屏：常驻，可折叠成图标条 */}
       {navOpen && (
         <div
-          className="fixed inset-0 z-40 bg-[rgba(16,24,40,0.4)] lg:hidden"
+          className="fixed inset-0 z-40 bg-[rgba(26,26,26,0.38)] lg:hidden"
           onClick={() => setNavOpen(false)}
         />
       )}
@@ -206,7 +214,14 @@ export default function App() {
       </div>
 
       <main className={`flex min-w-0 flex-1 flex-col ${full ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-        <div className={full ? 'h-full w-full' : 'mx-auto w-full max-w-[1180px] px-5 py-6'}>
+        {/* 只做 opacity 淡入：页面容器带 transform / filter 会变成内部 fixed 弹层的 containing block */}
+        <div
+          className={
+            full
+              ? 'wb-page-enter h-full w-full'
+              : 'wb-page-enter mx-auto w-full max-w-[1240px] px-6 py-7 md:px-8'
+          }
+        >
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/ideas" element={<Ideas />} />
@@ -228,7 +243,7 @@ export default function App() {
           type="button"
           onClick={() => setNavOpen(true)}
           aria-label="打开导航"
-          className="fixed bottom-4 left-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text-soft)] shadow-[var(--wb-shadow-md)] lg:hidden"
+          className="wb-press-strong fixed bottom-4 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-[var(--wb-radius-sm)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text-soft)] shadow-[var(--wb-shadow-md)] lg:hidden"
         >
           <Icon name="menu" size={18} />
         </button>

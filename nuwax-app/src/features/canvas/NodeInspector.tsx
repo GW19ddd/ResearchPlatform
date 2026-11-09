@@ -392,7 +392,7 @@ export default function NodeInspector({
                 {meta.elapsed_ms ? <span>{meta.elapsed_ms} ms</span> : null}
               </div>
             )}
-            <div className="max-h-[24rem] overflow-y-auto rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
+            <div className="max-h-[24rem] overflow-y-auto rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
               <MdBlock text={output} />
             </div>
             <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">
@@ -403,7 +403,7 @@ export default function NodeInspector({
 
         {/* ---------------- 运行记录 ---------------- */}
         {runs.length > 0 && (
-          <details className="rounded-[10px] border border-[color:var(--wb-border)] px-3 py-2">
+          <details className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] px-3 py-2">
             <summary className="cursor-pointer text-[11.5px] text-[color:var(--wb-text-soft)]">
               运行记录（{runs.length}）
             </summary>
@@ -411,7 +411,7 @@ export default function NodeInspector({
               {runs.slice(0, 8).map((r) => (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between gap-2 rounded-[7px] bg-[color:var(--wb-bg-subtle)] px-2 py-1 text-[10.5px] text-[color:var(--wb-text-soft)]"
+                  className="flex items-center justify-between gap-2 rounded-[var(--wb-radius)] bg-[color:var(--wb-bg-subtle)] px-2 py-1 text-[10.5px] text-[color:var(--wb-text-soft)]"
                 >
                   <span className="tabular-nums">#{r.id}</span>
                   <span className="truncate">

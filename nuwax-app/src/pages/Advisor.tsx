@@ -60,7 +60,7 @@ export default function Advisor() {
   return (
     <div className="flex flex-col gap-4">
       {pending.filter((p) => p.overdue).length > 0 && (
-        <div className="rounded-xl border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-4 py-3">
+        <div className="rounded-[var(--wb-radius-lg)] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-4 py-3">
           <div className="text-[13px] font-medium text-[color:var(--wb-danger)]">
             有 {pending.filter((p) => p.overdue).length} 项对导师的承诺已逾期
           </div>
@@ -162,7 +162,7 @@ export default function Advisor() {
         ) : (
           <div className="flex flex-col gap-2">
             {notes.map((n) => (
-              <div key={n.id} className="rounded-lg border border-[color:var(--wb-border)] p-3">
+              <div key={n.id} className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Pill tone="blue">{n.scene}</Pill>

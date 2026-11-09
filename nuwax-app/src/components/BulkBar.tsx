@@ -143,7 +143,7 @@ export function BulkBar({
 }) {
   const all = total > 0 && count === total
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-1.5 rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2.5 py-1.5">
+    <div className="mb-2 flex flex-wrap items-center gap-1.5 rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2.5 py-1.5">
       <label className="flex cursor-pointer items-center gap-1.5">
         <input
           type="checkbox"

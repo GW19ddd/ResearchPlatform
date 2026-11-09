@@ -135,7 +135,7 @@ export default function BackupCard() {
       </div>
 
       {loadErr && (
-        <div className="mt-2 rounded-[9px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-3 py-2 text-[11.5px] text-[color:var(--wb-danger)]">
+        <div className="mt-2 rounded-[var(--wb-radius)] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-3 py-2 text-[11.5px] text-[color:var(--wb-danger)]">
           {loadErr}
           <Btn size="sm" className="ml-2" onClick={load}>
             重试
@@ -145,7 +145,7 @@ export default function BackupCard() {
 
       {note && (
         <div
-          className={`mt-2 rounded-[9px] px-3 py-2 text-[11.5px] ${
+          className={`mt-2 rounded-[var(--wb-radius)] px-3 py-2 text-[11.5px] ${
             note.tone === 'ok'
               ? 'bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]'
               : note.tone === 'error'
@@ -159,14 +159,14 @@ export default function BackupCard() {
 
       <div className="mt-3 flex flex-col gap-2">
         {snaps.length === 0 ? (
-          <div className="rounded-[10px] border border-dashed border-[color:var(--wb-border-strong)] px-3 py-5 text-center text-[12px] text-[color:var(--wb-muted)]">
+          <div className="rounded-[var(--wb-radius)] border border-dashed border-[color:var(--wb-border-strong)] px-3 py-5 text-center text-[12px] text-[color:var(--wb-muted)]">
             还没有备份。数据库迁移前系统会自动打一份，也可以现在手动点一次。
           </div>
         ) : (
           snaps.map((s) => (
             <div
               key={s.name}
-              className="rounded-[10px] border border-[color:var(--wb-border)] px-3 py-2.5"
+              className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] px-3 py-2.5"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[12.5px] font-medium text-[color:var(--wb-text)]">
@@ -201,7 +201,7 @@ export default function BackupCard() {
                 </Btn>
               </div>
               {confirm === s.name && (
-                <div className="mt-2 rounded-[9px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-3 py-2">
+                <div className="mt-2 rounded-[var(--wb-radius)] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-3 py-2">
                   <label className="flex items-start gap-2 text-[11.5px] text-[color:var(--wb-danger)]">
                     <input
                       type="checkbox"

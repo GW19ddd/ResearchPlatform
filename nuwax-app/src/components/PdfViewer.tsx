@@ -229,7 +229,7 @@ export default function PdfViewer({ src }: { src: string }) {
   const ph = size1 && scale ? Math.round(size1.h * scale) : 0
 
   const smallBtn =
-    'flex h-6 min-w-[24px] items-center justify-center rounded-[7px] px-1.5 text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-bg-subtle)] disabled:opacity-30'
+    'flex h-6 min-w-[24px] items-center justify-center rounded-[var(--wb-radius)] px-1.5 text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-bg-subtle)] disabled:opacity-30'
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[color:var(--wb-bg-subtle)]">
@@ -254,7 +254,7 @@ export default function PdfViewer({ src }: { src: string }) {
             onKeyDown={(e) => {
               if (e.key === 'Enter') goPage(Number(page))
             }}
-            className="w-11 rounded-[6px] border border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface)] px-1 py-[1px] text-center text-[12px] tabular-nums outline-none focus:border-[color:var(--wb-accent)]"
+            className="w-11 rounded-[var(--wb-radius)] border border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface)] px-1 py-[1px] text-center text-[12px] tabular-nums outline-none focus:border-[color:var(--wb-accent)]"
             aria-label="页码"
           />
           <span className="tabular-nums text-[color:var(--wb-muted)]">/ {numPages || '…'}</span>
@@ -294,7 +294,7 @@ export default function PdfViewer({ src }: { src: string }) {
           </button>
           <button
             onClick={() => setFit(true)}
-            className={`ml-1 rounded-[7px] px-2 py-[2px] text-[12px] transition ${
+            className={`ml-1 rounded-[var(--wb-radius)] px-2 py-[2px] text-[12px] transition ${
               fit
                 ? 'bg-[color:var(--wb-accent)] text-white'
                 : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
@@ -309,7 +309,7 @@ export default function PdfViewer({ src }: { src: string }) {
       {/* 页面区 */}
       <div ref={wrapRef} className="flex-1 overflow-auto bg-[#4a4d52] px-4 py-4">
         {err ? (
-          <div className="mx-auto max-w-lg rounded-[10px] bg-[color:var(--wb-danger-soft)] px-3 py-2 text-[12px] text-[color:var(--wb-danger)]">
+          <div className="mx-auto max-w-lg rounded-[var(--wb-radius)] bg-[color:var(--wb-danger-soft)] px-3 py-2 text-[12px] text-[color:var(--wb-danger)]">
             PDF 加载失败：{err}
           </div>
         ) : numPages === 0 ? (

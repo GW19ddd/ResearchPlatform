@@ -160,7 +160,7 @@ export default function ZoteroSyncCard({
           </span>
         </div>
 
-        <details className="rounded-[10px] border border-[color:var(--wb-border)] px-3 py-2">
+        <details className="rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] px-3 py-2">
           <summary className="cursor-pointer text-[12px] text-[color:var(--wb-text-soft)]">
             离线导入：粘贴 CSL JSON / BibTeX / RIS
           </summary>
@@ -180,7 +180,7 @@ export default function ZoteroSyncCard({
 
         {zres && (
           <div
-            className={`rounded-[10px] px-3 py-2 text-[12px] ${
+            className={`rounded-[var(--wb-radius)] px-3 py-2 text-[12px] ${
               zres.ok
                 ? 'bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]'
                 : 'bg-[color:var(--wb-danger-soft)] text-[color:var(--wb-danger)]'

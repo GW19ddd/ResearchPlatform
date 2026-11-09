@@ -21,6 +21,33 @@ export function Spinner({ className = '' }: { className?: string }) {
   return <span className={`wb-spinner inline-block ${className}`} aria-hidden />
 }
 
+/**
+ * 受控浮层的「延迟卸载」：open 变 false 后先播退出动画，再真正卸载。
+ * 系统开了「减少动态效果」就别让人干等，直接把 dur 压到 0。
+ * Modal / Drawer / 头像菜单共用，避免「啪」地一下消失。
+ */
+export function usePresence(open: boolean, ms = 180) {
+  const [mounted, setMounted] = useState(open)
+  const [leaving, setLeaving] = useState(false)
+  useEffect(() => {
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const dur = reduce ? 0 : ms
+    if (open) {
+      setMounted(true)
+      setLeaving(false)
+      return
+    }
+    if (!mounted) return
+    setLeaving(true)
+    const t = window.setTimeout(() => {
+      setMounted(false)
+      setLeaving(false)
+    }, dur)
+    return () => window.clearTimeout(t)
+  }, [open, mounted, ms])
+  return { mounted, leaving }
+}
+
 // ---------------------------------------------------------------- Card
 
 export function Card({
@@ -30,6 +57,8 @@ export function Card({
   className = '',
   footer,
   bodyClassName = '',
+  tourId,
+  onClick,
 }: {
   title?: ReactNode
   extra?: ReactNode
@@ -37,23 +66,29 @@ export function Card({
   className?: string
   footer?: ReactNode
   bodyClassName?: string
+  /** 引导锚点：渲染成 section[data-tour]，不影响外观 */
+  tourId?: string
+  /** 传了就把整张卡变成可点：自动补按压反馈与抬起效果（可选，不传时外观不变） */
+  onClick?: () => void
 }) {
   const hasHead = !!title || !!extra
   return (
     <section
-      className={`overflow-hidden rounded-[14px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-sm)] ${className}`}
+      data-tour={tourId}
+      onClick={onClick}
+      className={`${onClick ? 'wb-press-soft wb-lift cursor-pointer' : ''} overflow-hidden rounded-[var(--wb-radius-lg)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-xs)] ${className}`}
     >
       {hasHead && (
-        <header className="flex items-start justify-between gap-3 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-4 py-2.5">
+        <header className="flex min-h-[46px] items-center justify-between gap-3 border-b border-[color:var(--wb-border)] px-4 py-2.5">
           {title && (
-            <h2 className="text-[13px] font-semibold tracking-[0.01em] text-[color:var(--wb-text)]">
+            <h2 className="min-w-0 text-[13.5px] font-semibold tracking-[-0.01em] text-[color:var(--wb-text)]">
               {title}
             </h2>
           )}
           {extra && <div className="flex shrink-0 items-center gap-1.5">{extra}</div>}
         </header>
       )}
-      <div className={`p-4 ${bodyClassName}`}>{children}</div>
+      <div className={`p-[18px] ${bodyClassName}`}>{children}</div>
       {footer && (
         <footer className="border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-4 py-2.5">
           {footer}
@@ -86,28 +121,32 @@ export function Btn({
   loading?: boolean
   type?: 'button' | 'submit'
   className?: string
-  size?: 'sm' | 'md'
+  size?: 'xs' | 'sm' | 'md' | 'lg'
   title?: string
   /** 纯图标按钮必须给可读名称，否则屏幕阅读器只会念出「按钮」 */
   ariaLabel?: string
 }) {
   // whitespace-nowrap：中文没有词边界，窄容器里会退化成「一个字一行」
   const base =
-    'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-45'
+    'wb-press inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[var(--wb-radius-sm)] border font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-45'
   const sizes: Record<string, string> = {
-    sm: 'px-2 py-[3px] text-[11.5px]',
-    md: 'px-3 py-[6px] text-[12.5px]',
+    xs: 'px-2 py-[2px] text-[11.5px]',
+    sm: 'px-2.5 py-[4px] text-[12px]',
+    md: 'px-3.5 py-[7px] text-[12.5px]',
+    lg: 'px-4 py-2.5 text-[13.5px]',
   }
   const styles: Record<BtnVariant, string> = {
+    /* 主按钮是墨黑实心，hover 反白；不用彩色渐变块、不用发光阴影 */
     primary:
-      'border-transparent bg-[color:var(--wb-accent)] text-white shadow-[var(--wb-shadow-xs)] hover:bg-[color:var(--wb-accent-strong)]',
+      'border-[color:var(--wb-text)] bg-[color:var(--wb-text)] text-white hover:bg-[color:var(--wb-surface)] hover:text-[color:var(--wb-text)]',
     danger:
-      'border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] text-[color:var(--wb-danger)] hover:bg-[#fbdcda]',
-    ghost: 'border-transparent text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]',
+      'border-[color:var(--wb-danger)]/25 bg-[color:var(--wb-danger-soft)] text-[color:var(--wb-danger)] hover:border-[color:var(--wb-danger)]/45',
+    ghost:
+      'border-transparent text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]',
     subtle:
-      'border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]',
+      'border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]',
     default:
-      'border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text)] shadow-[var(--wb-shadow-xs)] hover:bg-[color:var(--wb-surface-alt)] hover:border-[color:var(--wb-border-strong)]',
+      'border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text)] shadow-[var(--wb-shadow-xs)] hover:border-[color:var(--wb-text-soft)]/45 hover:bg-[color:var(--wb-surface-alt)]',
   }
   return (
     <button
@@ -126,8 +165,12 @@ export function Btn({
 
 // ---------------------------------------------------------------- Form
 
+/**
+ * 表单控件共用底子。宽度不写在这里：改由调用方挂 `wb-input-w`（:where() 压过特异性），
+ * 这样页面传 `w-32 / w-40` 能正常覆盖，不必写 !important。
+ */
 const CONTROL_BASE =
-  'w-full rounded-[9px] border bg-[color:var(--wb-surface)] text-[13px] text-[color:var(--wb-text)] outline-none transition placeholder:text-[color:var(--wb-muted)] disabled:bg-[color:var(--wb-bg-subtle)] disabled:text-[color:var(--wb-muted)]'
+  'rounded-[var(--wb-radius-sm)] border bg-[color:var(--wb-surface)] text-[13px] text-[color:var(--wb-text)] outline-none transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-[color:var(--wb-muted)] hover:border-[color:var(--wb-text-soft)]/40 focus:border-[color:var(--wb-accent)] focus:shadow-[var(--wb-ring)] disabled:cursor-not-allowed disabled:bg-[color:var(--wb-bg-subtle)] disabled:text-[color:var(--wb-muted)]'
 
 export function Input({
   value,
@@ -157,7 +200,7 @@ export function Input({
       disabled={disabled}
       onChange={(e) => onChange?.(e.target.value)}
       onBlur={onBlur}
-      className={`${CONTROL_BASE} border-[color:var(--wb-border-strong)] px-2.5 py-[6px] focus:border-[color:var(--wb-accent)] ${className}`}
+      className={`${CONTROL_BASE} wb-input-w border-[color:var(--wb-border-strong)] px-2.5 py-[6px] ${className}`}
     />
   )
 }
@@ -184,7 +227,7 @@ export function TextArea({
       placeholder={placeholder}
       onChange={(e) => onChange?.(e.target.value)}
       onKeyDown={onKeyDown}
-      className={`${CONTROL_BASE} resize-y border-[color:var(--wb-border-strong)] px-2.5 py-[6px] leading-relaxed focus:border-[color:var(--wb-accent)] ${className}`}
+      className={`${CONTROL_BASE} wb-input-w resize-y border-[color:var(--wb-border-strong)] px-2.5 py-[6px] leading-relaxed ${className}`}
     />
   )
 }
@@ -205,7 +248,7 @@ export function Select({
       <select
         value={value ?? ''}
         onChange={(e) => onChange?.(e.target.value)}
-        className={`${CONTROL_BASE} w-auto cursor-pointer appearance-none border-[color:var(--wb-border-strong)] py-[6px] pl-2.5 pr-7 text-[12.5px] focus:border-[color:var(--wb-accent)]`}
+        className={`${CONTROL_BASE} w-auto cursor-pointer appearance-none border-[color:var(--wb-border-strong)] py-[6px] pl-2.5 pr-7 text-[12.5px]`}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -245,7 +288,7 @@ export function Field({
       )}
       {children}
       {error ? (
-        <span className="mt-1 flex items-start gap-1 text-[11.5px] text-[color:var(--wb-danger)]">
+        <span role="alert" className="mt-1 flex items-start gap-1 text-[11.5px] text-[color:var(--wb-danger)]">
           <Icon name="alert" size={12} className="mt-[2px]" />
           <span>{error}</span>
         </span>
@@ -269,7 +312,7 @@ export function Pill({
 }) {
   const tones: Record<string, string> = {
     gray: 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-text-soft)]',
-    slate: 'bg-[#eceff3] text-[#475467]',
+    slate: 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-text-soft)]',
     blue: 'bg-[color:var(--wb-info-soft)] text-[color:var(--wb-info)]',
     indigo: 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]',
     green: 'bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]',
@@ -278,7 +321,7 @@ export function Pill({
   }
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[1px] text-[11.5px] font-medium leading-[18px] ${
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-[var(--wb-radius-sm)] px-2 py-[1px] text-[11.5px] font-medium leading-[18px] ${
         tones[tone] || tones.gray
       } ${className}`}
     >
@@ -298,7 +341,7 @@ export function Dot({ tone = 'gray' }: { tone?: string }) {
   }
   return (
     <span
-      className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${tones[tone] || tones.gray}`}
+      className={`inline-block h-1.5 w-1.5 shrink-0 rounded-[var(--wb-radius-sm)] ${tones[tone] || tones.gray}`}
     />
   )
 }
@@ -313,17 +356,19 @@ export function Empty({
   action?: ReactNode
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-1.5 rounded-[12px] border border-dashed border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface-alt)] px-4 py-8 text-center">
-      <div className="text-[12.5px] text-[color:var(--wb-text-soft)]">{text}</div>
-      {hint && <div className="text-[11.5px] text-[color:var(--wb-muted)]">{hint}</div>}
-      {action}
+    <div className="wb-anim-fade flex flex-col items-center justify-center gap-1.5 rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-4 py-9 text-center">
+      {/* 一条短细线作视觉锚点，不用圆形图标徽章 */}
+      <span aria-hidden className="mb-1.5 h-px w-8 bg-[color:var(--wb-border-strong)]" />
+      <div className="text-[12.5px] font-medium text-[color:var(--wb-text-soft)]">{text}</div>
+      {hint && <div className="max-w-[320px] text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">{hint}</div>}
+      {action && <div className="mt-1.5">{action}</div>}
     </div>
   )
 }
 
 export function Loading({ text = '加载中…' }: { text?: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 py-8 text-[12px] text-[color:var(--wb-muted)]">
+    <div className="wb-anim-fade flex items-center justify-center gap-2 py-8 text-[12px] text-[color:var(--wb-muted)]">
       <Spinner />
       {text}
     </div>
@@ -353,21 +398,22 @@ export function StatCard({
     danger: 'text-[color:var(--wb-danger)]',
     accent: 'text-[color:var(--wb-accent)]',
   }
+  /** 期刊统计栏：一根顶线 + 小号栏名 + 衬线数字，不是四张浮起来的卡片 */
   return (
     <div
       onClick={onClick}
-      className={`rounded-[12px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3.5 py-3 shadow-[var(--wb-shadow-xs)] transition ${
-        onClick ? 'cursor-pointer hover:shadow-[var(--wb-shadow-sm)]' : ''
+      className={`border-t border-[color:var(--wb-border-strong)] pt-3 ${
+        onClick ? 'wb-press-soft cursor-pointer hover:bg-[color:var(--wb-surface-alt)]' : ''
       }`}
     >
-      <div className="text-[12px] text-[color:var(--wb-muted)]">{label}</div>
-      <div className="mt-0.5 flex items-baseline gap-1">
-        <span className={`text-[20px] font-semibold leading-tight tabular-nums ${tones[tone]}`}>
+      <div className="text-[11px] font-medium tracking-[0.06em] text-[color:var(--wb-muted)]">{label}</div>
+      <div className="mt-1.5 flex items-baseline gap-1">
+        <span className={`wb-serif text-[28px] leading-none tabular-nums ${tones[tone]}`}>
           {value}
         </span>
-        {unit && <span className="text-[12px] text-[color:var(--wb-muted)]">{unit}</span>}
+        {unit && <span className="text-[11.5px] text-[color:var(--wb-muted)]">{unit}</span>}
       </div>
-      {hint && <div className="mt-0.5 text-[11.5px] text-[color:var(--wb-muted)]">{hint}</div>}
+      {hint && <div className="mt-1.5 line-clamp-2 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">{hint}</div>}
     </div>
   )
 }
@@ -392,9 +438,9 @@ export function Progress({
   }
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color:var(--wb-bg-subtle)]">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-[var(--wb-radius-sm)] bg-[color:var(--wb-bg-subtle)] shadow-[inset_0_1px_1px_rgba(26, 26, 26,0.05)]">
         <div
-          className={`h-full rounded-full transition-all duration-300 ${tones[tone]}`}
+          className={`h-full rounded-[var(--wb-radius-sm)] transition-all duration-300 ${tones[tone]}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -421,17 +467,18 @@ export function Segmented<T extends string>({
 }) {
   return (
     <div
-      className={`inline-flex gap-0.5 rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-bg-subtle)] p-0.5 ${className}`}
+      className={`inline-flex gap-0.5 rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] bg-[color:var(--wb-bg-subtle)] p-0.5 ${className}`}
     >
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
+          aria-pressed={value === o.value}
           onClick={() => onChange(o.value)}
-          className={`rounded-[8px] px-2.5 py-[3px] text-[12px] transition ${
+          className={`wb-press-soft rounded-[var(--wb-radius-sm)] px-2.5 py-[4px] text-[12px] transition ${
             value === o.value
               ? 'bg-[color:var(--wb-surface)] font-medium text-[color:var(--wb-text)] shadow-[var(--wb-shadow-xs)]'
-              : 'text-[color:var(--wb-text-soft)] hover:text-[color:var(--wb-text)]'
+              : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-surface)]/60 hover:text-[color:var(--wb-text)]'
           }`}
         >
           {o.label}
@@ -458,7 +505,7 @@ export function ScoreBar({
         {Array.from({ length: max }, (_, i) => i + 1).map((i) => (
           <span
             key={i}
-            className={`h-[5px] w-4 rounded-full transition-colors ${
+            className={`h-[5px] w-4 rounded-[var(--wb-radius-sm)] transition-colors ${
               i <= v ? 'bg-[color:var(--wb-accent)]' : 'bg-[color:var(--wb-bg-subtle)]'
             }`}
           />
@@ -518,30 +565,37 @@ export function Modal({
   width?: string
 }) {
   useEscClose(open, onClose)
-  if (!open) return null
+  const presence = usePresence(open, 200)
+  if (!presence.mounted) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="wb-anim-fade absolute inset-0 bg-[rgba(16,24,40,0.45)]"
+        className={`absolute inset-0 bg-[rgba(26,26,26,0.42)] ${
+          presence.leaving ? 'wb-overlay-out' : 'wb-overlay-in'
+        }`}
         onClick={onClose}
       />
       <div
-        className={`wb-anim-pop relative w-full ${width} overflow-hidden rounded-[16px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)]`}
+        className={`relative w-full ${width} overflow-hidden rounded-[var(--wb-radius-lg)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)] ${
+          presence.leaving ? 'wb-dialog-out' : 'wb-dialog-in'
+        }`}
       >
         {title && (
-          <header className="flex items-center justify-between border-b border-[color:var(--wb-border)] px-4 py-3">
-            <h3 className="text-[13.5px] font-semibold text-[color:var(--wb-text)]">{title}</h3>
+          <header className="flex min-h-[48px] items-center justify-between border-b border-[color:var(--wb-border)] px-4 py-2.5">
+            <h3 className="text-[13.5px] font-semibold tracking-[-0.01em] text-[color:var(--wb-text)]">
+              {title}
+            </h3>
             <button
               type="button"
               onClick={onClose}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+              className="wb-press-strong flex h-6 w-6 items-center justify-center rounded-[var(--wb-radius-sm)] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
               aria-label="关闭"
             >
               <Icon name="close" size={15} />
             </button>
           </header>
         )}
-        <div className="max-h-[70vh] overflow-y-auto p-4">{children}</div>
+        <div className="max-h-[70vh] overflow-y-auto p-[18px]">{children}</div>
         {footer && (
           <footer className="flex justify-end gap-2 border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-4 py-3">
             {footer}
@@ -568,27 +622,35 @@ export function Drawer({
   footer?: ReactNode
 }) {
   useEscClose(open, onClose)
-  if (!open) return null
+  const presence = usePresence(open, 220)
+  if (!presence.mounted) return null
   return (
     <div className="fixed inset-0 z-50">
-      <div className="wb-anim-fade absolute inset-0 bg-[rgba(16,24,40,0.4)]" onClick={onClose} />
+      <div
+        className={`absolute inset-0 bg-[rgba(26,26,26,0.40)] ${
+          presence.leaving ? 'wb-overlay-out' : 'wb-overlay-in'
+        }`}
+        onClick={onClose}
+      />
       <aside
-        className={`wb-anim-slide absolute right-0 top-0 flex h-full ${width} max-w-[92vw] flex-col border-l border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)]`}
+        className={`absolute right-0 top-0 flex h-full ${width} max-w-[92vw] flex-col border-l border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)] ${
+          presence.leaving ? 'wb-drawer-out' : 'wb-drawer-in'
+        }`}
       >
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[color:var(--wb-border)] px-4 py-3">
-          <div className="min-w-0 flex-1 text-[13.5px] font-semibold text-[color:var(--wb-text)]">
+        <header className="flex min-h-[48px] shrink-0 items-center justify-between gap-2 border-b border-[color:var(--wb-border)] px-4 py-2.5">
+          <div className="min-w-0 flex-1 text-[13.5px] font-semibold tracking-[-0.01em] text-[color:var(--wb-text)]">
             {title}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+            className="wb-press-strong flex h-6 w-6 items-center justify-center rounded-[var(--wb-radius-sm)] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
             aria-label="关闭"
           >
             <Icon name="close" size={15} />
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-[18px]">{children}</div>
         {footer && (
           <footer className="shrink-0 border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-4 py-3">
             {footer}
@@ -605,20 +667,29 @@ export function PageHeader({
   title,
   desc,
   actions,
+  eyebrow,
 }: {
   title: ReactNode
   desc?: ReactNode
   actions?: ReactNode
+  /** 标题左侧的小字引导（如分组名 / 当前阶段），只在需要交代语境时给 */
+  eyebrow?: ReactNode
 }) {
+  /** 期刊页眉：单行衬线标题 + 一行说明，下方一根发丝线收口（仍不做大标题卡） */
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className="text-[17px] font-semibold tracking-[0.01em] text-[color:var(--wb-text)]">
+    <div className="wb-anim-rise mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-[color:var(--wb-border-strong)] pb-3">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        {eyebrow && <span className="wb-running">{eyebrow}</span>}
+        <h1 className="wb-serif text-[19px] font-medium leading-snug text-[color:var(--wb-text)]">
           {title}
         </h1>
-        {desc && <p className="mt-0.5 text-[12px] text-[color:var(--wb-muted)]">{desc}</p>}
+        {desc && (
+          <p className="min-w-0 max-w-[72ch] text-[12px] leading-relaxed text-[color:var(--wb-muted)]">
+            {desc}
+          </p>
+        )}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   )
 }
@@ -639,17 +710,22 @@ export function SearchInput({
   const [focused, setFocused] = useState(false)
   return (
     <div
-      className={`flex items-center gap-1.5 rounded-[9px] border bg-[color:var(--wb-surface)] px-2.5 transition ${
+      className={`flex items-center gap-1.5 rounded-[var(--wb-radius-sm)] border bg-[color:var(--wb-surface)] px-2.5 transition-[border-color,box-shadow] duration-150 ${
         focused
-          ? 'border-[color:var(--wb-accent)]'
-          : 'border-[color:var(--wb-border-strong)]'
+          ? 'border-[color:var(--wb-accent)] shadow-[var(--wb-ring)]'
+          : 'border-[color:var(--wb-border-strong)] hover:border-[color:var(--wb-text-soft)]/40'
       } ${className}`}
     >
-      <Icon name="search" size={13} className="text-[color:var(--wb-muted)]" />
+      <Icon
+        name="search"
+        size={13}
+        className={focused ? 'text-[color:var(--wb-accent)]' : 'text-[color:var(--wb-muted)]'}
+      />
       <input
         ref={ref}
         value={value}
         placeholder={placeholder}
+        aria-label={placeholder}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
@@ -662,7 +738,7 @@ export function SearchInput({
             onChange('')
             ref.current?.focus()
           }}
-          className="flex h-5 w-5 items-center justify-center rounded text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+          className="wb-press-strong flex h-5 w-5 items-center justify-center rounded-[var(--wb-radius-sm)] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
           aria-label="清空搜索"
         >
           <Icon name="close" size={12} />
@@ -772,7 +848,7 @@ export function StatusTag({
   const t = map[tone] || map.gray
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[1px] text-[11.5px] font-medium leading-[18px] ${t.cls} ${className}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-[var(--wb-radius-sm)] px-2 py-[1px] text-[11.5px] font-medium leading-[18px] ${t.cls} ${className}`}
     >
       {/* 忙碌态用旋转图标表达「进行中」，其余档位本身就是语义符号，aria-hidden 交给 Icon */}
       <Icon name={t.icon} size={11} className={tone === 'busy' ? 'wb-anim-spin' : ''} />
@@ -799,12 +875,12 @@ export function Details({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className={`rounded-[9px] border border-[color:var(--wb-border)] ${className}`}>
+    <div className={`wb-inset overflow-hidden ${className}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11.5px] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]"
+        className="wb-press-soft flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11.5px] text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-bg-subtle)]"
       >
         <span aria-hidden className="text-[color:var(--wb-muted)]">
           <Icon name={open ? 'chevronDown' : 'chevronRight'} size={11} strokeWidth={2} />
@@ -812,7 +888,7 @@ export function Details({
         <span className="whitespace-nowrap">{summary}</span>
       </button>
       {open && (
-        <div className="border-t border-[color:var(--wb-border)] px-2.5 py-2 text-[11.5px] text-[color:var(--wb-text-soft)]">
+        <div className="wb-view-enter border-t border-[color:var(--wb-border)] px-2.5 py-2 text-[11.5px] text-[color:var(--wb-text-soft)]">
           {children}
         </div>
       )}
@@ -837,7 +913,7 @@ export function LoadError({
   what?: string
 }) {
   return (
-    <div className="rounded-[12px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-4 py-5">
+    <div className="wb-anim-fade rounded-[var(--wb-radius)] border border-[color:var(--wb-danger)]/25 bg-[color:var(--wb-danger-soft)] px-4 py-5">
       <div className="flex items-start gap-2">
         <Icon name="alert" size={15} className="mt-[1px] text-[color:var(--wb-danger)]" />
         <div className="min-w-0 flex-1">

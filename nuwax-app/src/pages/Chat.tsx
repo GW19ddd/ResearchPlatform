@@ -198,7 +198,7 @@ export default function Chat() {
               sessions.map((s) => (
                 <div
                   key={s.id}
-                  className={`flex items-center gap-1 rounded-[9px] px-2 py-1.5 text-[12px] transition ${
+                  className={`flex items-center gap-1 rounded-[var(--wb-radius)] px-2 py-1.5 text-[12px] transition ${
                     sid === s.id
                       ? 'bg-[color:var(--wb-accent)] text-white'
                       : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
@@ -217,7 +217,7 @@ export default function Chat() {
                   <button
                     onClick={() => remove(s.id)}
                     aria-label="删除该会话"
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] opacity-55 transition hover:opacity-100 ${
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--wb-radius)] opacity-55 transition hover:opacity-100 ${
                       sid === s.id
                         ? 'hover:bg-[color:var(--wb-surface)]/20'
                         : 'hover:bg-[color:var(--wb-danger-soft)] hover:text-[color:var(--wb-danger)]'
@@ -258,7 +258,7 @@ export default function Chat() {
             }
           >
             {showCtx && (
-              <div className="mb-3 rounded-lg border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] p-3">
+              <div className="mb-3 rounded-[var(--wb-radius)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] p-3">
                 <div className="text-[11.5px] text-[color:var(--wb-text-soft)]">
                   勾选要塞进对话背景的工作台数据（会自动拼进 system prompt）：
                 </div>
@@ -273,7 +273,7 @@ export default function Chat() {
                             : [...ctxKeys, o.value]
                         )
                       }
-                      className={`rounded-full border px-2 py-0.5 text-[11.5px] ${
+                      className={`rounded-[var(--wb-radius-sm)] border px-2 py-0.5 text-[11.5px] ${
                         ctxKeys.includes(o.value)
                           ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent-strong)]'
                           : 'border-[color:var(--wb-border)] text-[color:var(--wb-text-soft)]'
@@ -294,7 +294,7 @@ export default function Chat() {
             {!sid ? (
               <Empty text="左侧点「新建」开一轮对话，或直接选一个已有会话" />
             ) : msgs.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-[color:var(--wb-border-strong)] px-3 py-6">
+              <div className="rounded-[var(--wb-radius)] border border-dashed border-[color:var(--wb-border-strong)] px-3 py-6">
                 <div className="text-center text-[12px] text-[color:var(--wb-text-soft)]">
                   当前角色：<b>{roles.find((r) => r.value === role)?.label || '科研助手'}</b>
                   {ctxKeys.length > 0 && ' · 已带入工作台上下文'}
@@ -309,7 +309,7 @@ export default function Chat() {
                         setInput(q)
                         setTimeout(() => send(false, q), 30)
                       }}
-                      className="rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3 py-1 text-[12px] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-border-strong)] hover:text-[color:var(--wb-text)]"
+                      className="rounded-[var(--wb-radius-sm)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3 py-1 text-[12px] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-border-strong)] hover:text-[color:var(--wb-text)]"
                     >
                       {q}
                     </button>
@@ -324,7 +324,7 @@ export default function Chat() {
                     className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-lg px-3 py-2 text-[13px] ${
+                      className={`max-w-[85%] rounded-[var(--wb-radius)] px-3 py-2 text-[13px] ${
                         m.role === 'user'
                           ? 'bg-[color:var(--wb-accent)] text-white'
                           : 'border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text)]'
@@ -349,7 +349,7 @@ export default function Chat() {
             )}
 
             {err && (
-              <div className="mt-2 rounded-lg bg-[color:var(--wb-danger-soft)] px-3 py-2 text-[12px] text-[color:var(--wb-danger)]">
+              <div className="mt-2 rounded-[var(--wb-radius)] bg-[color:var(--wb-danger-soft)] px-3 py-2 text-[12px] text-[color:var(--wb-danger)]">
                 {err}
               </div>
             )}
