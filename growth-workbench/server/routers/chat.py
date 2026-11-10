@@ -10,6 +10,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import llm
+import chat_prefs
+from chat_prefs import ChatPrefsIn
 from db import execute, now, query
 from skill_registry import get_skill
 
@@ -477,7 +479,7 @@ def delete_finding(fid: int):
 # ------------------------------ 发消息 ------------------------------
 
 
-class MessageIn(BaseModel):
+class MessageIn(ChatPrefsIn):
     content: str
     mode: str | None = None
     history_limit: int = 20
@@ -494,11 +496,37 @@ class MessageIn(BaseModel):
     skill_refs: list[dict] | None = None
 
 
+class EditIn(BaseModel):
+    content: str
+
+
+@router.patch("/sessions/{sid}/messages/{mid}")
+def edit_message(sid: int, mid: int, body: EditIn):
+    """编辑自己发出的一条消息（铅笔按钮）。
+
+    只改内容、不回滚之后的对话：前端在编辑最后一条 user 后会再发一次
+    regenerate，后端复用这条已更新的 user 文本重生成这一轮。
+    """
+    rows = query("SELECT id, role FROM chat_messages WHERE id=? AND session_id=?", (mid, sid))
+    if not rows:
+        raise HTTPException(404, "消息不存在")
+    if rows[0]["role"] != "user":
+        raise HTTPException(400, "只能编辑自己发出的消息")
+    text = (body.content or "").strip()
+    if not text:
+        raise HTTPException(400, "消息内容为空")
+    execute("UPDATE chat_messages SET content=? WHERE id=?", (text[:4000], mid))
+    return {"ok": True}
+
+
 @router.post("/sessions/{sid}/messages")
 async def send_message(sid: int, body: MessageIn):
     s, text, hist, system, mode = _prepare(sid, body)
 
-    env = await llm.chat_result(hist, system=system, mode=mode, task="chat", max_tokens=4096)
+    env = await llm.chat_result(
+        hist, system=system, mode=mode, task="chat", max_tokens=4096,
+        model_override=chat_prefs.model_override(body),
+    )
 
     if not env["ok"]:
         # 失败不写入 assistant 消息：它会在历史里留下一句假回复，
@@ -679,6 +707,9 @@ def _prepare(sid: int, body: MessageIn):
             + raw
         )
 
+    # 本轮运行环境：审批方式 / 工作区 / 附件 / 文件夹文件树（前端对话框工具条）
+    system += chat_prefs.system_from(body)
+
     mode = body.mode or s.get("mode") or "fast"
     return s, text, hist, system, mode
 
@@ -696,7 +727,10 @@ async def send_message_stream(sid: int, body: MessageIn):
     async def gen():
         live: list[str] = []
         try:
-            async for ev in llm.stream_chat_events(hist, system=system, mode=mode, task="chat", max_tokens=4096):
+            async for ev in llm.stream_chat_events(
+                hist, system=system, mode=mode, task="chat", max_tokens=4096,
+                model_override=chat_prefs.model_override(body),
+            ):
                 if ev["type"] == "delta":
                     live.append(ev["text"])
                     yield f"data: {json.dumps({'type': 'delta', 'text': ev['text']}, ensure_ascii=False)}\n\n"

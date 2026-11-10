@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Btn, Card, IconBtn, Input, LoadError, Loading, PageHeader, Pill, Select } from '../components/ui'
+import { Btn, Card, IconBtn, Input, LoadError, Loading, PageHeader, Pill, Segmented, Select } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { del, get, post, put } from '../lib/api'
@@ -7,6 +7,12 @@ import BackupCard from '../features/settings/BackupCard'
 import SuspectsCard from '../features/settings/SuspectsCard'
 import AccountCard from '../features/settings/AccountCard'
 import ZoteroSyncCard from '../features/literature/ZoteroSyncCard'
+import PaperFeedCard from '../features/settings/PaperFeedCard'
+import OpenAlexCard from '../features/settings/OpenAlexCard'
+import CanvasAccess from '../features/canvas/CanvasAccess'
+import CanvasLogs from '../features/canvas/CanvasLogs'
+import CanvasMonitor from '../features/canvas/CanvasMonitor'
+import { CanvasSelect, NeedCanvas, useCanvasPicker } from '../features/canvas/CanvasSub'
 
 const ROUTING = [
   { value: 'all', label: '所有任务' },
@@ -34,7 +40,50 @@ function UsageTip({ active, payload }: any) {
   )
 }
 
-export type SettingsSection = 'all' | 'account' | 'model' | 'dify' | 'data' | 'zotero'
+export type SettingsSection =
+  | 'all'
+  | 'account'
+  | 'model'
+  | 'dify'
+  | 'canvas'
+  | 'sources'
+  | 'paperfeed'
+  | 'data'
+  | 'zotero'
+
+/**
+ * 画布管理：把编排画布里「除了编排之外」的三块（访问点 / 日志 / 监测）收进设置页。
+ * 只用一个画布选择器 + 一个分段切换，避免三块各自重复选择器；三块复用各自组件并传入 embedded。
+ */
+function CanvasManageCard() {
+  const { cid, setCid, canvases } = useCanvasPicker()
+  const [tab, setTab] = useState<'access' | 'logs' | 'monitor'>('access')
+  if (!cid) return <NeedCanvas />
+  return (
+    <Card
+      title="画布管理"
+      extra={<CanvasSelect cid={cid} setCid={setCid} canvases={canvases} />}
+    >
+      <p className="mb-3 text-[11.5px] leading-relaxed text-[color:var(--wb-text-soft)]">
+        编排画布的访问入口、运行历史与运行监测。先选一块画布，再切换查看。
+      </p>
+      <Segmented
+        value={tab}
+        onChange={(v) => setTab(v as 'access' | 'logs' | 'monitor')}
+        options={[
+          { value: 'access', label: '访问点' },
+          { value: 'logs', label: '日志' },
+          { value: 'monitor', label: '监测' },
+        ]}
+      />
+      <div className="mt-4">
+        {tab === 'access' && <CanvasAccess embedded />}
+        {tab === 'logs' && <CanvasLogs embedded />}
+        {tab === 'monitor' && <CanvasMonitor embedded />}
+      </div>
+    </Card>
+  )
+}
 
 export default function Settings({
   embedded = false,
@@ -565,6 +614,10 @@ export default function Settings({
       </Card>
       )}
 
+      {show('canvas') && <CanvasManageCard />}
+
+      {show('sources') && <OpenAlexCard />}
+
       {show('model') && (
       <Card
         title="调用统计"
@@ -626,6 +679,8 @@ export default function Settings({
           onImported={() => window.dispatchEvent(new Event('wb:data-changed'))}
         />
       )}
+
+      {show('paperfeed') && <PaperFeedCard />}
     </div>
   )
 }

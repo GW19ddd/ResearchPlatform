@@ -17,6 +17,8 @@ from pydantic import BaseModel
 
 import config
 import llm
+import chat_prefs
+from chat_prefs import ChatPrefsIn
 from crud import row_or_404
 from db import execute, now, query
 
@@ -85,7 +87,7 @@ def _snapshot(root: Path) -> dict[str, float]:
     return snap
 
 
-class AgentIn(BaseModel):
+class AgentIn(ChatPrefsIn):
     message: str
 
 
@@ -265,14 +267,17 @@ async def agent_turn(exp_id: int, body: AgentIn):
     history = query("SELECT * FROM exp_messages WHERE experiment_id=? ORDER BY id DESC LIMIT 12", (exp_id,))
     history.reverse()
     files_before = list_ws_files(exp_id)
-    context = _build_context(exp, history, files_before)
+    context = _build_context(exp, history, files_before) + chat_prefs.system_from(body)
 
     ts_dir = time.strftime("run-%Y%m%d-%H%M%S")
     prompt = _AGENT_PROMPT.format(
         context=context, message=msg, ts_dir=ts_dir,
         max_files=MAX_FILES, timeout_s=RUN_TIMEOUT_S,
     )
-    data, env = await llm.complete_json_result(prompt, mode="fast", task="exp-agent", max_tokens=8192)
+    data, env = await llm.complete_json_result(
+        prompt, mode="fast", task="exp-agent", max_tokens=8192,
+        model_override=chat_prefs.model_override(body),
+    )
     if not env["ok"]:
         return {"ok": False, "error": env["error"]}
 

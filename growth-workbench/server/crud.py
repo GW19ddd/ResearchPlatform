@@ -23,6 +23,7 @@ TABLES_WITH_UPDATED_AT = {
     "paper_stages",
     "paper_sections",
     "canvases",
+    "community_posts",
 }
 
 

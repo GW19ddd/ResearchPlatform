@@ -22,6 +22,17 @@ import { composeKickoff, EMPTY_QUEST, type Quest } from '../lib/chatKickoff'
 import { parseSse } from '../lib/sse'
 import SkillMarket from '../features/skills/SkillMarket'
 import SkillPicker, { type SkillGroup, type SkillOption } from '../features/skills/SkillPicker'
+import { RESEARCH_SKILLS as SKILLS } from '../features/skills/presets'
+import {
+  ApprovalChip,
+  AttachmentChips,
+  ComposerTools,
+  ContextBar,
+  MessageActions,
+  ModelPicker,
+} from '../features/chat/ComposerTools'
+import { chatEnvelope } from '../features/chat/prefs'
+import { toast } from '../components/toast'
 
 /** 课题契约（对齐 DeepScientist Start Research 字段）—— 实现见 lib/chatKickoff.ts（已单测） */
 
@@ -89,29 +100,7 @@ const CONTINUE_PROMPTS: Record<string, string> = {
   write: '请继续撰写：基于已确认的发现完善报告/论文的下一部分。',
 }
 
-/** 科研技能（布局借鉴 Codeg 的技能卡片网格）：点卡片把技能提示词装进输入框 */
-const SKILL_CATS = ['构思', '实验与数据', '写作', '批判'] as const
-/** 分类图标（Codeg 卡片左上角的小彩图标同款位置） */
-const CAT_ICONS: Record<string, any> = { 构思: 'sparkle', 实验与数据: 'beaker', 写作: 'file', 批判: 'search' }
-const SKILLS: { cat: (typeof SKILL_CATS)[number]; name: string; desc: string; prompt: string }[] = [
-  { cat: '构思', name: '科学头脑风暴', desc: '围绕课题发散 10 个可检验的想法', prompt: '请围绕当前课题做一轮科学头脑风暴：给出 10 个可检验的具体想法，每个附一句「为什么值得 / 怎么证伪」，标出你最推荐的 3 个。' },
-  { cat: '构思', name: '假设生成', desc: '把观察转化为可检验假设', prompt: '请把目前掌握的观察与发现转化为 3 条可检验的研究假设：每条给出自变量、因变量、预期方向与验证手段，并说明证据强度。' },
-  { cat: '构思', name: '开放式科研构思', desc: '探索跨学科联系与缺口', prompt: '请从跨学科视角审视当前课题：相邻领域有哪些可借鉴的方法？当前文献里被忽视的缺口是什么？给出 2 个差异化的切入角度。' },
-  { cat: '构思', name: '方法选型', desc: '对比候选方法并给出推荐', prompt: '请对比解决当前问题的主要方法路线（至少 3 种）：用表格列出原理、优缺点、算力/数据要求、在本课题条件下的可行性，最后给出推荐与理由。' },
-  { cat: '实验与数据', name: '实验设计', desc: '采集数据前的严谨设计', prompt: '请为当前假设设计一个严谨的实验方案：变量与控制、随机化与重复、样本量/规模依据、评测指标与判据、可能的混淆因素及应对。' },
-  { cat: '实验与数据', name: '基线核查', desc: '确保对比公平可复现', prompt: '请列出本课题必须对比的基线方法清单：每个基线给出公平比较的前提（同数据/同预算/同调参）、代表性论文与复现要点。' },
-  { cat: '实验与数据', name: '统计分析', desc: '选对检验与显著性口径', prompt: '请针对我的实验数据类型推荐统计检验方法：说明前提假设、多重比较校正、效应量与置信区间的报告口径，并指出常见统计误用。' },
-  { cat: '实验与数据', name: '统计功效', desc: '样本量够不够', prompt: '请做一次统计功效分析：基于预期效应量与方差，估算达到 0.8 功效所需样本量/实验次数，并说明若功效不足结论会有什么风险。' },
-  { cat: '实验与数据', name: '探索性数据分析', desc: '拿到数据先看什么', prompt: '请给我一份探索性数据分析（EDA）清单：分布、离群点、缺失、相关性、分组差异各看什么图什么统计量，以及哪些信号提示数据有问题。' },
-  { cat: '实验与数据', name: '科学可视化', desc: '图怎么画才有说服力', prompt: '请针对我要展示的结论设计图表方案：每张图用什么图型、坐标与编码方式、要突出什么信息、常见画法错误，并给出 caption 草稿。' },
-  { cat: '写作', name: '论文骨架', desc: '从结论倒推论文结构', prompt: '请基于当前发现草拟论文骨架：标题候选、摘要（150 字版）、各节要点与字数分配、每节要回答的审稿人问题。' },
-  { cat: '写作', name: '相关工作', desc: '按脉络组织而非罗列', prompt: '请帮我把相关工作按技术脉络分成 2-4 条主线组织综述段落：每条线代表工作、演进逻辑、与本工作的关系，结尾点出我们的差异化位置。' },
-  { cat: '写作', name: '回复审稿人', desc: '逐条礼貌而有力地回应', prompt: '请帮我起草审稿人回复：逐条先复述对方关切，再给「感谢 + 回应 + 修改位置」三段式回复；对无法满足的要求给出体面的替代方案。' },
-  { cat: '写作', name: '组会汇报', desc: '两分钟讲清进展', prompt: '请把当前进展整理成两分钟组会汇报：一句话结论开头，然后「做了什么 / 关键数字 / 下一步」，最后预判导师最可能追问的 3 个问题。' },
-  { cat: '批判', name: '审稿人视角', desc: '挑三个最致命的漏洞', prompt: '请用顶会审稿人的眼光审视当前方案：找出 3 个最致命的漏洞（新颖性/严谨性/说服力各至少考虑一遍），每个给 1 条补救建议。' },
-  { cat: '批判', name: '证伪演练', desc: '主动寻找推翻自己的证据', prompt: '请做一次证伪演练：如果我的结论是错的，最可能是因为什么？列出 5 个能区分「对」与「错」的判别性实验或观察。' },
-  { cat: '批判', name: '过度声明检查', desc: '把话说得与证据一样大', prompt: '请检查我当前的结论表述：哪些地方声明超出证据支持（过度泛化/因果当相关/单次当普遍）？逐句给出更克制的改写。' },
-]
+/** 内置科研技能清单见 features/skills/presets.ts（/chat 与 /research 共用同一份） */
 
 type Msg = {
   id: number
@@ -215,6 +204,9 @@ export default function Chat() {
   const [pickerHost, setPickerHost] = useState<'chat' | 'home'>('chat')
   const [pickerQ, setPickerQ] = useState('')
   const [marketOpen, setMarketOpen] = useState(false)
+  /** 用户消息编辑：改的是服务端那条 user 记录，最后一条会顺带重新生成 */
+  const [editId, setEditId] = useState<number | null>(null)
+  const [editVal, setEditVal] = useState('')
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const [busy, setBusy] = useState('')
   /** 启动期门闸：挂载时若上次会话还在（chat.sid 持久化），要等 detail 拉回才能进工作区；
@@ -528,7 +520,11 @@ export default function Chat() {
         headers: { 'Content-Type': 'application/json' },
         // 注意：流式请求不能带 Idempotency-Key（幂等中间件会缓存整个响应体）
         // skill_refs：输入框里挂的技能 chip，本轮注入 SKILL.md 原文，发完前端已清空
-        body: JSON.stringify({ content: text, mode, regenerate, skill_refs: skillRefs }),
+        // chatEnvelope：审批模式 / 本轮模型 / 工作区与附件，后端注入 system 并覆盖模型名
+        body: JSON.stringify({
+          content: text, mode, regenerate, skill_refs: skillRefs,
+          ...chatEnvelope(),
+        }),
         signal: ac.signal,
       })
       if (!res.ok || !res.body) {
@@ -586,6 +582,30 @@ export default function Chat() {
     if (!regenerate) setInput('')
     const refs = takeRefs()
     sendStream(text, regenerate, undefined, refs)
+  }
+
+  /** 编辑用户消息：改服务端那条 user 记录；若是最后一条，按新内容重生成这一轮 */
+  const saveEdit = async (m: Msg) => {
+    const text = editVal.trim()
+    if (!sid || !text) {
+      setEditId(null)
+      return
+    }
+    try {
+      await patch(`/chat/sessions/${sid}/messages/${m.id}`, { content: text }, { ok: false })
+      const d = await get(`/chat/sessions/${sid}`)
+      setDetail(d)
+      setEditId(null)
+      const lastUser = [...(d.messages || [])].reverse().find((x: any) => x.role === 'user')
+      if (lastUser?.id === m.id && !streaming) {
+        toast('已更新，正在按新内容重新生成', 'ok')
+        await takeover(true)
+      } else {
+        toast('这条消息已更新', 'ok')
+      }
+    } catch (e: any) {
+      setErr(String(e?.message || e))
+    }
   }
 
   const setQuestMode = async (v: string) => {
@@ -860,10 +880,51 @@ export default function Chat() {
               <div className="flex flex-col gap-8">
                 {msgs.map((m) =>
                   m.role === 'user' ? (
-                    <div key={m.id} className="flex justify-end">
-                      <div className="max-w-[80%] whitespace-pre-wrap rounded-[16px] rounded-br-[6px] bg-[color:var(--wb-bg-subtle)] px-3.5 py-2 text-[13.5px] leading-relaxed text-[color:var(--wb-text)]">
-                        {m.content}
-                      </div>
+                    <div key={m.id} className="flex flex-col items-end gap-1">
+                      {editId === m.id ? (
+                        <div className="w-full max-w-[80%] rounded-[14px] border border-[color:var(--wb-accent)]/50 bg-[color:var(--wb-surface)] p-2 shadow-[var(--wb-shadow-sm)]">
+                          <textarea
+                            autoFocus
+                            rows={3}
+                            value={editVal}
+                            onChange={(e) => setEditVal(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') setEditId(null)
+                              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) saveEdit(m)
+                            }}
+                            className="block w-full resize-none bg-transparent px-1 py-0.5 text-[13.5px] leading-relaxed text-[color:var(--wb-text)] outline-none"
+                          />
+                          <div className="mt-1 flex items-center justify-end gap-1.5">
+                            <span className="mr-auto text-[10.5px] text-[color:var(--wb-muted)]">
+                              Ctrl+Enter 保存
+                            </span>
+                            <Btn size="xs" onClick={() => setEditId(null)}>
+                              取消
+                            </Btn>
+                            <Btn size="xs" variant="primary" onClick={() => saveEdit(m)}>
+                              保存并重发
+                            </Btn>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="max-w-[80%] whitespace-pre-wrap rounded-[16px] rounded-br-[6px] bg-[color:var(--wb-bg-subtle)] px-3.5 py-2 text-[13.5px] leading-relaxed text-[color:var(--wb-text)]">
+                          {m.content}
+                        </div>
+                      )}
+                      <MessageActions
+                        time={m.created_at ? String(m.created_at).slice(11, 16) : ''}
+                        content={m.content}
+                        onEdit={
+                          // 流式的乐观消息 id 为负数、服务端还不存在，不能编辑
+                          m.id > 0
+                            ? () => {
+                                setEditId(m.id)
+                                setEditVal(m.content)
+                              }
+                            : undefined
+                        }
+                        editTitle="编辑这条消息（最后一条会自动重新生成）"
+                      />
                     </div>
                   ) : (
                     <div key={m.id} className="wb-chat-prose group">
@@ -976,6 +1037,7 @@ export default function Chat() {
                   ))}
                 </div>
               )}
+              <AttachmentChips />
               <textarea
                 ref={composerRef}
                 rows={3}
@@ -992,14 +1054,14 @@ export default function Chat() {
                 }}
                 className="block w-full resize-none bg-transparent px-4 pt-3.5 text-[13.5px] leading-relaxed text-[color:var(--wb-text)] outline-none placeholder:text-[color:var(--wb-muted)]"
               />
-              <div className="flex items-center gap-1 px-3 pb-2.5 pt-1">
+              <div className="flex flex-wrap items-center gap-1 px-3 pb-2.5 pt-1">
                 <button
                   onClick={() => openPicker('chat')}
                   title="添加技能（也可直接输入 @）"
-                  className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
+                  className={`flex h-7 w-7 items-center justify-center rounded-[8px] transition ${
                     pickerOpen && pickerHost === 'chat'
-                      ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
-                      : 'border-[color:var(--wb-border)] text-[color:var(--wb-muted)] hover:border-[color:var(--wb-border-strong)] hover:text-[color:var(--wb-text)]'
+                      ? 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
+                      : 'text-[color:var(--wb-muted)] hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]'
                   }`}
                 >
                   <Icon name="plus" size={15} />
@@ -1007,7 +1069,7 @@ export default function Chat() {
                 <button
                   onClick={() => setMarketOpen(true)}
                   title="从 GitHub 技能市场安装"
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--wb-border)] text-[color:var(--wb-muted)] transition hover:border-[color:var(--wb-border-strong)] hover:text-[color:var(--wb-text)]"
+                  className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
                 >
                   <Icon name="gitBranch" size={14} />
                 </button>
@@ -1015,12 +1077,17 @@ export default function Chat() {
                   onClick={() => takeover(true)}
                   disabled={streaming || msgs.length === 0}
                   title="重新生成上一轮"
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--wb-border)] text-[color:var(--wb-muted)] transition hover:border-[color:var(--wb-border-strong)] hover:text-[color:var(--wb-text)] disabled:opacity-40"
+                  className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[color:var(--wb-muted)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)] disabled:opacity-40"
                 >
                   <Icon name="refresh" size={14} />
                 </button>
+                <ComposerTools
+                  getInput={() => input}
+                  onTranscript={(t) => setInput((v) => v + t)}
+                  onEnhance={(t) => setInput(t)}
+                />
                 <span className="flex-1" />
-                <span className="whitespace-nowrap text-[11px] text-[color:var(--wb-muted)]">Balanced</span>
+                <ModelPicker />
                 {streaming ? (
                   <button
                     onClick={() => abortMapRef.current.get(sid ?? -1)?.abort()}
@@ -1041,6 +1108,7 @@ export default function Chat() {
                 )}
               </div>
             </div>
+            <ContextBar />
           </div>
           <SkillMarket
             open={marketOpen}
@@ -1134,7 +1202,7 @@ export default function Chat() {
                     开跑
                   </Btn>
                 </div>
-                <div className="mt-1.5 flex items-center gap-1.5">
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <button
                     onClick={() => openPicker('home')}
                     className="inline-flex items-center gap-1 rounded-full border border-[color:var(--wb-border)] px-2 py-1 text-[11px] text-[color:var(--wb-text-soft)] transition hover:border-[color:var(--wb-accent)] hover:text-[color:var(--wb-accent)]"
@@ -1142,8 +1210,14 @@ export default function Chat() {
                     <Icon name="plus" size={11} />
                     @ 添加技能
                   </button>
-                  <span className="text-[11px] text-[color:var(--wb-muted)]">挂上的技能随第一句话一起生效</span>
+                  <ApprovalChip />
+                  <span className="hidden text-[11px] text-[color:var(--wb-muted)] sm:inline">
+                    挂上的技能随第一句话一起生效
+                  </span>
+                  <span className="flex-1" />
+                  <ModelPicker />
                 </div>
+                <ContextBar />
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2.5 pt-0.5">

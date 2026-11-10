@@ -14,10 +14,12 @@ import httpx
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
+import openalex
+
 router = APIRouter(prefix="/api", tags=["litsearch"])
 
-_OA = "https://api.openalex.org/works"
-_MAILTO = "workbench@local"  # polite pool，仅提速用
+# 请求统一走 openalex.get()：自带 API key、15 分钟缓存、429 人话兜底。
+_OA = openalex.BASE
 
 
 def _short_id(full: str) -> str:
@@ -83,7 +85,6 @@ async def litsearch(q: str, limit: int = 20):
 
     params: dict = {
         "per-page": max(1, min(int(limit), 100)),
-        "mailto": _MAILTO,
     }
     if q.lower().startswith("10.") and "/" in q:
         params["filter"] = f"doi:{q}"
@@ -92,10 +93,17 @@ async def litsearch(q: str, limit: int = 20):
 
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
-            r = await client.get(_OA, params=params)
-            r.raise_for_status()
-            data = r.json()
-    except Exception as e:  # noqa: BLE001 —— 网络错误原样带回给前端展示
+            data = await openalex.get(client, params)
+    except openalex.OAError as e:  # 限流 / 网络 / 上游错误：原样带回给前端展示
+        return {
+            "ok": False,
+            "error": e.message,
+            "code": e.code,
+            "hint": e.hint,
+            "reset_in": e.reset_in,
+            "results": [],
+        }
+    except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"OpenAlex 请求失败：{e}", "results": []}
 
     results = []
@@ -155,23 +163,22 @@ async def discover(q: str = "", oa_id: str = "", limit: int = 20):
             async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
                 if oa_id:
                     sid = _short_id(oa_id)
-                    r = await client.get(f"{_OA}/{sid}", params={"mailto": _MAILTO})
-                    r.raise_for_status()
-                    seed_w = r.json()
+                    seed_w = await openalex.get(
+                        client, url=f"{_OA}/{sid}", ttl=86400
+                    )
                 else:
-                    params: dict = {"per-page": 1, "mailto": _MAILTO}
+                    params: dict = {"per-page": 1}
                     if q.lower().startswith("10.") and "/" in q:
                         params["filter"] = f"doi:{q}"
                     else:
                         params["search"] = q
-                    r = await client.get(_OA, params=params)
-                    r.raise_for_status()
-                    found = r.json().get("results", [])
+                    found = (await openalex.get(client, params)).get("results", [])
                     if not found:
                         yield _sse(
                             {
                                 "type": "error",
                                 "message": "OpenAlex 中没有找到匹配的文献，换个关键词或粘贴 DOI 试试",
+                                "code": "not_found",
                             }
                         )
                         return
@@ -179,9 +186,15 @@ async def discover(q: str = "", oa_id: str = "", limit: int = 20):
                     if not sid:
                         yield _sse({"type": "error", "message": "命中结果缺少 OpenAlex ID"})
                         return
-                    # 再拉一次详情，确保拿到 referenced_works 全量
-                    r2 = await client.get(f"{_OA}/{sid}", params={"mailto": _MAILTO})
-                    seed_w = r2.json() if r2.status_code == 200 else found[0]
+                    # 命中结果里已带 referenced_works 时不必再拉详情（一次详情也要计费）
+                    seed_w = found[0]
+                    if not seed_w.get("referenced_works"):
+                        try:
+                            seed_w = await openalex.get(
+                                client, url=f"{_OA}/{sid}", ttl=86400
+                            )
+                        except openalex.OAError:
+                            seed_w = found[0]
 
                 seed_id = _short_id(seed_w.get("id", "")) or sid
                 yield _sse(
@@ -208,16 +221,15 @@ async def discover(q: str = "", oa_id: str = "", limit: int = 20):
                 ref_works: list[dict] = []
                 for i in range(0, len(ref_ids), 50):
                     batch = ref_ids[i : i + 50]
-                    rr = await client.get(
-                        _OA,
-                        params={
+                    data = await openalex.get(
+                        client,
+                        {
                             "filter": "openalex_id:" + "|".join(batch),
                             "per-page": 50,
-                            "mailto": _MAILTO,
                         },
+                        ttl=86400,
                     )
-                    rr.raise_for_status()
-                    ref_works.extend(rr.json().get("results", []))
+                    ref_works.extend(data.get("results", []))
 
                 yield _sse(
                     {
@@ -228,17 +240,17 @@ async def discover(q: str = "", oa_id: str = "", limit: int = 20):
                         "detail": "按被引次数取最相关的施引论文",
                     }
                 )
-                rr = await client.get(
-                    _OA,
-                    params={
-                        "filter": f"cites:{seed_id}",
-                        "per-page": n,
-                        "sort": "cited_by_count:desc",
-                        "mailto": _MAILTO,
-                    },
-                )
-                rr.raise_for_status()
-                citing_works = rr.json().get("results", [])
+                citing_works = (
+                    await openalex.get(
+                        client,
+                        {
+                            "filter": f"cites:{seed_id}",
+                            "per-page": n,
+                            "sort": "cited_by_count:desc",
+                        },
+                        ttl=3600,
+                    )
+                ).get("results", [])
 
                 yield _sse(
                     {
@@ -294,12 +306,26 @@ async def discover(q: str = "", oa_id: str = "", limit: int = 20):
                         },
                     }
                 )
+        except openalex.OAError as e:
+            yield _sse(
+                {
+                    "type": "error",
+                    "message": e.message,
+                    "code": e.code,
+                    "hint": e.hint,
+                    "reset_in": e.reset_in,
+                }
+            )
         except httpx.HTTPStatusError as e:
             yield _sse(
-                {"type": "error", "message": f"OpenAlex 返回 {e.response.status_code}，稍后重试"}
+                {
+                    "type": "error",
+                    "message": f"OpenAlex 返回 {e.response.status_code}，稍后重试",
+                    "code": "upstream",
+                }
             )
         except Exception as e:  # noqa: BLE001 —— 流里不能抛裸异常，否则前端只看到连接断开
-            yield _sse({"type": "error", "message": f"检索失败：{e}"})
+            yield _sse({"type": "error", "message": f"检索失败：{e}", "code": "unknown"})
 
     return StreamingResponse(
         gen(),

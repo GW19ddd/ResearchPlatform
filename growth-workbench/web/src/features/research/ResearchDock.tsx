@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '../../components/Icon'
 import { Btn, IconBtn, Segmented, Select } from '../../components/ui'
 import type { PaperHit, StageEv } from '../../lib/rchatStream'
@@ -23,7 +23,7 @@ import type { PaperHit, StageEv } from '../../lib/rchatStream'
 
 export type RunState = {
   sid: number
-  mode: 'auto' | 'deep' | 'report'
+  mode: 'auto' | 'deep' | 'report' | 'review'
   active: boolean
   stages: StageEv[]
   pct: number
@@ -100,6 +100,7 @@ export function hydratePapers(sid: number, cits: any[]) {
     doi: c.doi,
     url: c.url,
     cited_by_count: Number(c.cited_by_count ?? c.cited_by ?? 0),
+    abstract: c.abstract || '',
   }))
   if (!papers.length) return
   store.set(sid, { ...(cur || { ...blank(sid), active: false }), papers, total: papers.length })
@@ -147,33 +148,58 @@ function sortValue(p: PaperHit, k: SortKey): number {
   return p.year ?? 0
 }
 
-const COLS = '28px 44px 40px 52px 40px 40px 36px minmax(0,1fr)'
+const COLS = '22px 28px 44px 40px 52px 40px 40px 36px minmax(0,1fr)'
 
-/** 对话栏内的进度框：后端 SSE 真实阶段，不是前端定时器假动画 */
+/** 选中行的稳定 key：优先 literature.id（发给后端的就是它），导入失败兜底用序号 */
+const rowKey = (p: PaperHit) => (p.lit_id != null ? `l${p.lit_id}` : `n${p.n}`)
+
+/** 对话栏内的进度框：目标值来自后端 SSE 真实阶段，显示值只做视觉平滑，不虚构阶段。
+ *  旧版直接把 run.pct 绑到宽度：前几段几秒内冲到 84%，然后 LLM 撰写十几秒条子一动不动。
+ *  现在后端在长调用期间按真实耗时推心跳（estimated），前端再把每次跳变插值成匀速前进。 */
 function ProgressCard({ run }: { run: RunState }) {
   const [, tick] = useState(0)
+  const shownRef = useRef(run.active ? 0 : 100)
   useEffect(() => {
-    if (!run.active) return
-    const t = setInterval(() => tick((x) => x + 1), 500)
+    if (!run.active) {
+      shownRef.current = 100
+      return
+    }
+    const t = setInterval(() => {
+      shownRef.current = Math.min(
+        run.pct,
+        shownRef.current + Math.max(0.8, (run.pct - shownRef.current) * 0.18),
+      )
+      tick((x) => x + 1) // 同时刷新 Worked for Xs
+    }, 120)
     return () => clearInterval(t)
-  }, [run.active])
+  }, [run.active, run.pct])
   const sec = Math.max(1, Math.round((Date.now() - run.startedAt) / 1000))
   const last = run.stages[run.stages.length - 1]
-  const label = run.mode === 'deep' ? '深度检索进行中' : run.mode === 'report' ? '报告撰写进行中' : '正在回复'
+  const pct = run.active ? Math.round(shownRef.current) : 100
+  const label =
+    run.mode === 'deep' ? '深度检索进行中'
+    : run.mode === 'report' ? '报告撰写进行中'
+    : run.mode === 'review' ? '选中文献综述进行中'
+    : '正在回复'
   return (
     <div className="mb-2 rounded-[14px] border border-[color:var(--wb-accent)]/30 bg-[color:var(--wb-accent-soft)] px-3.5 py-2.5">
       <div className="flex items-center gap-2">
         <Icon name="radar" size={13} className="shrink-0 text-[color:var(--wb-accent)]" />
         <span className="whitespace-nowrap text-[12px] font-semibold text-[color:var(--wb-text)]">{label}</span>
         <span className="whitespace-nowrap text-[10.5px] text-[color:var(--wb-muted)]">Worked for {sec}s</span>
+        {run.active && last?.estimated && (
+          <span className="whitespace-nowrap rounded-[4px] border border-[color:var(--wb-border)] px-1 text-[9.5px] text-[color:var(--wb-muted)]">
+            按耗时估算
+          </span>
+        )}
         <span className="ml-auto whitespace-nowrap text-[11px] font-semibold text-[color:var(--wb-accent-strong)]">
-          {run.pct}%
+          {pct}%
         </span>
       </div>
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[color:var(--wb-border)]">
         <div
-          className="h-full rounded-full bg-[color:var(--wb-accent)] transition-[width] duration-500"
-          style={{ width: `${run.pct}%` }}
+          className="h-full rounded-full bg-[color:var(--wb-accent)] transition-[width] duration-150"
+          style={{ width: `${pct}%` }}
         />
       </div>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
@@ -254,22 +280,73 @@ export default function ResearchDock({
  * 文献检索双栏：与 ReportPane 同规格（宽 46%/560px、左分隔线、栏头 + 说明行 + 白底滚动正文），
  * 右上角叉收起这一栏、对话恢复单栏。排序/筛选/指标口径都在这一栏里。
  */
-export function LiteraturePane({ run, onClose, width }: { run: RunState | null; onClose: () => void; width: number }) {
+export function LiteraturePane({
+  run,
+  onClose,
+  width,
+  onOpenPaper,
+  onReview,
+}: {
+  run: RunState | null
+  onClose: () => void
+  width: number
+  /** 点文献标题 → 弹出该篇的对应内容（摘要 / 元数据 / 笔记），不再只是跳外链 */
+  onOpenPaper?: (p: PaperHit) => void
+  /** 对勾选的文献子集写综述（走后端 review 模式，只引用勾选来源） */
+  onReview?: (papers: PaperHit[]) => void
+}) {
   const [sort, setSort] = useState<SortKey>('match')
   const [lang, setLang] = useState('all')
   const [showNote, setShowNote] = useState(false)
+  // 勾选 + 筛选（对标 Undermind 的 Filters）：勾中某几篇后可只对子集写综述
+  const [selVenue, setSelVenue] = useState('all')
+  const [selYear, setSelYear] = useState('all')
+  const [selImpact, setSelImpact] = useState('all')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const all = run?.papers || []
+  const venues = useMemo(
+    () => Array.from(new Set(all.map((p) => (p.venue || '').trim()).filter(Boolean))).sort(),
+    [all],
+  )
+  const years = useMemo(
+    () => Array.from(new Set(all.map((p) => p.year).filter((y): y is number => !!y))).sort((a, b) => b - a),
+    [all],
+  )
   const rows = all
     .filter((p) => {
-      if (lang === 'all') return true
       const l = (p.language || '—').toUpperCase()
-      if (lang === 'EN') return l === 'EN'
-      if (lang === 'ZH') return l === 'ZH'
-      return l !== 'EN' && l !== 'ZH'
+      if (lang !== 'all') {
+        if (lang === 'EN' && l !== 'EN') return false
+        if (lang === 'ZH' && l !== 'ZH') return false
+        if (lang === 'other' && (l === 'EN' || l === 'ZH')) return false
+      }
+      if (selVenue !== 'all' && (p.venue || '').trim() !== selVenue) return false
+      if (selYear !== 'all' && p.year !== Number(selYear)) return false
+      if (selImpact !== 'all' && (p.cit_per_year ?? 0) < Number(selImpact)) return false
+      return true
     })
     .slice()
     .sort((a, b) => sortValue(b, sort) - sortValue(a, sort))
+
+  const filteredKeys = rows.map(rowKey)
+  const allChecked = filteredKeys.length > 0 && filteredKeys.every((k) => selected.has(k))
+  const toggleAll = () =>
+    setSelected((cur) => {
+      const next = new Set(cur)
+      if (allChecked) filteredKeys.forEach((k) => next.delete(k))
+      else filteredKeys.forEach((k) => next.add(k))
+      return next
+    })
+  const toggleOne = (k: string) =>
+    setSelected((cur) => {
+      const next = new Set(cur)
+      if (next.has(k)) next.delete(k)
+      else next.add(k)
+      return next
+    })
+  /** 勾选子集：从全量里取（筛选改变不丢已勾选），顺序与检索结果一致 */
+  const selectedPapers = all.filter((p) => selected.has(rowKey(p)))
 
   const exportCsv = () => {
     const head = ['KEY', 'MATCH', 'YEAR', 'CIT/YR', 'CIT', 'LANG', 'TITLE', 'AUTHORS', 'VENUE', 'DOI', 'PDF']
@@ -323,6 +400,43 @@ export function LiteraturePane({ run, onClose, width }: { run: RunState | null; 
             <Select value={lang} onChange={setLang} options={LANG_OPTIONS} className="shrink-0" />
           </div>
 
+          {/* 期刊会议 / 年份 / 影响因子* 筛选（对标 Undermind 的 Filters；影响因子* = 年均被引，口径见下） */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <Select
+              value={selVenue}
+              onChange={setSelVenue}
+              className="min-w-0 max-w-[200px] shrink"
+              options={[{ value: 'all', label: '全部期刊 / 会议' }, ...venues.map((v) => ({ value: v, label: v }))]}
+            />
+            <Select
+              value={selYear}
+              onChange={setSelYear}
+              className="shrink-0"
+              options={[{ value: 'all', label: '全部年份' }, ...years.map((y) => ({ value: String(y), label: String(y) }))]}
+            />
+            <Select
+              value={selImpact}
+              onChange={setSelImpact}
+              className="shrink-0"
+              options={[
+                { value: 'all', label: '影响因子* 不限' },
+                { value: '1', label: '年均被引 ≥1' },
+                { value: '2', label: '≥2' },
+                { value: '5', label: '≥5' },
+                { value: '10', label: '≥10' },
+              ]}
+            />
+            {(selVenue !== 'all' || selYear !== 'all' || selImpact !== 'all' || lang !== 'all') && (
+              <button
+                type="button"
+                onClick={() => { setSelVenue('all'); setSelYear('all'); setSelImpact('all'); setLang('all') }}
+                className="text-[10.5px] text-[color:var(--wb-accent)] hover:underline"
+              >
+                清除筛选
+              </button>
+            )}
+          </div>
+
           {/* 指标口径：真实 / 替代 / 不虚构，全部写清楚 */}
           <div className="mt-2.5 flex items-start gap-1.5 text-[10px] leading-relaxed text-[color:var(--wb-muted)]">
             <Icon name="info" size={11} className="mt-[1px] shrink-0" />
@@ -348,6 +462,15 @@ export function LiteraturePane({ run, onClose, width }: { run: RunState | null; 
             className="mt-3 grid gap-x-1.5 border-b border-[color:var(--wb-border)] pb-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[color:var(--wb-muted)]"
             style={{ gridTemplateColumns: COLS }}
           >
+            <input
+              type="checkbox"
+              checked={allChecked}
+              onChange={toggleAll}
+              aria-label="全选 / 取消全选（筛选结果）"
+              title="全选 / 取消全选（作用于当前筛选结果）"
+              style={{ accentColor: 'var(--wb-accent)' }}
+              className="h-3 w-3 cursor-pointer"
+            />
             <span>KEY</span><span>MATCH</span><span>YEAR</span><span>CIT/YR</span>
             <span>CIT</span><span>LANG</span><span>PDF</span><span>TITLE</span>
           </div>
@@ -356,7 +479,7 @@ export function LiteraturePane({ run, onClose, width }: { run: RunState | null; 
             <div className="py-6 text-center text-[11px] leading-relaxed text-[color:var(--wb-muted)]">
               {all.length === 0
                 ? '还没有检索结果。点「深度检索」并确认提案，命中会显示在这一栏。'
-                : '当前语言筛选下没有文献。'}
+                : '当前筛选下没有文献，可点「清除筛选」重试。'}
             </div>
           ) : (
             rows.map((p) => {
@@ -365,33 +488,90 @@ export function LiteraturePane({ run, onClose, width }: { run: RunState | null; 
               return (
                 <div
                   key={`${p.n}-${p.openalex_id || p.lit_id || ''}`}
-                  className="grid items-center gap-x-1.5 border-b border-[color:var(--wb-border)]/60 py-[6px] text-[10.5px] last:border-0"
+                  className="grid items-center gap-x-1.5 border-b border-[color:var(--wb-border)]/60 py-[6px] text-[10.5px] transition-colors last:border-0 hover:bg-[color:var(--wb-accent-soft)]"
                   style={{ gridTemplateColumns: COLS }}
                 >
-                  <span className="truncate font-semibold text-[color:var(--wb-accent-strong)]">[{p.n}]</span>
-                  <span className={p.match != null && p.match >= 50 ? 'font-medium text-[color:var(--wb-accent)]' : 'text-[color:var(--wb-text-soft)]'}>
-                    {p.match == null ? '—' : `${p.match}%`}
+                  <input
+                    type="checkbox"
+                    checked={selected.has(rowKey(p))}
+                    onChange={() => toggleOne(rowKey(p))}
+                    aria-label={`勾选：${p.title || '无标题'}`}
+                    style={{ accentColor: 'var(--wb-accent)' }}
+                    className="h-3 w-3 cursor-pointer"
+                  />
+                  <span className="w-fit truncate rounded-[4px] bg-[color:var(--wb-accent-soft)] px-1 py-[1px] font-mono text-[9.5px] font-semibold text-[color:var(--wb-accent-strong)]">
+                    [{p.n}]
                   </span>
-                  <span className="text-[color:var(--wb-text-soft)]">{p.year ?? '—'}</span>
-                  <span className="text-[color:var(--wb-text-soft)]">{p.cit_per_year ?? '—'}</span>
+                  {p.match == null ? (
+                    <span className="text-[color:var(--wb-muted)]">—</span>
+                  ) : (
+                    <span
+                      className={`w-fit rounded-[4px] px-1 py-[1px] text-center text-[9.5px] font-semibold ${
+                        p.match >= 50
+                          ? 'bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]'
+                          : 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-text-soft)]'
+                      }`}
+                    >
+                      {p.match}%
+                    </span>
+                  )}
+                  {p.year == null ? (
+                    <span className="text-[color:var(--wb-muted)]">—</span>
+                  ) : (
+                    <span className="w-fit rounded-[4px] bg-[color:var(--wb-info-soft)] px-1 py-[1px] text-center text-[9.5px] font-semibold text-[color:var(--wb-info)]">
+                      {p.year}
+                    </span>
+                  )}
+                  <span className="font-medium text-[color:var(--wb-ok)]">{p.cit_per_year ?? '—'}</span>
                   <span className="text-[color:var(--wb-text-soft)]">{p.cited_by_count ?? '—'}</span>
                   <span className="truncate text-[color:var(--wb-muted)]" title={p.language || ''}>{p.language || '—'}</span>
                   <span>
                     {pdf ? (
-                      <a href={pdf} target="_blank" rel="noreferrer" title="开放获取 PDF" className="text-[color:var(--wb-accent)] hover:underline">
-                        <Icon name="file" size={12} />
+                      <a
+                        href={pdf}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="开放获取 PDF"
+                        className="inline-flex items-center rounded-[4px] border border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface)] px-1 py-[1px] text-[9px] font-semibold tracking-[0.04em] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-accent)]/60 hover:text-[color:var(--wb-accent)]"
+                      >
+                        PDF
                       </a>
                     ) : (
-                      <span className="text-[color:var(--wb-muted)]">—</span>
+                      <span className="inline-flex items-center rounded-[4px] border border-[color:var(--wb-border)] px-1 py-[1px] text-[9px] font-semibold tracking-[0.04em] text-[color:var(--wb-muted)]/70">
+                        PDF
+                      </span>
                     )}
                   </span>
-                  <span className="min-w-0 truncate" title={`${p.title || ''}${p.venue ? ` · ${p.venue}` : ''}`}>
-                    {href ? (
-                      <a href={href} target="_blank" rel="noreferrer" className="text-[color:var(--wb-text)] hover:text-[color:var(--wb-accent)] hover:underline">
+                  <span
+                    className="flex min-w-0 items-center gap-1"
+                    title={`${p.title || ''}${p.venue ? ` · ${p.venue}` : ''}`}
+                  >
+                    {onOpenPaper ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenPaper(p)}
+                        title="查看这篇文献的对应内容"
+                        className="min-w-0 truncate text-left text-[color:var(--wb-text)] hover:text-[color:var(--wb-accent)] hover:underline"
+                      >
+                        {p.title || '（无标题）'}
+                      </button>
+                    ) : href ? (
+                      <a href={href} target="_blank" rel="noreferrer" className="min-w-0 truncate text-[color:var(--wb-text)] hover:text-[color:var(--wb-accent)] hover:underline">
                         {p.title || '（无标题）'}
                       </a>
                     ) : (
-                      <span className="text-[color:var(--wb-text)]">{p.title || '（无标题）'}</span>
+                      <span className="min-w-0 truncate text-[color:var(--wb-text)]">{p.title || '（无标题）'}</span>
+                    )}
+                    {href && (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="打开原文 / DOI"
+                        className="shrink-0 text-[color:var(--wb-muted)] hover:text-[color:var(--wb-accent)]"
+                      >
+                        <Icon name="link" size={10} />
+                      </a>
                     )}
                   </span>
                 </div>
@@ -407,6 +587,31 @@ export function LiteraturePane({ run, onClose, width }: { run: RunState | null; 
           )}
         </div>
       </div>
+
+      {/* 勾选操作条（sticky 底部）：对标 Undermind「154 selected · Add to folder」，这里落成「对选中写综述」 */}
+      {selected.size > 0 && (
+        <div className="flex shrink-0 items-center gap-2 border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-4 py-2.5">
+          <span className="whitespace-nowrap text-[11px] text-[color:var(--wb-text-soft)]">
+            已勾选 <b className="text-[color:var(--wb-text)]">{selected.size}</b> 篇
+          </span>
+          <Btn
+            size="xs"
+            onClick={() => onReview?.(selectedPapers)}
+            disabled={!onReview || !selectedPapers.length}
+            title="只对勾选的文献写综述（后端只引用勾选来源）"
+          >
+            <Icon name="file" size={11} />
+            对选中写综述
+          </Btn>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="ml-auto whitespace-nowrap text-[10.5px] text-[color:var(--wb-muted)] hover:text-[color:var(--wb-text)]"
+          >
+            清除勾选
+          </button>
+        </div>
+      )}
     </aside>
   )
 }

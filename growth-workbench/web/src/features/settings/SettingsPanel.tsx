@@ -35,11 +35,32 @@ const SECTIONS: {
     icon: 'hexagon',
   },
   {
+    key: 'canvas',
+    label: '画布管理',
+    desc: '访问点 / 日志 / 监测',
+    hint: '编排画布的访问入口、运行历史与运行监测',
+    icon: 'layers',
+  },
+  {
+    key: 'sources',
+    label: '数据源',
+    desc: 'OpenAlex 额度',
+    hint: '文献检索引擎的 API key：不带 key 只共享每天 $0.10，容易 429',
+    icon: 'compass',
+  },
+  {
     key: 'zotero',
     label: 'Zotero 同步',
     desc: '文献批量导入',
     hint: '本地 Zotero / Web API 同步，或粘贴 BibTeX、RIS、CSL JSON 离线导入',
     icon: 'book',
+  },
+  {
+    key: 'paperfeed',
+    label: '论文速递',
+    desc: '学科 / 邮箱 / 语言',
+    hint: 'arXiv 拉取订阅、邮箱投喂与中英文显示',
+    icon: 'inbox',
   },
   {
     key: 'data',
@@ -54,8 +75,21 @@ const SECTIONS: {
  * 侧边栏左下角齿轮打开的设置面板：左侧分类栏 + 右侧内容。
  * 内容直接复用 pages/Settings.tsx（embedded + section），不复制一份表单逻辑。
  */
-export default function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [section, setSection] = useState<SectionKey>('model')
+export default function SettingsPanel({
+  open,
+  onClose,
+  /** 打开时直接定位到某个分类（论文速递页的设置按钮会传 paperfeed） */
+  initialSection,
+}: {
+  open: boolean
+  onClose: () => void
+  initialSection?: SectionKey
+}) {
+  const [section, setSection] = useState<SectionKey>(initialSection || 'model')
+
+  useEffect(() => {
+    if (open && initialSection) setSection(initialSection)
+  }, [open, initialSection])
 
   useEffect(() => {
     if (!open) return

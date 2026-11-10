@@ -10,6 +10,7 @@
 import { ReactElement, SVGProps } from 'react'
 
 export type IconName =
+  | 'home'
   | 'sun'
   | 'sparkle'
   | 'book'
@@ -19,8 +20,12 @@ export type IconName =
   | 'clock'
   | 'phone'
   | 'star'
+  | 'heart'
+  | 'bookmark'
+  | 'users'
   | 'message'
   | 'gear'
+  | 'bell'
   | 'pencil'
   | 'chevronLeft'
   | 'chevronRight'
@@ -57,6 +62,7 @@ export type IconName =
   | 'quill'
   | 'gitBranch'
   | 'wand'
+  | 'apps'
   | 'link'
   | 'quote'
   | 'chart'
@@ -65,6 +71,8 @@ export type IconName =
   | 'copy'
   | 'reply'
   | 'scan'
+  | 'maximize'
+  | 'minimize'
   | 'pipeline'
   | 'layers'
   | 'database'
@@ -81,8 +89,21 @@ export type IconName =
   | 'route'
   | 'award'
   | 'sprout'
+  | 'paperclip'
+  | 'folder'
+  | 'mic'
+  | 'hand'
+  | 'bolt'
+  | 'cpu'
 
 const P: Record<IconName, ReactElement> = {
+  home: (
+    <>
+      <path d="M4 10.5L12 4l8 6.5" />
+      <path d="M6.2 9.6V20h11.6V9.6" />
+      <path d="M10 20v-5.5h4V20" />
+    </>
+  ),
   sun: (
     <>
       <circle cx="12" cy="12" r="4" />
@@ -128,11 +149,26 @@ const P: Record<IconName, ReactElement> = {
     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
   ),
   star: <path d="M12 3l2.9 5.88 6.5.95-4.7 4.58 1.11 6.47L12 17.77l-5.81 3.06L7.3 14.41 2.6 9.83l6.5-.95z" />,
+  heart: <path d="M20.3 5.8a5 5 0 0 0-7.1 0L12 7l-1.2-1.2a5 5 0 1 0-7.1 7.1L12 21l8.3-8.1a5 5 0 0 0 0-7.1z" />,
+  bookmark: <path d="M6 4.5h12a1 1 0 0 1 1 1v15l-7-4.2-7 4.2v-15a1 1 0 0 1 1-1z" />,
+  users: (
+    <>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M2.5 20c0-3.1 2.9-5.1 6.5-5.1s6.5 2 6.5 5.1" />
+      <path d="M16 5.2a3.2 3.2 0 0 1 0 6.1M17.5 14.4c2.4.5 4 2.2 4 4.6" />
+    </>
+  ),
   message: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />,
   gear: (
     <>
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1.51 1 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </>
+  ),
+  bell: (
+    <>
+      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" />
+      <path d="M13.7 21a2 2 0 0 1-3.4 0" />
     </>
   ),
   pencil: <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />,
@@ -343,6 +379,17 @@ const P: Record<IconName, ReactElement> = {
       <path d="M4 12h16" />
     </>
   ),
+  /** 浏览器全屏的四角外扩 / 内收；画布专注模式专用 */
+  maximize: (
+    <>
+      <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3" />
+    </>
+  ),
+  minimize: (
+    <>
+      <path d="M8 3v3a2 2 0 0 1-2 2H3M16 3v3a2 2 0 0 0 2 2h3M8 21v-3a2 2 0 0 0-2-2H3M16 21v-3a2 2 0 0 1 2-2h3" />
+    </>
+  ),
   pipeline: (
     <>
       <rect x="2" y="9" width="5.5" height="6" rx="1.5" />
@@ -414,6 +461,14 @@ const P: Record<IconName, ReactElement> = {
       <circle cx="12" cy="12" r="2" />
     </>
   ),
+  apps: (
+    <>
+      <rect x="4" y="4" width="6" height="6" rx="1.5" />
+      <rect x="14" y="4" width="6" height="6" rx="1.5" />
+      <rect x="4" y="14" width="6" height="6" rx="1.5" />
+      <circle cx="17" cy="17" r="3" />
+    </>
+  ),
   grid: (
     <>
       <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
@@ -451,6 +506,43 @@ const P: Record<IconName, ReactElement> = {
         fillOpacity=".16"
       />
       <path d="M8.7 20.5h6.6" />
+    </>
+  ),
+  /** 对话框工具条：附件 / 文件夹 / 语音 / 由我批准 / 完全访问 / 模型 */
+  paperclip: (
+    <>
+      <path d="M20.5 11.2l-8.4 8.4a5 5 0 0 1-7.1-7.1l8.5-8.5a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5l7.8-7.8" />
+    </>
+  ),
+  folder: (
+    <>
+      <path d="M3 7.5A2 2 0 0 1 5 5.5h3.6l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </>
+  ),
+  mic: (
+    <>
+      <rect x="9" y="2.8" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" />
+    </>
+  ),
+  hand: (
+    <>
+      <path d="M8 13.5V6.8a1.5 1.5 0 0 1 3 0v4.4" />
+      <path d="M11 10.8V4.8a1.5 1.5 0 0 1 3 0v6" />
+      <path d="M14 10.5V6.3a1.5 1.5 0 0 1 3 0v6.4" />
+      <path d="M17 10a1.5 1.5 0 0 1 3 0v3.2c0 4.4-2.8 7.3-6.7 7.3h-1.1c-2.2 0-3.9-.9-5.1-2.6l-2.6-3.7a1.6 1.6 0 0 1 2.5-1.9L8 13.5" />
+    </>
+  ),
+  bolt: (
+    <>
+      <path d="M13.2 2.5L4.5 13.8H11l-.7 7.7 8.9-11.6H12.5z" />
+    </>
+  ),
+  cpu: (
+    <>
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+      <rect x="9.2" y="9.2" width="5.6" height="5.6" rx="1" />
+      <path d="M9 2.5v3.5M15 2.5v3.5M9 18v3.5M15 18v3.5M2.5 9H6M2.5 15H6M18 9h3.5M18 15h3.5" />
     </>
   ),
 }

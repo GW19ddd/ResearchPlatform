@@ -712,3 +712,67 @@ pre.markdown-block {
     filter: brightness(0.94);
   }
 }
+
+/* 画布「浏览器全屏」专注模式：应用内收掉全局导航 / 顶栏 / 底栏，画布本体铺满窗口。
+   浏览器级全屏由 Canvas 页对 documentElement 调用 requestFullscreen —— 全屏目标是
+   整个根元素而不是画布容器：后者会进 top layer，把 toast / Modal / 节点右键菜单
+   全部盖在下面，那些弹层就看不见了。 */
+body.wb-canvas-focus .wb-app-nav,
+body.wb-canvas-focus .wb-app-topbar,
+body.wb-canvas-focus .wb-app-statusbar,
+body.wb-canvas-focus .wb-app-nav-fab {
+  display: none !important;
+}
+
+/* ---- /research 回答正文 / 引用 / 历史跳转 ---- */
+/* 复用 .markdown-block 的排版，但聊天流里不设 480px 高度上限，长综述整段展开 */
+.wb-chat-md {
+  max-height: none;
+  overflow: visible;
+  color: var(--wb-text);
+}
+.wb-cite-mark {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--wb-accent-soft);
+  color: var(--wb-accent-strong);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  vertical-align: baseline;
+  cursor: pointer;
+}
+.wb-cite-mark:hover {
+  background: var(--wb-accent);
+  color: #fff;
+}
+/* 文献详情弹窗里的原文 / DOI / PDF 链接 */
+.wb-paper-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--wb-border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--wb-accent-strong);
+  background: var(--wb-surface-alt);
+}
+.wb-paper-link:hover {
+  border-color: var(--wb-accent);
+}
+/* 点提问历史后滚到对应消息时的短暂高亮 */
+.wb-msg-flash {
+  animation: wb-msg-flash 1.8s var(--wb-ease, ease-out);
+}
+@keyframes wb-msg-flash {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  18% { box-shadow: 0 0 0 4px var(--wb-accent-soft); background-color: var(--wb-accent-soft); }
+  75% { box-shadow: 0 0 0 4px var(--wb-accent-soft); background-color: var(--wb-accent-soft); }
+}

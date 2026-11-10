@@ -19,11 +19,13 @@ from routers import (
     browse,
     canvas,
     chat,
+    community,
     dashboard,
     expagent,
     gloss,
     litsearch,
     paper,
+    paperfeed,
     plan,
     points,
     rchat,
@@ -75,6 +77,11 @@ async def require_login(request: Request, call_next):
 
     # 登录自身与健康探测必须匿名可达
     if path in ("/api/health", "/api/auth/state", "/api/auth/login", "/api/auth/setup"):
+        return await call_next(request)
+
+    # 论文图代理匿名可达：封面图是公开可读内容，<img> 不带鉴权，
+    # 会话过期时也不该整页图都挂掉
+    if path.startswith("/api/paperfeed/fig/"):
         return await call_next(request)
 
     if not auth_core.has_user():
@@ -190,6 +197,8 @@ app.include_router(litsearch.router)
 app.include_router(browse.router)
 app.include_router(ai_guard.router)
 app.include_router(backup.router)
+app.include_router(community.router)
+app.include_router(paperfeed.router)
 
 if _DIST.is_dir():
     app.mount("/assets", StaticFiles(directory=_DIST / "assets"), name="assets")

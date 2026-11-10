@@ -7,7 +7,6 @@ import {
   Input,
   MdBlock,
   Modal,
-  PageHeader,
   Pill,
   Progress,
   Segmented,
@@ -370,35 +369,38 @@ export default function Experiments() {
 
   const current = exps.find((e) => e.id === sel)
 
+  // 满铺：根容器吃掉顶栏与状态栏之间的全部高度，两个 tab 各自 flex-1 撑满；
+  // 页面身份仍由顶栏面包屑承担，不再出现右侧居中留白与底部灰底
   return (
-    <div className="flex flex-col gap-4">
-    <PageHeader
-      eyebrow="执行 · 01"
-      title="实验"
-      desc="假设 → 设计 → 记录 → 结论：每个实验都要闭环"
-      actions={
-        <Btn variant="primary" onClick={() => setFormOpen(true)}>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[color:var(--wb-surface)]">
+      {/* 紧凑操作条：背景贴边满宽，只在文字上留内边距 */}
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-4 py-2">
+        <span className="min-w-0 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
+          假设 → 设计 → 记录 → 结论：每个实验都要闭环
+        </span>
+        <Btn variant="primary" size="sm" onClick={() => setFormOpen(true)}>
           新建实验
         </Btn>
-      }
-    />
+      </div>
 
-    {current && (
-      <Segmented
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: 'agent', label: 'Agent 实验' },
-          { value: 'classic', label: '结果与运行' },
-        ]}
-        className="w-fit"
-      />
-    )}
+      {current && (
+        <div className="shrink-0 border-b border-[color:var(--wb-border)] px-4 py-1.5">
+          <Segmented
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: 'agent', label: 'Agent 实验' },
+              { value: 'classic', label: '结果与运行' },
+            ]}
+            className="w-fit"
+          />
+        </div>
+      )}
 
     {tab === 'agent' && current ? (
-      <>
+      <div className="flex min-h-0 flex-1 flex-col">
         {(anTask.error || failTask.error || reviewTask.error || auditTask.error) && (
-          <div className="flex flex-col gap-2">
+          <div className="flex shrink-0 flex-col gap-2 px-4 pt-2">
             {anTask.error && (
               <AiError error={anTask.error} onRetry={analyze} retrying={anTask.busy} title="分析没有跑通，已有结论保持不变" />
             )}
@@ -413,6 +415,7 @@ export default function Experiments() {
             )}
           </div>
         )}
+        <div className="min-h-0 flex-1">
         <AgentLab
           exp={current}
         exps={exps}
@@ -448,10 +451,12 @@ export default function Experiments() {
             </Btn>
           </>
         }
-      />
-      </>
+        />
+        </div>
+      </div>
     ) : (
-    <div className="grid gap-4 lg:grid-cols-5">
+    /* 结果与运行：同样 flex-1 铺满剩余区域，内容多了在内部滚动，不再留底部灰底 */
+    <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto bg-[color:var(--wb-surface)] px-4 py-3 lg:grid-cols-5">
       {/* 左：实验列表（筛选 + 多选） */}
         <Card
           title={`实验列表（${filtered.length}）`}

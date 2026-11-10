@@ -5,7 +5,7 @@
  * 视觉与画布节点一致：彩色圆角小方块 + 手写 SVG 图标 + 中文标签（映射见 skill-meta.ts）。
  */
 import { useState } from 'react'
-import { Btn, Input } from '../../components/ui'
+import { Btn, IconBtn, Input } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { toast } from '../../components/toast'
 import { post } from '../../lib/api'
@@ -29,6 +29,9 @@ export default function SkillPalette({
   onPickSkill,
   onOpenMarket,
   onInstalled,
+  width,
+  onCollapse,
+  onHide,
 }: {
   cats: { name: string; skills: Skill[] }[]
   srcTab: 'all' | 'github' | 'builtin'
@@ -41,17 +44,38 @@ export default function SkillPalette({
   onOpenMarket?: () => void
   /** 装完/克隆完通知外层刷新技能列表 */
   onInstalled?: () => void
+  /** 面板宽度由外层持有（可拖拽、可持久化），不传则用默认 208px */
+  width?: number
+  /** 收缩成 36px 图标条 / 完全隐藏；不传就不显示这两个按钮 */
+  onCollapse?: () => void
+  onHide?: () => void
 }) {
   const [cloneUrl, setCloneUrl] = useState('')
   const [cloning, setCloning] = useState(false)
 
   return (
-    <div className="flex w-52 shrink-0 flex-col border-r border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]">
+    <div
+      className="flex shrink-0 flex-col border-r border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]"
+      style={{ width: width ?? 208 }}
+    >
       <div className="border-b border-[color:var(--wb-border)] px-3 py-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-1">
           <div className="text-[12px] font-medium text-[color:var(--wb-text)]">技能库</div>
-          <div className="text-[11.5px] text-[color:var(--wb-muted)]">
-            {cats.reduce((n, c) => n + c.skills.length, 0)}
+          <div className="flex items-center gap-1">
+            <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+              {cats.reduce((n, c) => n + c.skills.length, 0)}
+            </span>
+            {onCollapse && (
+              <IconBtn
+                icon="chevronsLeft"
+                title="收缩成图标条（右边缘也可拖宽）"
+                ariaLabel="收缩技能库"
+                onClick={onCollapse}
+              />
+            )}
+            {onHide && (
+              <IconBtn icon="close" title="隐藏技能库" ariaLabel="隐藏技能库" onClick={onHide} />
+            )}
           </div>
         </div>
         <div className="mt-1 flex gap-1">

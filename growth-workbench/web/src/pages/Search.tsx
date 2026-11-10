@@ -45,28 +45,48 @@ export default function Search({ embedded = false }: { embedded?: boolean }) {
     setOut({ title: `检索方案 · ${topic}`, text: r.result })
   }
 
-  return (
-    <div className="flex flex-col gap-3.5">
-      {/* 独立路由时带完整页头；嵌入文献页 tab 时只留「检索方案」按钮，避免双页头 */}
-      {embedded ? (
-        <div className="flex items-center justify-end">
-          <Btn
-            onClick={() => {
-              setPlanOpen(true)
-              setOut(null)
-            }}
-          >
-            <Icon name="sparkle" size={13} />
-            检索方案
-          </Btn>
+  /** 老链路：关键词 / DOI 命中列表，折叠收在底部（独立路由与嵌入 tab 共用）。
+   *  与上面的发现区同属一整片：只用一条细分隔线，不套独立卡片、也不留块间空隙。 */
+  const classicBlock = () => (
+    <div className="border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-6 py-3">
+      <button
+        type="button"
+        onClick={() => setClassicOpen(!classicOpen)}
+        className="flex items-center gap-1.5 text-[11.5px] text-[color:var(--wb-muted)] transition hover:text-[color:var(--wb-accent)]"
+      >
+        <Icon name="scan" size={13} />
+        经典关键词检索（OpenAlex 命中列表）
+        <Icon name={classicOpen ? 'chevronUp' : 'chevronDown'} size={12} />
+      </button>
+      {classicOpen && (
+        <div className="mt-1">
+          <LitSearchCard libTitles={titles} onImported={loadTitles} flat={embedded} />
         </div>
-      ) : (
-        <PageHeader
-          eyebrow="输入 · 检索"
-          title="文献检索"
-          desc="以一篇论文为起点，顺着真实引用关系发现相关研究；命中一键入库，之后走文献库同一条链路"
-          actions={
+      )}
+    </div>
+  )
+
+  return (
+    <div
+      className={
+        embedded
+          ? /* 满铺（文献页检索 tab）：标题条贴住顶栏边线，内容区内部滚动 */
+            'flex h-full min-h-0 flex-1 flex-col'
+          : 'flex flex-col gap-3.5'
+      }
+    >
+      {/* 独立路由时带完整页头；嵌入文献页 tab 时改满铺标题条，避免双页头与顶部空隙 */}
+      {embedded ? (
+        <>
+          <div className="flex shrink-0 items-center gap-2 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3.5 py-2.5">
+            <Icon name="scan" size={15} className="text-[color:var(--wb-accent)]" />
+            <span className="text-[14px] font-medium text-[color:var(--wb-text)]">文献检索</span>
+            <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+              以一篇论文为起点，顺着真实引用关系发现相关研究
+            </span>
             <Btn
+              size="sm"
+              className="ml-auto"
               onClick={() => {
                 setPlanOpen(true)
                 setOut(null)
@@ -75,29 +95,35 @@ export default function Search({ embedded = false }: { embedded?: boolean }) {
               <Icon name="sparkle" size={13} />
               检索方案
             </Btn>
-          }
-        />
-      )}
-
-      <Discover onImported={loadTitles} />
-
-      {/* 老链路：关键词 / DOI 命中列表，折叠收在底部 */}
-      <div>
-        <button
-          type="button"
-          onClick={() => setClassicOpen(!classicOpen)}
-          className="flex items-center gap-1.5 text-[11.5px] text-[color:var(--wb-muted)] transition hover:text-[color:var(--wb-accent)]"
-        >
-          <Icon name="scan" size={13} />
-          经典关键词检索（OpenAlex 命中列表）
-          <Icon name={classicOpen ? 'chevronUp' : 'chevronDown'} size={12} />
-        </button>
-        {classicOpen && (
-          <div className="mt-2">
-            <LitSearchCard libTitles={titles} onImported={loadTitles} />
           </div>
-        )}
-      </div>
+          {/* 满铺连续面：标题条、发现区、经典检索之间不留白、不套外框，靠细线分段 */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[color:var(--wb-surface)]">
+            <Discover onImported={loadTitles} />
+            {classicBlock()}
+          </div>
+        </>
+      ) : (
+        <>
+          <PageHeader
+            eyebrow="输入 · 检索"
+            title="文献检索"
+            desc="以一篇论文为起点，顺着真实引用关系发现相关研究；命中一键入库，之后走文献库同一条链路"
+            actions={
+              <Btn
+                onClick={() => {
+                  setPlanOpen(true)
+                  setOut(null)
+                }}
+              >
+                <Icon name="sparkle" size={13} />
+                检索方案
+              </Btn>
+            }
+          />
+          <Discover onImported={loadTitles} />
+          {classicBlock()}
+        </>
+      )}
 
       {/* AI 检索方案：原来挂在文献页页头，随检索一起搬到这里 */}
       <Modal

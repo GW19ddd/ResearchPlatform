@@ -1,4 +1,5 @@
 """设置：LLM provider 的增删改查、连通测试、模型列表。"""
+import os
 import uuid
 
 import httpx
@@ -96,6 +97,73 @@ def usage():
         "FROM llm_usage GROUP BY provider ORDER BY n DESC"
     )
     return rows
+
+
+# ---------- OpenAlex（文献检索数据源） ----------
+
+
+def _mask_key(k: str) -> str:
+    if not k:
+        return ""
+    return k[:4] + "…" + k[-4:] if len(k) > 10 else "已配置"
+
+
+@router.get("/openalex")
+def get_openalex():
+    """只回脱敏 key + 最近一次请求看到的额度，明文密钥不出现在响应里。"""
+    import openalex as oa
+
+    q = oa.snapshot()
+    q["key_masked"] = _mask_key(oa.api_key())
+    q["from_env"] = bool(os.getenv("OPENALEX_API_KEY", "").strip())
+    q["signup_url"] = "https://openalex.org/settings/api"
+    return q
+
+
+class OpenAlexKeyIn(BaseModel):
+    api_key: str = ""
+
+
+@router.put("/openalex")
+def put_openalex(body: OpenAlexKeyIn):
+    """空串视为「保持原值」，清空请走 DELETE。"""
+    import openalex as oa
+
+    if body.api_key.strip():
+        oa.save_key(body.api_key.strip())
+    q = oa.snapshot()
+    q["key_masked"] = _mask_key(oa.api_key())
+    q["from_env"] = bool(os.getenv("OPENALEX_API_KEY", "").strip())
+    q["signup_url"] = "https://openalex.org/settings/api"
+    return q
+
+
+@router.delete("/openalex")
+def clear_openalex():
+    import openalex as oa
+
+    oa.save_key("")
+    q = oa.snapshot()
+    q["key_masked"] = ""
+    q["from_env"] = bool(os.getenv("OPENALEX_API_KEY", "").strip())
+    q["signup_url"] = "https://openalex.org/settings/api"
+    return q
+
+
+@router.post("/openalex/test")
+async def test_openalex():
+    """用一次详情请求（1 credit）探活，顺便把额度状态带回来。"""
+    import openalex as oa
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            await oa.get(client, url=f"{oa.BASE}/W2626778328", cache=False)
+        return {"ok": True, "message": "OpenAlex 可达，额度正常", **oa.snapshot()}
+    except oa.OAError as e:
+        return {"ok": False, "message": e.message, "hint": e.hint, **oa.snapshot()}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "message": f"{type(e).__name__}: {e}"}
+
 
 
 # ---------- Dify ----------

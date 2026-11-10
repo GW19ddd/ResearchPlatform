@@ -14,6 +14,7 @@ import json
 import re
 import time
 from collections import deque
+from datetime import datetime, timedelta
 from typing import Literal
 
 import httpx
@@ -22,7 +23,9 @@ from pydantic import BaseModel
 
 import llm
 import canvas_templates
+import chat_prefs
 import dify_config
+from chat_prefs import ChatPrefsIn
 from db import execute, now, query
 from llm import redact
 from skill_registry import categories, delete_custom, get_skill, list_skills, reload, save_custom
@@ -1042,7 +1045,7 @@ async def api_auto(body: AutoIn):
     }
 
 
-class ChatIn(BaseModel):
+class ChatIn(ChatPrefsIn):
     instruction: str
     history: list[dict] = []
 
@@ -1070,7 +1073,14 @@ async def api_canvas_chat(canvas_id: int, body: ChatIn):
             hist += f"{'用户' if role == 'user' else '助手'}：{text}\n"
     prompt = _chat_prompt(instr, menu, state, hist)
     t0 = time.monotonic()
-    env = await llm.complete_with_meta(prompt, system=CHAT_SYSTEM, mode="fast", task="canvas:chat", max_tokens=1800)
+    env = await llm.complete_with_meta(
+        prompt,
+        system=CHAT_SYSTEM + chat_prefs.system_from(body),
+        mode="fast",
+        task="canvas:chat",
+        max_tokens=1800,
+        model_override=chat_prefs.model_override(body),
+    )
     reply = "（AI 暂时没回话）"
     ops: list = []
     plan: list = []
@@ -1195,6 +1205,22 @@ def api_get(canvas_id: int):
             except ValueError:
                 r["error"] = None
     return {"canvas": c, "nodes": _nodes(canvas_id), "edges": _edges(canvas_id), "runs": runs, "latest": latest}
+
+
+class CanvasRename(BaseModel):
+    name: str
+
+
+@router.patch("/{canvas_id}")
+def api_rename(canvas_id: int, body: CanvasRename):
+    """只改画布名（编排工具栏就地重命名用），不动节点与连线。"""
+    _canvas_or_404(canvas_id)
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="画布名不能为空")
+    execute("UPDATE canvases SET name=?, updated_at=? WHERE id=?", (name, now(), canvas_id))
+    rows = query("SELECT id, name, updated_at FROM canvases WHERE id=?", (canvas_id,))
+    return {"ok": True, "canvas": rows[0] if rows else None}
 
 
 @router.post("/{canvas_id}/save")
@@ -1452,6 +1478,75 @@ def api_cancel_run(run_id: int):
         return {"ok": False, "status": status, "message": "这次运行已经结束了"}
     _CANCELLED.add(run_id)
     return {"ok": True, "status": "cancelling", "message": "已请求取消，正在运行的节点结束后停止"}
+
+
+@router.get("/{canvas_id}/stats")
+def api_canvas_stats(canvas_id: int, days: int = 7):
+    """监测页：按天聚合当前画布的真实运行记录。
+
+    口径（前端会原样展示，不许折算成金额或编造用户数）：
+      - active_users: 本机单用户，当天有运行记 1，否则 0
+      - avg_calls:    单用户口径下等于当天运行次数
+      - tokens:       canvas_node_outputs 的 tokens_in + tokens_out 求和
+    没有运行的日期补 0，不插值、不模拟。
+    """
+    _canvas_or_404(canvas_id)
+    days = max(1, min(int(days or 7), 90))
+    today = datetime.now().date()
+    day_list = [(today - timedelta(days=i)).isoformat() for i in range(days - 1, -1, -1)]
+    since = day_list[0]
+
+    runs = query(
+        """SELECT substr(started_at,1,10) AS d, COUNT(*) AS n,
+                  SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) AS done,
+                  SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) AS failed
+           FROM canvas_runs
+           WHERE canvas_id=? AND substr(started_at,1,10)>=?
+           GROUP BY d""",
+        (canvas_id, since),
+    )
+    toks = query(
+        """SELECT substr(o.created_at,1,10) AS d,
+                  SUM(COALESCE(o.tokens_in,0)+COALESCE(o.tokens_out,0)) AS t
+           FROM canvas_node_outputs o
+           JOIN canvas_runs r ON r.id=o.run_id
+           WHERE r.canvas_id=? AND substr(o.created_at,1,10)>=?
+           GROUP BY d""",
+        (canvas_id, since),
+    )
+    rmap = {r["d"]: r for r in runs}
+    tmap = {t["d"]: t for t in toks}
+    series: dict[str, list] = {k: [] for k in ("active_users", "runs", "tokens", "avg_calls", "done", "failed")}
+    for d in day_list:
+        r = rmap.get(d) or {}
+        n = int(r.get("n") or 0)
+        series["runs"].append(n)
+        series["done"].append(int(r.get("done") or 0))
+        series["failed"].append(int(r.get("failed") or 0))
+        series["active_users"].append(1 if n > 0 else 0)
+        series["avg_calls"].append(n)
+        series["tokens"].append(int((tmap.get(d) or {}).get("t") or 0))
+
+    total_runs = sum(series["runs"])
+    return {
+        "canvas_id": canvas_id,
+        "days": day_list,
+        "series": series,
+        "totals": {
+            "runs": total_runs,
+            "tokens": sum(series["tokens"]),
+            "done": sum(series["done"]),
+            "failed": sum(series["failed"]),
+            "active_days": sum(series["active_users"]),
+            "avg_calls": round(total_runs / days, 2),
+        },
+        "scope": {
+            "active_users": "本机单用户口径：当天有运行记 1，否则 0；数值为区间内有运行的天数。",
+            "runs": "按 canvas_runs.started_at 的日期分组计数，含成功、失败与取消。",
+            "tokens": "tokens_in + tokens_out 求和。本机未接入计费网关，因此不折算金额。",
+            "avg_calls": "单用户口径下等于当天运行次数；卡片数值为区间日均值，曲线为当日次数。",
+        },
+    }
 
 
 @router.get("/{canvas_id}/runs")

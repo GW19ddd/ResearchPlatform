@@ -29,6 +29,8 @@ export type PaperHit = {
   match?: number
   pdf_url?: string
   is_oa?: boolean
+  /** OpenAlex abstract_inverted_index 还原出的真实摘要；接口未返回则为空串（不编造） */
+  abstract?: string
 }
 
 export type StageEv = {
@@ -39,6 +41,8 @@ export type StageEv = {
   detail?: string
   count?: number | null
   unit?: string
+  /** true = LLM 长调用期间按真实耗时推的心跳，不是任务完成度 */
+  estimated?: boolean
 }
 
 export type PapersEv = {
@@ -85,7 +89,13 @@ function errText(raw: string, status: number): string {
  */
 export async function streamChat(
   sid: number,
-  body: { instruction: string; mode: 'auto' | 'deep' | 'report'; tag?: string },
+  body: {
+    instruction: string
+    mode: 'auto' | 'deep' | 'report' | 'review'
+    tag?: string
+    /** 对话框偏好（审批模式 / 本轮模型 / 工作区与附件），由 chatEnvelope() 注入 */
+    [k: string]: unknown
+  },
   onEvent: (ev: ChatStreamEvent) => void,
   /** 删除会话时由 ConvoStore.removeSession 触发 abort，在途 SSE 立刻断开 */
   signal?: AbortSignal,

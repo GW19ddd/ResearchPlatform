@@ -65,6 +65,14 @@ export const TYPE_LABEL: Record<string, string> = {
   output: '输出',
 }
 
+/** Dify 式节点卡片底部的运行状态标签 */
+const STATUS_CHIP: Record<string, { cls: string; text: string }> = {
+  running: { cls: 'bg-[color:var(--wb-warn-soft)] text-[color:var(--wb-warn)]', text: '运行中…' },
+  done: { cls: 'bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]', text: '已完成' },
+  error: { cls: 'bg-[color:var(--wb-danger-soft)] text-[color:var(--wb-danger)]', text: '出错' },
+  idle: { cls: 'text-[color:var(--wb-muted)]', text: '未运行' },
+}
+
 /**
  * 固定框布局的五类识别色（hex 字面量，只在这里定义，供内联 style 使用）。
  * 全站禁止裸 Tailwind 调色板，这张表与 TYPE_STYLE 一样是 canvas-shared.tsx 内的例外。
@@ -114,7 +122,7 @@ export const ICON_CHOICES: { value: IconName; label: string }[] = [
   { value: 'target', label: '目标' },
 ]
 
-/** n8n 风格彩色实底：深色底 + 白字（对比度均 >= 4.5:1）；edge 用作连线与端点色 */
+/** 节点连线 / 技能库图标边框用的分类实色（对比度均 >= 4.5:1）；edge 用作连线与端点色 */
 export const TYPE_TILE: Record<string, { bg: string; edge: string }> = {
   input: { bg: '#1d4ed8', edge: '#93c5fd' },
   prompt: { bg: '#6d28d9', edge: '#c4b5fd' },
@@ -173,71 +181,110 @@ export function subtitle(data: CData): string {
 }
 
 /**
- * n8n 风格图形节点：彩色圆角方块 + 居中大图标 + 节点标题。
- * 自由画布与固定框共用同一个 NodeTile，视觉完全一致。
+ * Dify 式节点图标头：浅分类色底 + 同色线性图标 + 细边框。
+ * 固定框的步骤卡片用它；自由画布上的节点是完整的横向卡片（见 CanvasNode）。
  */
 export function NodeTile({
   data,
   size = 'md',
-  label = false,
   active = false,
 }: {
   data: CData
   size?: 'sm' | 'md'
-  label?: boolean
   active?: boolean
 }) {
-  const tile = TYPE_TILE[data.ntype] || TYPE_TILE.skill
+  const acc = TYPE_ACCENT[data.ntype] || TYPE_ACCENT.skill
   const sm = size === 'sm'
   const st = data.status || 'idle'
-  // 浅底芯片上，状态点用实色；空闲态用中性灰，避免白底上白点看不见
   const dot =
-    st === 'running' ? '#f59e0b' : st === 'done' ? '#16a34a' : st === 'error' ? '#ef4444' : 'rgba(100,116,139,0.4)'
+    st === 'running'
+      ? 'var(--wb-warn)'
+      : st === 'done'
+        ? 'var(--wb-ok)'
+        : st === 'error'
+          ? 'var(--wb-danger)'
+          : 'var(--wb-border-strong)'
   return (
     <span
-      className={`relative flex shrink-0 flex-col items-center justify-center gap-1 transition ${sm ? 'h-11 w-11 rounded-[13px]' : 'h-[92px] w-[92px] rounded-[20px]'} ${st === 'running' ? 'wb-anim-pulse' : ''}`}
-      style={nodeChip(tile.bg, !!active)}
+      className={`relative flex shrink-0 items-center justify-center ${sm ? 'h-8 w-8 rounded-[8px]' : 'h-9 w-9 rounded-[9px]'} ${st === 'running' ? 'wb-anim-pulse' : ''}`}
+      style={{
+        background: acc.soft,
+        color: acc.text,
+        boxShadow: `inset 0 0 0 1px ${acc.line}${active ? ', 0 0 0 2px var(--wb-accent)' : ''}`,
+      }}
     >
-      <Icon name={nodeIcon(data)} size={sm ? 21 : 32} strokeWidth={sm ? 1.9 : 1.8} />
-      {label && (
-        <span className="max-w-[80px] truncate px-1 text-[10.5px] font-medium leading-tight">
-          {data.title || data.key}
-        </span>
-      )}
-      {!sm && (
-        <span
-          className="absolute right-2 top-2 h-2 w-2 rounded-full ring-2 ring-[color:var(--wb-surface)]"
-          style={{ background: dot }}
-          title={st === 'running' ? '运行中' : st === 'done' ? '已完成' : st === 'error' ? '出错' : '未运行'}
-        />
-      )}
+      <Icon name={nodeIcon(data)} size={sm ? 16 : 18} strokeWidth={1.9} />
+      <span
+        className="absolute -right-[3px] -top-[3px] h-[7px] w-[7px] rounded-full ring-2 ring-[color:var(--wb-surface)]"
+        style={{ background: dot }}
+        title={st === 'running' ? '运行中' : st === 'done' ? '已完成' : st === 'error' ? '出错' : '未运行'}
+      />
     </span>
   )
 }
 
+/**
+ * Dify 式横向节点卡片（3577ab2 之前的原形态）：
+ * 左侧类型竖条 + 标题 / 类型标签 + 配置摘要 + 状态行，左右各一个连接点。
+ * 固定宽 w-56，靠 1px 边框与淡阴影分层，不做彩色实心方块。
+ */
 export function CanvasNode({ data, selected }: NodeProps<CNode>) {
-  const tile = TYPE_TILE[data.ntype] || TYPE_TILE.skill
   const st = data.status || 'idle'
+  const style = TYPE_STYLE[data.ntype] || TYPE_STYLE.skill
+  const chip = STATUS_CHIP[st] || STATUS_CHIP.idle
+  const dot =
+    st === 'done'
+      ? 'var(--wb-ok)'
+      : st === 'error'
+        ? 'var(--wb-danger)'
+        : st === 'running'
+          ? 'var(--wb-warn)'
+          : 'var(--wb-border-strong)'
   return (
-    <div className="group relative">
-      <NodeTile data={data} label active={!!selected} />
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!h-3 !w-3"
-        style={{ background: tile.edge, border: '3px solid #ffffff' }}
-      />
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!h-3 !w-3"
-        style={{ background: tile.edge, border: '3px solid #ffffff' }}
-      />
-      {/* hover 详情走 absolute 浮层，不占文档流，避免节点高度抖动 */}
-      <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-[9px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-2.5 py-1.5 text-[11px] text-[color:var(--wb-text-soft)] shadow-[var(--wb-shadow-md)] group-hover:block">
-        <span className="font-medium text-[color:var(--wb-text)]">{TYPE_LABEL[data.ntype]}</span>
-        {' · '}{subtitle(data)}
-        {st === 'done' ? ' · 已完成' : st === 'error' ? ' · 出错' : st === 'running' ? ' · 运行中' : ''}
+    <div className="relative">
+      {/* 参考图里开始节点上方的小标签 */}
+      {data.ntype === 'input' && (
+        <span className="absolute -top-[19px] left-0 rounded-[4px] bg-[color:var(--wb-bg-subtle)] px-1.5 py-[1px] text-[10px] text-[color:var(--wb-muted)]">
+          开始
+        </span>
+      )}
+      <div
+        className={`relative w-56 overflow-hidden rounded-[12px] border px-3 py-2 text-[12px] shadow-[var(--wb-shadow-sm)] transition ${style.box} ${
+          selected ? 'ring-2 ring-[color:var(--wb-accent)] ring-offset-1 ring-offset-white' : ''
+        } ${st === 'running' ? 'wb-anim-pulse' : ''}`}
+      >
+        <span className={`absolute left-0 top-0 h-full w-[3px] ${style.bar}`} />
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="!h-2.5 !w-2.5 !border-2 !border-white !bg-[color:var(--wb-accent)]"
+        />
+        <div className="flex items-start justify-between gap-1">
+          <span className="truncate font-medium leading-snug text-[color:var(--wb-text)]">
+            {data.title || data.key}
+          </span>
+          <span className={`shrink-0 rounded-full px-1.5 text-[11.5px] leading-[17px] ${style.chip}`}>
+            {TYPE_LABEL[data.ntype]}
+          </span>
+        </div>
+        <div className="mt-0.5 truncate text-[10.5px] text-[color:var(--wb-text-soft)]" title={subtitle(data)}>
+          {subtitle(data)}
+        </div>
+        <div className="mt-1.5 flex items-center gap-1 pr-3 text-[11.5px]">
+          <span className={`rounded px-1.5 leading-[16px] ${chip.cls}`}>{chip.text}</span>
+          <span className="ml-auto tabular-nums text-[color:var(--wb-muted)]">{data.key}</span>
+        </div>
+        {/* 右侧状态点：绿=已完成、红=出错、琥珀=运行中、灰=未运行 */}
+        <span
+          className="absolute right-2 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ring-2 ring-[color:var(--wb-surface)]"
+          style={{ background: dot }}
+          title={st === 'done' ? '已完成' : st === 'error' ? '出错' : st === 'running' ? '运行中' : '未运行'}
+        />
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!h-2.5 !w-2.5 !border-2 !border-white !bg-[color:var(--wb-accent)]"
+        />
       </div>
     </div>
   )

@@ -472,6 +472,7 @@ _LIT_FIELDS = {
     "gloss_id",
     "doi",
     "openalex_id",
+    "abstract",
 }
 
 
@@ -932,6 +933,22 @@ def _strip_doi(doi: str) -> str:
     return d
 
 
+def _oa_abstract(w: dict) -> str:
+    """把 OpenAlex 的 abstract_inverted_index 还原成可读摘要；接口没给就返回空串（不编造）。"""
+    inv = w.get("abstract_inverted_index")
+    if not isinstance(inv, dict) or not inv:
+        return ""
+    pairs: list[tuple[int, str]] = []
+    for word, poses in inv.items():
+        if not isinstance(poses, list):
+            continue
+        for pos in poses:
+            if isinstance(pos, int):
+                pairs.append((pos, str(word)))
+    pairs.sort(key=lambda t: t[0])
+    return " ".join(word for _, word in pairs)[:4000]
+
+
 def _parse_oa_work(w: dict) -> dict:
     """从 OpenAlex work 对象提取文献字段。"""
     authors = ", ".join(
@@ -950,7 +967,33 @@ def _parse_oa_work(w: dict) -> dict:
         "doi": _strip_doi(w.get("doi") or ""),
         "url": w.get("doi") or primary.get("landing_page_url") or "",
         "cited_by_count": w.get("cited_by_count") or 0,
+        "ref_count": int(w.get("referenced_works_count") or 0),
+        "abstract": _oa_abstract(w) or None,
     }
+
+
+def _fill_abstract(lit_id: int, abstract: str | None) -> None:
+    """命中已有文献时只补空摘要，绝不覆盖用户自己写的内容。"""
+    if not abstract:
+        return
+    execute(
+        "UPDATE literature SET abstract=? WHERE id=? AND (abstract IS NULL OR abstract='')",
+        (abstract, lit_id),
+    )
+
+
+def _fill_cited(lit_id: int, n: int | None, refs: int | None = None) -> None:
+    """OpenAlex 的被引数 / 参考文献数是事实指标，取到就写入（顺带回填旧数据）。"""
+    if n is not None:
+        execute(
+            "UPDATE literature SET cited_by_count=? WHERE id=? AND (cited_by_count IS NULL OR cited_by_count!=?)",
+            (n, lit_id, n),
+        )
+    if refs is not None:
+        execute(
+            "UPDATE literature SET ref_count=? WHERE id=? AND (ref_count IS NULL OR ref_count!=?)",
+            (refs, lit_id, refs),
+        )
 
 
 def _find_or_create_lit(meta: dict) -> tuple[int, bool]:
@@ -963,6 +1006,8 @@ def _find_or_create_lit(meta: dict) -> tuple[int, bool]:
                 "UPDATE literature SET openalex_id=? WHERE id=? AND openalex_id IS NULL",
                 (meta["openalex_id"], rows[0]["id"]),
             )
+            _fill_abstract(rows[0]["id"], meta.get("abstract"))
+            _fill_cited(rows[0]["id"], meta.get("cited_by_count"), meta.get("ref_count"))
             return rows[0]["id"], False
     norm = _norm_title(meta["title"])
     if norm:
@@ -973,12 +1018,14 @@ def _find_or_create_lit(meta: dict) -> tuple[int, bool]:
                         "UPDATE literature SET openalex_id=? WHERE id=? AND openalex_id IS NULL",
                         (meta["openalex_id"], r["id"]),
                     )
+                _fill_abstract(r["id"], meta.get("abstract"))
+                _fill_cited(r["id"], meta.get("cited_by_count"), meta.get("ref_count"))
                 return r["id"], False
     ts = now()
     lid = execute(
-        """INSERT INTO literature (title, authors, year, venue, url, doi, openalex_id,
-           status, rating, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?, 'todo', 3, ?, ?)""",
+        """INSERT INTO literature (title, authors, year, venue, url, doi, openalex_id, abstract,
+           cited_by_count, ref_count, status, rating, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?, 'todo', 3, ?, ?)""",
         (
             meta["title"],
             meta["authors"],
@@ -987,6 +1034,9 @@ def _find_or_create_lit(meta: dict) -> tuple[int, bool]:
             meta["url"],
             meta["doi"],
             meta["openalex_id"],
+            meta.get("abstract"),
+            meta.get("cited_by_count"),
+            meta.get("ref_count"),
             ts,
             ts,
         ),
@@ -1010,15 +1060,15 @@ def _ensure_edge(src: int, tgt: int, etype: str = "cites") -> int | None:
 
 async def _oa_find_id(client: httpx.AsyncClient, lit: dict) -> str | None:
     """按 DOI 或标题在 OpenAlex 找 work ID（短形 W123...）。"""
+    import openalex
+
     doi = _strip_doi(lit.get("doi") or "")
-    params: dict = {"mailto": _OA_MAILTO, "per-page": 1}
+    params: dict = {"per-page": 1}
     if doi.startswith("10."):
         params["filter"] = f"doi:{doi}"
     else:
         params["search"] = lit.get("title", "")
-    r = await client.get(_OA_BASE, params=params)
-    r.raise_for_status()
-    results = r.json().get("results", [])
+    results = (await openalex.get(client, params, ttl=86400)).get("results", [])
     if not results:
         return None
     return _oa_short_id(results[0].get("id", ""))
@@ -1026,46 +1076,47 @@ async def _oa_find_id(client: httpx.AsyncClient, lit: dict) -> str | None:
 
 async def _oa_fetch_work(client: httpx.AsyncClient, oa_id: str) -> dict | None:
     """获取单个 work 的完整信息（含 referenced_works）。"""
-    r = await client.get(f"{_OA_BASE}/{oa_id}", params={"mailto": _OA_MAILTO})
-    if r.status_code != 200:
+    import openalex
+
+    try:
+        return await openalex.get(client, url=f"{_OA_BASE}/{oa_id}", ttl=86400)
+    except openalex.OAError:
         return None
-    return r.json()
 
 
 async def _oa_fetch_citing(
     client: httpx.AsyncClient, oa_id: str, limit: int = 15
 ) -> list[dict]:
     """获取引用了该 work 的文献列表，按被引次数降序。"""
-    r = await client.get(
-        _OA_BASE,
-        params={
+    import openalex
+
+    data = await openalex.get(
+        client,
+        {
             "filter": f"cites:{oa_id}",
             "per-page": limit,
             "sort": "cited_by_count:desc",
-            "mailto": _OA_MAILTO,
         },
+        ttl=3600,
     )
-    r.raise_for_status()
-    return r.json().get("results", [])
+    return data.get("results", [])
 
 
 async def _oa_batch_works(
     client: httpx.AsyncClient, oa_ids: list[str]
 ) -> list[dict]:
     """批量获取 works 元数据（每批 50）。"""
+    import openalex
+
     metas: list[dict] = []
     for i in range(0, len(oa_ids), 50):
         batch = oa_ids[i : i + 50]
-        r = await client.get(
-            _OA_BASE,
-            params={
-                "filter": "openalex_id:" + "|".join(batch),
-                "per-page": 50,
-                "mailto": _OA_MAILTO,
-            },
+        data = await openalex.get(
+            client,
+            {"filter": "openalex_id:" + "|".join(batch), "per-page": 50},
+            ttl=86400,
         )
-        r.raise_for_status()
-        metas.extend(r.json().get("results", []))
+        metas.extend(data.get("results", []))
     return metas
 
 
@@ -1118,31 +1169,46 @@ async def expand_literature(lit_id: int):
             )
         execute("UPDATE literature SET openalex_id=? WHERE id=?", (oa_id, lit_id))
 
-    # 2. 拉取引用数据
+    # 2. 拉取引用数据并建边
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            work = await _oa_fetch_work(client, oa_id)
-            if not work:
-                raise HTTPException(502, "OpenAlex work 请求失败")
-            ref_ids = [
-                _oa_short_id(r) for r in (work.get("referenced_works") or [])
-            ][:15]
-            citing = await _oa_fetch_citing(client, oa_id, limit=15)
-            ref_metas = await _oa_batch_works(client, ref_ids) if ref_ids else []
+            created, new_edges = await _expand_oa_edges(client, lit_id, oa_id)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(502, f"OpenAlex 请求失败：{e}")
 
-    # 3. 创建/匹配文献 + 边
-    new_count = 0
-    new_edges = 0
+    return {
+        "ok": True,
+        "created": created,
+        "new_edges": new_edges,
+    }
 
+
+async def _expand_oa_edges(
+    client: httpx.AsyncClient, lit_id: int, oa_id: str
+) -> tuple[int, int]:
+    """拉取 lit_id 的 references + cited_by 并建边；返回 (新建文献数, 新建边数)。
+
+    expand 与 graph/seed 共用这一套，保证两条入口生成的图口径一致。
+    """
+    work = await _oa_fetch_work(client, oa_id)
+    if not work:
+        raise HTTPException(502, "OpenAlex work 请求失败")
+    # 中心文献自己的被引数也回填（节点大小按被引次数渲染）
+    w0 = _parse_oa_work(work)
+    _fill_cited(lit_id, w0.get("cited_by_count"), w0.get("ref_count"))
+    ref_ids = [_oa_short_id(r) for r in (work.get("referenced_works") or [])][:15]
+    citing = await _oa_fetch_citing(client, oa_id, limit=15)
+    ref_metas = await _oa_batch_works(client, ref_ids) if ref_ids else []
+
+    created = 0
+    new_edges = 0
     for w in ref_metas:
         meta = _parse_oa_work(w)
         tid, is_new = _find_or_create_lit(meta)
         if is_new:
-            new_count += 1
+            created += 1
         if _ensure_edge(lit_id, tid, "cites"):
             new_edges += 1
 
@@ -1150,15 +1216,68 @@ async def expand_literature(lit_id: int):
         meta = _parse_oa_work(w)
         sid, is_new = _find_or_create_lit(meta)
         if is_new:
-            new_count += 1
+            created += 1
         if _ensure_edge(sid, lit_id, "cites"):
             new_edges += 1
 
+    return created, new_edges
+
+
+class SeedIn(BaseModel):
+    query: str
+
+
+@router.post("/literature/graph/seed")
+async def seed_graph(body: SeedIn):
+    """按 DOI 或标题搜一篇文献，入库并生成它的引用图（Litmaps 式加载）。
+
+    流程：OpenAlex 解析（DOI 精确优先，标题检索兜底）→ 命中已有条目则复用并补
+    被引数/摘要 → 拉前 15 篇参考文献 + 15 篇引用者建边。返回种子文献 id 供前端选中。
+    """
+    q = (body.query or "").strip()
+    if not q:
+        raise HTTPException(400, "请输入 DOI 或标题")
+    doi = _strip_doi(q)
+    try:
+        import openalex
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            work: dict | None = None
+            # DOI 精确查询优先（10.xxx 或 doi.org 链接）
+            if doi.startswith("10."):
+                results = (
+                    await openalex.get(
+                        client, {"filter": f"doi:{doi}", "per-page": 1}, ttl=86400
+                    )
+                ).get("results", [])
+                if results:
+                    work = results[0]
+            # 标题检索兜底
+            if work is None:
+                results = (
+                    await openalex.get(
+                        client, {"search": q, "per-page": 1}, ttl=3600
+                    )
+                ).get("results", [])
+                if results:
+                    work = results[0]
+            if not work:
+                raise HTTPException(
+                    404, "OpenAlex 没找到这篇文献，试试完整 DOI（10.xxx）或英文标题"
+                )
+            meta = _parse_oa_work(work)
+            lit_id, _ = _find_or_create_lit(meta)
+            created, new_edges = await _expand_oa_edges(client, lit_id, meta["openalex_id"])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"OpenAlex 请求失败：{e}")
+
     return {
         "ok": True,
-        "created": new_count,
+        "lit_id": lit_id,
+        "created": created,
         "new_edges": new_edges,
-        "total": len(ref_metas) + len(citing),
     }
 
 

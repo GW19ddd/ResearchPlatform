@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useEffect, useCallback, useRef, useState } from 'react'
 import Dashboard from './pages/Dashboard'
 import Ideas from './pages/Ideas'
@@ -13,11 +13,13 @@ import Advisor from './pages/Advisor'
 import Points from './pages/Points'
 import Settings from './pages/Settings'
 import Chat from './pages/Chat'
+import Community from './pages/Community'
+import PaperFeed from './pages/PaperFeed'
 import Canvas from './pages/Canvas'
 import ResearchChat from './pages/ResearchChat'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
-import WorkspaceTabs from './components/WorkflowTabs'
+import { TopBar, StatusBar } from './components/TopBar'
 import { ToastHost } from './components/toast'
 import Tour from './components/Tour'
 import { Icon, IconName } from './components/Icon'
@@ -42,18 +44,29 @@ const WORKSPACES: { to: string; label: string; hint: string; icon: IconName }[] 
 type NavItem = { to: string; label: string; icon: IconName; badge?: boolean }
 
 /** 导航按「功能域」分组，并把页面内的视图提升为菜单直达项，让工具一眼看全：
- *  - 「文献」三个视图用 ?tab= 指向同一页（URL 是唯一真源），菜单高亮按 pathname + search 精确匹配；
+ *  - 「文献」各视图用 ?tab= 指向同一页（URL 是唯一真源），菜单高亮按 pathname + search 精确匹配；
  *  - 「画布 / 对话工作流」即工作台组的「编排画布 Canvas / 课题 Quest」，与页面顶部切换条一一对应；
  *  - 「工具」常显，不再给折叠展开栏。
- *  「在线检索」现为文献页第 4 个 tab（/literature?tab=search），侧栏直达；旧 /search 路由保留兼容。 */
+ *  文献页现有 4 个 tab：library / graph（详情面板 + 引文图谱）/ matrix / search；旧 /search 路由保留兼容。 */
 const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
+  {
+    group: '画布',
+    items: [
+      { to: '/canvas?tab=build', label: '编排', icon: 'layers' },
+    ],
+  },
   {
     group: '文献',
     items: [
       { to: '/literature?tab=library', label: '文献库', icon: 'book', badge: true },
+      { to: '/literature?tab=graph', label: '关联图', icon: 'network' },
       { to: '/literature?tab=matrix', label: '对比矩阵', icon: 'grid' },
       { to: '/literature?tab=search', label: '文献检索', icon: 'scan' },
     ],
+  },
+  {
+    group: '速递',
+    items: [{ to: '/paperfeed', label: '论文速递', icon: 'inbox' }],
   },
   {
     group: '研究资产',
@@ -62,6 +75,10 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
       { to: '/experiments', label: '实验', icon: 'beaker', badge: true },
       { to: '/paper', label: '论文', icon: 'file' },
     ],
+  },
+  {
+    group: '社区',
+    items: [{ to: '/community', label: '科研社区', icon: 'users' }],
   },
   {
     group: '节奏',
@@ -234,7 +251,9 @@ function Sidebar({
     if (!q) return true
     const want = new URLSearchParams(q).get('tab')
     const got = new URLSearchParams(search).get('tab')
-    return got ? got === want : want === 'library'
+    // 无 ?tab= 时按模块各自的默认视图高亮（文献→文献库，画布→编排）
+    const def = p === '/canvas' ? 'build' : 'library'
+    return got ? got === want : want === def
   }
 
   const menuItem =
@@ -276,6 +295,8 @@ function Sidebar({
         className={`mt-2 min-h-0 flex-1 overflow-y-auto pb-2 ${collapsed ? 'px-2' : 'px-3'}`}
         aria-label="主导航"
       >
+        {/* 主页 = 编排选择页（/ 重定向到 /canvas?tab=build，即「发布的应用」小卡片） */}
+
         <NavLink to="/today" end title={collapsed ? '今日' : undefined} className={({ isActive }) => itemCls(isActive, collapsed)}>
           <Icon name="sun" size={15} />
           {!collapsed && <span className="truncate">今日</span>}
@@ -310,29 +331,24 @@ function Sidebar({
         ))}
       </nav>
 
-      {/* 底部工具：新手引导 + 左下角设置齿轮（常驻，折叠态只留图标） */}
-      <div
-        data-tour="tour-settings-entry"
-        className={`flex shrink-0 items-center gap-1 p-2 ${collapsed ? 'flex-col' : ''}`}
-      >
+      {/* 底部工具：只留新手引导；设置统一从左下角账户头像进入，不再放独立齿轮 */}
+      <div className={`flex shrink-0 items-center gap-1 p-2 ${collapsed ? 'flex-col' : ''}`}>
         {collapsed ? (
-          <>
-            <IconBtn icon="info" size="md" ariaLabel="打开新手引导" title="新手引导" onClick={onTour} />
-            <IconBtn icon="gear" size="md" ariaLabel="打开设置" title="设置" onClick={onSettings} />
-          </>
+          <IconBtn icon="info" size="md" ariaLabel="打开新手引导" title="新手引导" onClick={onTour} />
         ) : (
-          <>
-            <Btn variant="ghost" size="sm" className="min-w-0 flex-1" onClick={onTour}>
-              <Icon name="info" size={14} />
-              新手引导
-            </Btn>
-            <IconBtn icon="gear" size="md" ariaLabel="打开设置" title="设置" onClick={onSettings} />
-          </>
+          <Btn variant="ghost" size="sm" className="min-w-0 flex-1" onClick={onTour}>
+            <Icon name="info" size={14} />
+            新手引导
+          </Btn>
         )}
       </div>
 
-      {/* 账户区：始终钉在左下角 */}
-      <div className="relative shrink-0 border-t border-[color:var(--wb-border)] p-2.5" ref={menuRef}>
+      {/* 账户区：始终钉在左下角（账户 / 个人资料 / 设置都从这里进） */}
+      <div
+        data-tour="tour-settings-entry"
+        className="relative shrink-0 border-t border-[color:var(--wb-border)] p-2.5"
+        ref={menuRef}
+      >
         <button
           type="button"
           onClick={() => setMenu((v) => !v)}
@@ -436,11 +452,16 @@ function Splash({ label = '正在打开工作台' }: { label?: string }) {
 }
 
 export default function App() {
-  const path = useLocation().pathname
+  const loc = useLocation()
+  const path = loc.pathname
   /** 三个工作台 + 落地页满铺；工作台顶部由 App 统一挂一份 WorkspaceTabs */
   const isWorkspace = path === '/chat' || path === '/canvas' || path === '/research'
-  const full = isWorkspace || path === '/'
-  const isLanding = path === '/'
+  // 文献页四个视图（文献库 / 关联图 / 对比矩阵 / 检索）满铺：占满顶栏与状态栏之间的
+  // 整个内容区，与侧栏边线直接相接；页面身份由顶栏面包屑承担，页内不再渲染大标题
+  // 实验页与文献页同款满铺：Agent 实验三栏 / 结果与运行都要占满顶栏与状态栏之间的整个内容区，
+  // 不能再被 max-w-[1240px] 居中限制出右侧与下方的灰底留白
+  const full = isWorkspace || path === '/landing' || path === '/paperfeed' || path === '/literature' || path === '/experiments'
+  const isLanding = path === '/landing'
   const [navOpen, setNavOpen] = useState(false)
   const [collapsed, setCollapsed] = usePersist('app.navCollapsed', false)
   /** 展开态侧边栏宽度：可拖拽，全站共用（拖一次所有页面都生效），折叠态仍是固定 60px */
@@ -533,7 +554,7 @@ export default function App() {
         />
       )}
       {!isLanding && (
-        <div className={`${navOpen ? 'fixed z-50 flex h-full' : 'hidden'} lg:relative lg:z-auto lg:flex`}>
+        <div className={`wb-app-nav ${navOpen ? 'fixed z-50 flex h-full' : 'hidden'} lg:relative lg:z-auto lg:flex`}>
           <Sidebar
             collapsed={navOpen ? false : collapsed}
             width={sidebarW}
@@ -559,19 +580,16 @@ export default function App() {
         </div>
       )}
 
-      <main className={`flex min-w-0 flex-1 flex-col ${full ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-        {/* 工作台切换条：唯一真源，路由驱动；只挂在三个满铺工作台，页面内不再各自渲染页签 */}
-        {isWorkspace && (
-          <div className="flex shrink-0 items-center gap-3 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-4 py-2">
-            <WorkspaceTabs />
-            <span className="hidden truncate text-[11px] text-[color:var(--wb-muted)] md:block">
-              {path === '/chat'
-                ? '一题一 quest：填契约 → 受控推进 → 随时接管'
-                : path === '/canvas'
-                  ? '把多步 AI 任务连成可复用的流水线，成果可立项为 Quest'
-                  : '检索式 → OpenAlex → 去重入库 → 带引用报告'}
-            </span>
-          </div>
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* 全站细顶栏：定位 + 全局操作。
+            页面身份由顶栏面包屑与左侧导航高亮承担，内容区不再渲染大标题；
+            工作台切换只在左侧菜单，顶栏不重复。 */}
+        {!isLanding && (
+          <TopBar
+            onProfile={() => setProfileOpen(true)}
+            onTour={() => setTourOpen(true)}
+            user={user}
+          />
         )}
         {/* key=path：路由切换重播进入动画，整页柔和淡入而不是硬切。
             只用 opacity —— 带 transform 的容器会成为内部 fixed 弹层的 containing block。
@@ -579,11 +597,15 @@ export default function App() {
         <div
           key={path}
           className={
-            full ? 'wb-page-enter min-h-0 flex-1' : 'wb-page-enter mx-auto w-full max-w-[1240px] px-6 py-7 md:px-8'
+            full
+              ? 'wb-page-enter min-h-0 flex-1 overflow-hidden'
+              : 'wb-page-enter mx-auto w-full min-h-0 max-w-[1240px] flex-1 overflow-y-auto px-6 py-7 md:px-8'
           }
         >
             <Routes>
-              <Route path="/" element={<Landing />} />
+              {/* 主页 = 编排入口：重定向到 /canvas?tab=build（无 cid 时显示「发布的应用」选择页） */}
+              <Route path="/" element={<Navigate to="/canvas?tab=build" replace />} />
+              <Route path="/landing" element={<Landing />} />
               <Route path="/today" element={<Dashboard />} />
               <Route path="/ideas" element={<Ideas />} />
             <Route path="/literature" element={<Literature />} />
@@ -592,6 +614,8 @@ export default function App() {
             <Route path="/search" element={<Search />} />
             <Route path="/experiments" element={<Experiments />} />
             <Route path="/paper" element={<Paper />} />
+            <Route path="/community" element={<Community />} />
+            <Route path="/paperfeed" element={<PaperFeed />} />
             <Route path="/plan" element={<Plan />} />
             <Route path="/stats" element={<Overview />} />
             <Route path="/advisor" element={<Advisor />} />
@@ -602,6 +626,7 @@ export default function App() {
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </div>
+        {!isLanding && <StatusBar />}
       </main>
 
       {!isLanding && !navOpen && (
@@ -609,7 +634,7 @@ export default function App() {
           type="button"
           onClick={() => setNavOpen(true)}
           aria-label="打开导航"
-          className="wb-press-strong fixed bottom-4 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text-soft)] shadow-[var(--wb-shadow-md)] lg:hidden"
+          className="wb-app-nav-fab wb-press-strong fixed bottom-4 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] text-[color:var(--wb-text-soft)] shadow-[var(--wb-shadow-md)] lg:hidden"
         >
           <Icon name="menu" size={18} />
         </button>

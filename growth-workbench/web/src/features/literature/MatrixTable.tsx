@@ -61,8 +61,9 @@ export default function MatrixTable({
   }
 
   return (
-    <div className="rounded-[12px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-sm)]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-4 py-2.5">
+    /* 满铺：与文献库同款，贴住顶栏/侧栏/状态栏边线，表格区域内部滚动 */
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[color:var(--wb-surface)]">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-4 py-2.5">
         <h2 className="whitespace-nowrap text-[13px] font-semibold text-[color:var(--wb-text)]">
           相关工作对比矩阵
         </h2>
@@ -81,7 +82,7 @@ export default function MatrixTable({
           <Btn onClick={onAddDim}>加维度</Btn>
         </div>
       </div>
-      <div className="p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {!matrix || papers.length === 0 ? (
           <Empty text="先录入文献，再横向对比" />
         ) : filtered.length === 0 ? (

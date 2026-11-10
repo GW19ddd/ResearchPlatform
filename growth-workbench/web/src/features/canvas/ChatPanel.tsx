@@ -1,6 +1,19 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  cloneElement, isValidElement, useEffect, useRef, useState,
+  type ReactElement, type ReactNode,
+} from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Icon, type IconName } from '../../components/Icon'
-import { IconBtn, MdBlock } from '../../components/ui'
+import { IconBtn } from '../../components/ui'
+import {
+  AttachmentChips,
+  ComposerTools,
+  ContextBar,
+  MessageActions,
+  ModelPicker,
+  hhmm,
+} from '../chat/ComposerTools'
 
 /**
  * Undermind 式对话面板 —— 画布对话与研究对话（/research）共用：
@@ -38,7 +51,15 @@ export type ChatMsg = {
   extra?: ReactNode
 }
 
-export type ChipConf = { icon: IconName; label: string; text: string; tag: string; onClick?: () => void }
+export type ChipConf = {
+  icon: IconName
+  label: string
+  text: string
+  tag: string
+  onClick?: () => void
+  /** 选中态：chip 已挂到输入框时用，避免再开弹窗也能看出当前模式 */
+  active?: boolean
+}
 export type PlusItem = { icon: IconName; label: string; desc: string; onClick: () => void }
 
 type Props = {
@@ -55,12 +76,106 @@ type Props = {
   samples?: string[]
   plusItems?: PlusItem[]
   exportName?: string
-  /** 提案卡插槽：渲染在快捷 chips 与输入框之间（点 chip 先出提案、确认才发送） */
+  /** 提案卡插槽：渲染在快捷 chips 与输入框之间（兼容保留；研究对话已改为输入框内挂载） */
   proposal?: ReactNode
+  /** 输入框内已挂载的能力 / 技能 chip，渲染在 textarea 上方 */
+  composerChips?: ReactNode
+  /** 贴在输入框上方的浮层插槽（技能选择器），由调用方控制开关 */
+  composerOverlay?: ReactNode
+  /** 浮层打开时，textarea 的 Enter 不触发发送（避免和技能选择器的 Enter 抢） */
+  overlayOpen?: boolean
+  /** 调用方按挂载的能力给不同的输入提示，不传用默认 */
+  placeholder?: string
   /** 常驻卡插槽：渲染在底部操作区最上方（进度框 / 文献检索结果卡），不随消息流滚走 */
   dock?: ReactNode
   /** 可选最小宽度：多栏拖拽时保证对话面板不被两侧栏压没；不传则沿用 min-w-0 */
   minWidth?: number
+  /** /research：点正文 [n] 或引用 chips 时打开对应文献详情；不传则保持旧的外链行为 */
+  onCite?: (c: Citation) => void
+  /** 顶栏右侧自定义插槽（提问历史跳转等） */
+  headerExtra?: ReactNode
+  /** 跳到第 index 条消息并短暂高亮；nonce 变化才触发（同一条可重复点） */
+  jumpTo?: { index: number; nonce: number } | null
+}
+
+/** 把一段文本里的 [n] 变成可点的引用按钮；找不到对应文献时保留原文，不造引用 */
+function citeText(s: string, cits: Citation[], onCite: (c: Citation) => void, key: string): ReactNode {
+  const re = /\[(\d+)\]/g
+  const out: ReactNode[] = []
+  let last = 0
+  let i = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(s)) !== null) {
+    if (m.index > last) out.push(<span key={`${key}-t${i++}`}>{s.slice(last, m.index)}</span>)
+    const n = Number(m[1])
+    const c = cits.find((x) => Number(x.n) === n)
+    out.push(
+      c ? (
+        <button
+          key={`${key}-c${i++}`}
+          type="button"
+          onClick={() => onCite(c)}
+          title={`查看引用 [${n}] 对应的文献：${c.title || ''}`}
+          className="wb-cite-mark"
+        >
+          [{n}]
+        </button>
+      ) : (
+        <span key={`${key}-c${i++}`}>[{n}]</span>
+      ),
+    )
+    last = m.index + m[0].length
+  }
+  if (last < s.length) out.push(<span key={`${key}-t${i++}`}>{s.slice(last)}</span>)
+  return out
+}
+
+/** 递归穿过 react-markdown 生成的元素树，只替换文本节点里的 [n] */
+function withCites(
+  nodes: ReactNode, cits: Citation[], onCite: (c: Citation) => void, key: string,
+): ReactNode {
+  if (typeof nodes === 'string') return citeText(nodes, cits, onCite, key)
+  if (Array.isArray(nodes)) return nodes.map((n, i) => withCites(n, cits, onCite, `${key}-${i}`))
+  if (isValidElement(nodes)) {
+    const el = nodes as ReactElement<any>
+    const children = el.props?.children
+    if (children === undefined || children === null) return nodes
+    return cloneElement(el, undefined, withCites(children, cits, onCite, `${key}-c`))
+  }
+  return nodes
+}
+
+/** 聊天正文的 Markdown：标题/列表/表格 + 可点 [n] 引用；md=false 的调用方仍走纯文本 */
+function RichMd({
+  text, cits, onCite,
+}: {
+  text: string
+  cits: Citation[]
+  onCite?: (c: Citation) => void
+}) {
+  const enabled = !!onCite && cits.length > 0
+  const dec = (nodes: ReactNode, key: string) =>
+    enabled && onCite ? withCites(nodes, cits, onCite, key) : nodes
+  const components: any = {
+    p: ({ node: _n, children }: any) => <p>{dec(children, 'p')}</p>,
+    li: ({ node: _n, children }: any) => <li>{dec(children, 'li')}</li>,
+    h1: ({ node: _n, children }: any) => <h1>{dec(children, 'h1')}</h1>,
+    h2: ({ node: _n, children }: any) => <h2>{dec(children, 'h2')}</h2>,
+    h3: ({ node: _n, children }: any) => <h3>{dec(children, 'h3')}</h3>,
+    h4: ({ node: _n, children }: any) => <h4>{dec(children, 'h4')}</h4>,
+    strong: ({ node: _n, children }: any) => <strong>{dec(children, 'strong')}</strong>,
+    em: ({ node: _n, children }: any) => <em>{dec(children, 'em')}</em>,
+    td: ({ node: _n, children }: any) => <td>{dec(children, 'td')}</td>,
+    th: ({ node: _n, children }: any) => <th>{dec(children, 'th')}</th>,
+    a: ({ node: _n, ...props }: any) => <a {...props} target="_blank" rel="noreferrer" />,
+  }
+  return (
+    <div className="markdown-block wb-chat-md">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        {text || ''}
+      </ReactMarkdown>
+    </div>
+  )
 }
 
 const fmtSec = (ms?: number) => `${Math.max(1, Math.round((ms || 0) / 1000))}s`
@@ -104,30 +219,38 @@ function exportMd(name: string, msgs: ChatMsg[]) {
   URL.revokeObjectURL(a.href)
 }
 
-/** 引用小签行（对标 Undermind 的文献引用 chips，点击开 DOI） */
-function CiteChips({ cits }: { cits: Citation[] }) {
+/** 引用小签行：/research 传 onCite 时显示文献标题、点开对应详情；其它入口保持点开 DOI */
+function CiteChips({ cits, onCite }: { cits: Citation[]; onCite?: (c: Citation) => void }) {
   if (!cits.length) return null
+  const cls =
+    'flex max-w-[20rem] items-center gap-1 rounded-full border border-[color:var(--wb-accent)]/25 ' +
+    'bg-[color:var(--wb-accent-soft)] px-2 py-[2px] text-[10.5px] text-[color:var(--wb-accent-strong)] transition hover:brightness-[0.96]'
   return (
     <div className="flex flex-wrap gap-1.5">
       {cits.map((c, k) => {
         const url = citeUrl(c)
+        if (onCite) {
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => onCite(c)}
+              title={`查看文献：${c.title || ''}${c.venue ? ` · ${c.venue}` : ''}`}
+              className={cls}
+            >
+              <span className="shrink-0">[{c.n}]</span>
+              <span className="truncate">{c.title || citeLabel(c)}</span>
+              <Icon name="chevronRight" size={10} className="shrink-0 opacity-60" />
+            </button>
+          )
+        }
         return url ? (
-          <a
-            key={k}
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            title={`${c.title || ''}${c.venue ? ` · ${c.venue}` : ''}`}
-            className="flex max-w-[16rem] items-center gap-1 rounded-full border border-[color:var(--wb-accent)]/25 bg-[color:var(--wb-accent-soft)] px-2 py-[2px] text-[10.5px] text-[color:var(--wb-accent-strong)] transition hover:brightness-[0.96]"
-          >
+          <a key={k} href={url} target="_blank" rel="noreferrer"
+            title={`${c.title || ''}${c.venue ? ` · ${c.venue}` : ''}`} className={cls}>
             <span className="truncate">{citeLabel(c)}</span>
           </a>
         ) : (
-          <span
-            key={k}
-            title={c.title || ''}
-            className="flex max-w-[16rem] items-center gap-1 rounded-full border border-[color:var(--wb-accent)]/25 bg-[color:var(--wb-accent-soft)] px-2 py-[2px] text-[10.5px] text-[color:var(--wb-accent-strong)]"
-          >
+          <span key={k} title={c.title || ''} className={cls}>
             <span className="truncate">{citeLabel(c)}</span>
           </span>
         )
@@ -141,10 +264,12 @@ function AssistantMsg({
   m,
   onSend,
   onReport,
+  onCite,
 }: {
   m: ChatMsg
   onSend: (t: string) => void
   onReport?: (m: ChatMsg) => void
+  onCite?: (c: Citation) => void
 }) {
   const [stepsOpen, setStepsOpen] = useState(false)
   const [thinkOpen, setThinkOpen] = useState(false)
@@ -223,13 +348,17 @@ function AssistantMsg({
           </span>
         </button>
       ) : (
-        <div className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-[color:var(--wb-text)]">
-          {m.md ? <MdBlock text={m.content} /> : m.content}
+        <div className="text-[12.5px] leading-relaxed text-[color:var(--wb-text)]">
+          {m.md ? (
+            <RichMd text={m.content} cits={cits} onCite={onCite} />
+          ) : (
+            <span className="whitespace-pre-wrap">{m.content}</span>
+          )}
         </div>
       )}
 
       {/* 引用小签 / 已执行小签 */}
-      {cits.length > 0 && <CiteChips cits={cits} />}
+      {cits.length > 0 && <CiteChips cits={cits} onCite={onCite} />}
       {!cits.length && (m.applied || []).length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {(m.applied || []).map((a, k) => (
@@ -281,13 +410,31 @@ export default function ChatPanel({
   plusItems = [],
   exportName = '对话',
   proposal,
+  composerChips,
+  composerOverlay,
+  overlayOpen = false,
+  placeholder = '输入消息…',
   dock,
   minWidth,
+  onCite,
+  headerExtra,
+  jumpTo,
 }: Props) {
   const [plusOpen, setPlusOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const msgRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const [flashIdx, setFlashIdx] = useState<number | null>(null)
+  /** 本页消息没有服务端 created_at，用「消息出现在页面上的真实本地时间」 */
+  const seenAt = useRef<Record<number, string>>({})
   const busyStart = useRef(0)
   const [, forceTick] = useState(0)
+
+  useEffect(() => {
+    const seen = seenAt.current
+    for (let i = 0; i < messages.length; i++) if (!seen[i]) seen[i] = hhmm()
+    for (const k of Object.keys(seen)) if (Number(k) >= messages.length) delete seen[Number(k)]
+  }, [messages])
 
   // 忙碌时每 0.5s 刷一次「Worked for Xs…」的计时
   useEffect(() => {
@@ -305,6 +452,17 @@ export default function ChatPanel({
     if (el) el.scrollTop = el.scrollHeight
   }, [messages.length, busy])
 
+  // 提问历史跳转：滚到对应消息并短暂高亮（nonce 变化才触发，同一条可重复点）
+  useEffect(() => {
+    if (!jumpTo) return
+    const el = msgRefs.current[jumpTo.index]
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setFlashIdx(jumpTo.index)
+    const t = window.setTimeout(() => setFlashIdx(null), 1800)
+    return () => window.clearTimeout(t)
+  }, [jumpTo?.nonce])
+
   const busySec = busy ? fmtSec(Date.now() - busyStart.current) : ''
   const hasPlus = samples.length > 0 || plusItems.length > 0
 
@@ -320,6 +478,7 @@ export default function ChatPanel({
           <span className="truncate text-[12.5px] font-medium text-[color:var(--wb-text)]">{title}</span>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {headerExtra}
           <button
             onClick={() => exportMd(exportName || title, messages)}
             disabled={!messages.length}
@@ -353,7 +512,12 @@ export default function ChatPanel({
             {messages.map((m, i) =>
               m.role === 'user' ? (
                 // 用户：上方小签 + 右侧胶囊
-                <div key={i} className="flex flex-col items-end gap-1.5">
+                <div
+                  key={i}
+                  ref={(el) => { msgRefs.current[i] = el }}
+                  data-msg-index={i}
+                  className={`flex flex-col items-end gap-1.5 rounded-[12px] ${flashIdx === i ? 'wb-msg-flash' : ''}`}
+                >
                   <span className="flex items-center gap-1 rounded-full border border-dashed border-[color:var(--wb-border)] px-2.5 py-[3px] text-[10.5px] text-[color:var(--wb-muted)]">
                     <Icon name="sparkle" size={10} />
                     {m.skillTag || '研究对话'}
@@ -361,9 +525,33 @@ export default function ChatPanel({
                   <div className="max-w-[85%] rounded-[18px] bg-[color:var(--wb-accent-soft)] px-3.5 py-2 text-[12.5px] leading-relaxed text-[color:var(--wb-accent-strong)]">
                     <div className="whitespace-pre-wrap">{m.content}</div>
                   </div>
+                  <MessageActions
+                    time={seenAt.current[i]}
+                    content={m.content}
+                    editTitle="把这条放回输入框，修改后重发"
+                    onEdit={() => {
+                      // 这里的消息是各页本地 state，没有服务端 id：
+                      // 编辑 = 把原话放回输入框，改完后由用户重新发送一轮，不伪造历史改写。
+                      onInput(m.content)
+                      setPlusOpen(false)
+                      setTimeout(() => inputRef.current?.focus(), 0)
+                    }}
+                  />
                 </div>
               ) : (
-                <AssistantMsg key={i} m={m} onSend={(t) => onSend(t, '追问')} onReport={onReport} />
+                <div
+                  key={i}
+                  ref={(el) => { msgRefs.current[i] = el }}
+                  data-msg-index={i}
+                  className={`rounded-[12px] ${flashIdx === i ? 'wb-msg-flash' : ''}`}
+                >
+                  <AssistantMsg
+                    m={m}
+                    onSend={(t) => onSend(t, '追问')}
+                    onReport={onReport}
+                    onCite={onCite}
+                  />
+                </div>
               ),
             )}
 
@@ -396,7 +584,11 @@ export default function ChatPanel({
                   key={c.label}
                   disabled={busy}
                   onClick={() => (c.onClick ? c.onClick() : onSend(c.text, c.tag))}
-                  className="flex items-center gap-1.5 rounded-full border border-[color:var(--wb-border)] px-2.5 py-1 text-[11px] text-[color:var(--wb-text-soft)] transition hover:border-[color:var(--wb-accent)]/50 hover:text-[color:var(--wb-accent)] disabled:opacity-40"
+                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition disabled:opacity-40 ${
+                    c.active
+                      ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] font-medium text-[color:var(--wb-accent-strong)]'
+                      : 'border-[color:var(--wb-border)] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-accent)]/50 hover:text-[color:var(--wb-accent)]'
+                  }`}
                 >
                   <Icon name={c.icon} size={11} />
                   {c.label}
@@ -408,8 +600,10 @@ export default function ChatPanel({
           {proposal}
 
           <div className="relative rounded-[20px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] transition focus-within:border-[color:var(--wb-accent)]/60">
-            {/* + 菜单：示例指令 + 导入入口（对标 Add papers / Import bibliography） */}
-            {plusOpen && hasPlus && (
+            {/* 技能选择器等调用方浮层：与输入框同一个 containing block，不另起弹窗 */}
+            {composerOverlay}
+            {/* + 菜单：示例指令 + 导入 / 添加技能入口（对标 Add papers / Import bibliography） */}
+            {plusOpen && hasPlus && !overlayOpen && (
               <div className="absolute bottom-full left-0 mb-2 w-full rounded-[12px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] p-1.5 shadow-[var(--wb-shadow-md)]">
                 {plusItems.map((p) => (
                   <button
@@ -445,21 +639,25 @@ export default function ChatPanel({
               </div>
             )}
 
+            {composerChips}
+            <AttachmentChips />
             <textarea
+              ref={inputRef}
               rows={2}
               value={input}
               onChange={(e: any) => onInput(e.target.value)}
               onKeyDown={(e: any) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
+                  if (overlayOpen) return
                   onSend()
                   setPlusOpen(false)
                 }
               }}
-              placeholder="输入消息…"
+              placeholder={placeholder}
               className="block w-full resize-none bg-transparent px-3.5 pt-2.5 text-[12.5px] leading-relaxed text-[color:var(--wb-text)] outline-none placeholder:text-[color:var(--wb-muted)]"
             />
-            <div className="flex items-center gap-1 px-2 pb-2 pt-1">
+            <div className="flex flex-wrap items-center gap-1 px-2 pb-2 pt-1">
               {hasPlus && (
                 <IconBtn
                   icon="plus"
@@ -468,9 +666,17 @@ export default function ChatPanel({
                   onClick={() => setPlusOpen(!plusOpen)}
                 />
               )}
-              <span className="flex-1 pl-1 text-[10.5px] text-[color:var(--wb-muted)]">
+              <ComposerTools
+                getInput={() => input}
+                onTranscript={(t) => onInput(input + t)}
+                onEnhance={(t) => onInput(t)}
+                disabled={busy}
+              />
+              <span className="hidden flex-1 pl-1 text-[10.5px] text-[color:var(--wb-muted)] sm:inline">
                 Enter 发送 · Shift+Enter 换行
               </span>
+              <span className="flex-1 sm:hidden" />
+              <ModelPicker />
               <button
                 onClick={() => {
                   onSend()
@@ -478,12 +684,13 @@ export default function ChatPanel({
                 }}
                 disabled={!input.trim() || busy}
                 title="发送"
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--wb-accent)] text-white transition hover:opacity-90 disabled:opacity-40"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--wb-accent)] text-white transition hover:opacity-90 disabled:opacity-40"
               >
                 <Icon name="arrowUp" size={14} />
               </button>
             </div>
           </div>
+          <ContextBar />
         </div>
       </div>
     </div>

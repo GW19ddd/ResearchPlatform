@@ -377,13 +377,20 @@ async def complete_result(
     max_tokens: int = 2048,
     provider_id: str | None = None,
     messages: list[dict] | None = None,
+    model_override: str | None = None,
 ) -> dict:
-    """一次调用，返回带 ok / error 的信封。失败不抛，交由调用方决定如何展示。"""
+    """一次调用，返回带 ok / error 的信封。失败不抛，交由调用方决定如何展示。
+
+    model_override 只替换本轮请求的模型名（对话框下拉选的），档位仍由
+    FORCE_FAST 统一 fast；不影响全局 provider 配置。
+    """
     mode = _resolve_mode(mode)
     p = None
     try:
         p = pick_provider(provider_id, mode)
         require_key(p)
+        if model_override:
+            p = {**p, "model_fast": model_override, "model_reason": model_override}
         msgs = messages if messages is not None else [
             {"role": "system", "content": system},
             {"role": "user", "content": prompt},
@@ -430,12 +437,14 @@ async def chat_result(
     task: str = "chat",
     max_tokens: int = 4096,
     provider_id: str | None = None,
+    model_override: str | None = None,
 ) -> dict:
     """多轮对话：messages 已含历史 [{'role','content'}...]。"""
     msgs = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in messages]
     return await complete_result(
         None, system=system, mode=mode, task=task,
         max_tokens=max_tokens, provider_id=provider_id, messages=msgs,
+        model_override=model_override,
     )
 
 
@@ -450,6 +459,7 @@ async def stream_chat_events(
     task: str = "chat",
     max_tokens: int = 4096,
     provider_id: str | None = None,
+    model_override: str | None = None,
 ):
     """流式多轮对话。
 
@@ -466,6 +476,8 @@ async def stream_chat_events(
     try:
         p = pick_provider(provider_id, mode)
         require_key(p)
+        if model_override:
+            p = {**p, "model_fast": model_override, "model_reason": model_override}
         msgs = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in messages]
         if system:
             msgs = [{"role": "system", "content": system}] + msgs

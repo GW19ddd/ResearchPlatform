@@ -40,10 +40,21 @@ export type DiscoverStage = {
   seed?: DiscoverPaper
 }
 
-export type DiscoverEvent =
-  | DiscoverStage
-  | { type: 'done'; result: DiscoverResult }
-  | { type: 'error'; message: string }
+export type DiscoverFail = {
+  type: 'error'
+  message: string
+  /** rate_limited = OpenAlex 额度用尽；not_found；network；upstream；unknown */
+  code?: string
+  /** 补充说明（怎么恢复额度），来自后端 openalex 层 */
+  hint?: string
+  /** 额度重置剩余秒数 */
+  reset_in?: number
+}
+
+export type DiscoverEvent = DiscoverStage | { type: 'done'; result: DiscoverResult } | DiscoverFail
+
+/** 检索失败时抛出的 Error，带后端给的定位字段，前端据此换不同的按钮 */
+export type DiscoverError = Error & { code?: string; hint?: string; reset_in?: number }
 
 /** 后端抛的是 JSON {"detail": "..."} 或纯文本，统一剥成一句人话 */
 function errText(raw: string, status: number): string {
@@ -87,6 +98,7 @@ export async function streamDiscover(
   let buf = ''
   let final: DiscoverResult | null = null
   let failure = ''
+  let failMeta: { code?: string; hint?: string; reset_in?: number } = {}
 
   for (;;) {
     const { value, done } = await reader.read()
@@ -98,12 +110,19 @@ export async function streamDiscover(
       const ev = raw as unknown as DiscoverEvent
       onEvent(ev)
       if (ev.type === 'done') final = ev.result
-      else if (ev.type === 'error') failure = ev.message || '检索失败'
+      else if (ev.type === 'error') {
+        failure = ev.message || '检索失败'
+        failMeta = { code: ev.code, hint: ev.hint, reset_in: ev.reset_in }
+      }
     }
     if (failure) break
   }
 
-  if (failure) throw new Error(failure)
+  if (failure) {
+    const err: DiscoverError = new Error(failure)
+    Object.assign(err, failMeta)
+    throw err
+  }
   if (!final) throw new Error('流已结束，但没有收到结果')
   return final
 }

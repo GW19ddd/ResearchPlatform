@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Btn, IconBtn, Modal, TextArea } from '../components/ui'
-import { Icon, type IconName } from '../components/Icon'
+import { Icon } from '../components/Icon'
 import { ResizeHandle } from '../components/ResizeHandle'
 import { toast } from '../components/toast'
 import { get, patch, post, del } from '../lib/api'
@@ -10,10 +10,15 @@ import { ConvoStore } from '../lib/convoStore'
 import { useConvoSession } from '../lib/useConvoSession'
 import ChatPanel, { type ChatMsg, type ChipConf, type PlusItem, type Citation } from '../features/canvas/ChatPanel'
 import { relTime } from '../lib/time'
-import { streamChat, type ChatStreamEvent, type RchatServerMsg } from '../lib/rchatStream'
+import { streamChat, type ChatStreamEvent, type RchatServerMsg, type PaperHit } from '../lib/rchatStream'
+import { chatEnvelope } from '../features/chat/prefs'
+import SkillPicker, { type SkillGroup, type SkillOption } from '../features/skills/SkillPicker'
+import { RESEARCH_SKILLS } from '../features/skills/presets'
 import ResearchDock, {
   LiteraturePane, useResearchRun, beginRun, pushStage, setPapers, finishRun, hydratePapers, clearRun,
 } from '../features/research/ResearchDock'
+import PaperDetailModal, { type PaperInfo } from '../features/research/PaperDetail'
+import ConsensusPane from '../features/research/ConsensusPane'
 
 /**
  * 模块级会话仓库：消息 / busy 按 sid 分桶，跨组件、跨路由存活。
@@ -35,8 +40,8 @@ type SessionRow = { id: number; title: string; updated_at: string; msg_count?: n
 /** 左栏「文档」：历次生成的报告（kind=report 的消息沉淀） */
 type DocRow = { id: number; session_id: number; title: string; created_at: string; content: string; citations?: Citation[] }
 
-/** 深度检索 / 撰写报告的提案：点 chip 先编辑，确认才发送 */
-type Proposal = { mode: 'deep' | 'report'; title: string; desc: string }
+/** 快捷能力：点 chip 只挂到输入框，不再弹提案大卡；三个值都会走真实的后端模式 */
+type ModeTag = '深度检索' | '报告撰写' | '文献检索'
 
 type ServerMsg = RchatServerMsg
 
@@ -53,6 +58,8 @@ function toChatMsg(m: ServerMsg): ChatMsg {
     plan: m.meta?.plan || [],
     elapsed: m.elapsed_ms || undefined,
     skillTag: m.meta?.tag,
+    // 研究回答按 Markdown 渲染（标题 / 加粗 / 列表 / 表格），[n] 由 ChatPanel 变成可点引用
+    md: true,
   }
 }
 
@@ -66,7 +73,10 @@ const CHIPS: ChipConf[] = [
 
 /** 右侧附属栏：报告文档 / 文献检索二选一，始终只开一栏，保持「对话 + 一栏」的双栏。
  *  docId 只在从左栏「文档」点开时带上，用于给该文档项加选中态；聊天卡入口不带。 */
-type Pane = { kind: 'report'; msg: ChatMsg; docId?: number } | { kind: 'literature' }
+type Pane =
+  | { kind: 'report'; msg: ChatMsg; docId?: number }
+  | { kind: 'literature' }
+  | { kind: 'consensus' }
 
 export default function ResearchChat() {
   const nav = useNavigate()
@@ -86,8 +96,24 @@ export default function ResearchChat() {
   // 各栏宽度持久化：刷新 / 切页签都保持。报告栏与文献栏互斥，但共用同一个右侧栏宽度。
   const [leftW, setLeftW] = usePersist('rchat.leftW', 224)
   const [paneW, setPaneW] = usePersist('rchat.paneW', 480)
+  // 左栏可完全收起：收起后留 36px 图标 rail，刷新 / 切页签都保持
+  const [leftOpen, setLeftOpen] = usePersist('rchat.leftOpen', true)
+  // 深度检索想保留的文献篇数上限：仅 deep 模式生效，4–40，刷新保持
+  const [maxPapers, setMaxPapers] = usePersist('rchat.maxPapers', 15)
   const [docs, setDocs] = useState<DocRow[]>([])
-  const [proposal, setProposal] = useState<Proposal | null>(null)
+  /** 正文 [n] / 引用 chips / 文献标题点开的文献详情弹窗 */
+  const [paperInfo, setPaperInfo] = useState<PaperInfo | null>(null)
+  /** 提问历史导航：列表开关 + 跳转目标 + 上次选中的条目（图 3 的高亮行） */
+  const [histOpen, setHistOpen] = useState(false)
+  const [jumpTo, setJumpTo] = useState<{ index: number; nonce: number } | null>(null)
+  const [activeHist, setActiveHist] = useState<number | null>(null)
+  /** 输入框里挂着的快捷能力（三选一）与技能（可多个）：都只对下一轮生效 */
+  const [modeTag, setModeTag] = useState<ModeTag | null>(null)
+  const [mounted, setMounted] = useState<SkillOption[]>([])
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerQ, setPickerQ] = useState('')
+  const [localSkills, setLocalSkills] = useState<{ id: string; name: string; desc: string; path: string }[]>([])
+  const [ghSkills, setGhSkills] = useState<{ id: string; name: string; desc: string; category: string }[]>([])
   const pdfRef = useRef<HTMLInputElement>(null)
   /** 左栏文档点开时按需补的引用元数据缓存（/documents 不返回 meta） */
   const docCitsRef = useRef<Record<number, Citation[]>>({})
@@ -117,10 +143,9 @@ export default function ResearchChat() {
 
   const closePane = () => setPane(null)
   const openReport = (m: ChatMsg) => setPane({ kind: 'report', msg: m })
+  // 文献结果栏仍由左栏入口 / 上方常驻卡打开；快捷 chip 不再把它「跳」出来
   const openLit = () => setPane({ kind: 'literature' })
-  /** chip 上的「文献检索」是可开可收的 toggle */
-  const toggleLit = () =>
-    setPane((p) => (p?.kind === 'literature' ? null : { kind: 'literature' }))
+  const openConsensus = () => setPane({ kind: 'consensus' })
 
   /** 左栏文档：先立即打开报告双栏，再按 session 补回该报告的引用元数据（/documents 不带 meta） */
   const openDoc = async (d: DocRow) => {
@@ -186,6 +211,66 @@ export default function ResearchChat() {
     loadDocs()
   }, [loadDocs])
 
+  // 加号「添加技能」的技能源：本机 SKILL.md + 对话白名单里的 GitHub 技能（与 /chat 同源）
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const r = await get<any>('/skills/chat')
+        setGhSkills(r.skills || [])
+      } catch {
+        setGhSkills([])
+      }
+      try {
+        const r = await get<any>('/skills/local')
+        setLocalSkills(r.skills || [])
+      } catch {
+        setLocalSkills([])
+      }
+    })()
+  }, [])
+
+  // 提问历史浮层点外面收起；不用 Modal，保持「输入框上方一列小条目」的轻量感
+  useEffect(() => {
+    if (!histOpen) return
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null
+      if (!t?.closest?.('[data-history-root]')) setHistOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [histOpen])
+
+  const pickerGroups: SkillGroup[] = useMemo(
+    () => [
+      {
+        key: 'local',
+        label: `本机技能 (${localSkills.length})`,
+        icon: 'bookOpen',
+        items: localSkills.map((s) => ({
+          key: s.id, id: s.id, name: s.name, desc: s.desc, group: '本机技能', path: s.path,
+        })),
+      },
+      {
+        key: 'github',
+        label: `GitHub 技能 (${ghSkills.length})`,
+        icon: 'gitBranch',
+        items: ghSkills.map((s) => ({
+          key: s.id, id: s.id, name: s.name, desc: s.desc, group: 'GitHub 技能',
+        })),
+      },
+      {
+        key: 'research',
+        label: `科研技能 (${RESEARCH_SKILLS.length})`,
+        icon: 'sparkle',
+        items: RESEARCH_SKILLS.map((sk) => ({
+          key: 'preset:' + sk.name, id: '', name: sk.name, desc: sk.desc,
+          group: '科研技能', text: sk.prompt,
+        })),
+      },
+    ],
+    [localSkills, ghSkills],
+  )
+
   const newChat = async () => {
     const s = await post('/rchat/sessions', {}, { ok: '已新建对话' })
     await loadSessions()
@@ -222,47 +307,22 @@ export default function ResearchChat() {
     await loadSessions()
   }
 
-  /** mode: auto | deep | report。deep/report 的正文由后端生成，输入框内容作为研究问题。 */
-  const send = async (raw?: string, tag?: string) => {
-    const question = (raw ?? input).trim()
-    if (!question || busy) return
-    let mode: 'auto' | 'deep' | 'report' = 'auto'
-    if (tag === '深度检索') mode = 'deep'
-    else if (tag === '报告撰写') mode = 'report'
-    let useSid: number
-    if (!sid) {
-      const s = await post('/rchat/sessions', {})
-      useSid = s.id
-      setSid(s.id)
-      await loadSessions()
-    } else {
-      useSid = sid
-    }
-    const optimistic: ChatMsg = { role: 'user', content: question, skillTag: tag || '研究对话' }
-    // 关键修复：一律写进 useSid 自己的桶，切走对话不串台
-    rchatStore.appendMessage(useSid, optimistic)
-    setInput('')
-    rchatStore.setBusy(useSid, true)
-    // 立刻把进度框亮出来：点「启动」后不再只是往消息流里加一条，而是有明确的阶段反馈
-    beginRun(useSid, mode)
-    // 登记 AbortController：删会话时 ConvoStore.removeSession 会 abort，
-    // 在途 SSE 立刻断开，不必等 LLM 跑完（结果本来也会被 removedRef 丢弃）
-    const ctrl = new AbortController()
-    const p = streamChat(
-      useSid,
-      { instruction: question, mode, tag },
-      (ev: ChatStreamEvent) => {
-        if (removedRef.current.has(useSid)) return
-        if (ev.type === 'stage') pushStage(useSid, ev)
-        else if (ev.type === 'papers') {
-          setPapers(useSid, ev.papers, ev.total, ev.query_count, ev.raw_hits)
-        }
-      },
-      ctrl.signal,
-    )
+  /** 流式请求共用收尾：登记 abort → 消费事件 → 追加落库消息 → 进度收尾。send / reviewSelected 共用。 */
+  const driveStream = async (useSid: number, payload: Record<string, unknown>, ctrl: AbortController) => {
     rchatStore.registerTask(useSid, ctrl)
     try {
-      const msg = await p
+      const msg = await streamChat(
+        useSid,
+        payload as Parameters<typeof streamChat>[1],
+        (ev: ChatStreamEvent) => {
+          if (removedRef.current.has(useSid)) return
+          if (ev.type === 'stage') pushStage(useSid, ev)
+          else if (ev.type === 'papers') {
+            setPapers(useSid, ev.papers, ev.total, ev.query_count, ev.raw_hits)
+          }
+        },
+        ctrl.signal,
+      )
       // 会话可能在请求期间被删除：丢弃结果，不为已删 sid 重建幽灵桶
       if (removedRef.current.has(useSid)) return
       rchatStore.appendMessage(useSid, toChatMsg(msg))
@@ -284,24 +344,96 @@ export default function ResearchChat() {
     }
   }
 
-  /** 快捷 chip：深度检索 / 撰写报告 —— 不立即发送，先打开提案卡确认（对标 Undermind 的 Search proposal） */
-  const openProposal = (c: ChipConf) => {
-    const draft = input.trim()
-    setProposal({
-      mode: c.tag === '深度检索' ? 'deep' : 'report',
-      title: draft.slice(0, 80),
-      desc: '',
-    })
-    if (draft) setInput('')
+  /** mode: auto | deep | report。deep/report 的正文由后端生成，输入框内容作为研究问题。
+   *  输入框里挂的能力 chip 决定本轮模式，挂的技能 chip 随请求注入 system，发完即清。 */
+  const send = async (raw?: string, tag?: string) => {
+    const question = (raw ?? input).trim()
+    if (!question || busy) return
+    const activeTag = tag ?? modeTag ?? undefined
+    let mode: 'auto' | 'deep' | 'report' = 'auto'
+    if (activeTag === '深度检索') mode = 'deep'
+    else if (activeTag === '报告撰写') mode = 'report'
+    // 后端只有 deep 会真的查 OpenAlex 并入库；「文献检索」复用同一条真实检索链路，
+    // 命中显示在上方常驻文献卡，左栏入口仍可打开结果栏回看。
+    else if (activeTag === '文献检索') mode = 'deep'
+    const skillRefs = mounted.map((o) => ({
+      id: o.id || null, name: o.name, path: o.path || null, text: o.text || null,
+    }))
+    let useSid: number
+    if (!sid) {
+      const s = await post('/rchat/sessions', {})
+      useSid = s.id
+      setSid(s.id)
+      await loadSessions()
+    } else {
+      useSid = sid
+    }
+    const optimistic: ChatMsg = {
+      role: 'user',
+      content: question,
+      skillTag:
+        activeTag ||
+        (mounted.length ? `技能 · ${mounted.slice(0, 2).map((o) => o.name).join(' / ')}` : '研究对话'),
+    }
+    // 关键修复：一律写进 useSid 自己的桶，切走对话不串台
+    rchatStore.appendMessage(useSid, optimistic)
+    setInput('')
+    // 挂载的能力 / 技能只对这一轮生效
+    setModeTag(null)
+    setMounted([])
+    setPickerOpen(false)
+    setPickerQ('')
+    rchatStore.setBusy(useSid, true)
+    // 立刻把进度框亮出来：点「启动」后不再只是往消息流里加一条，而是有明确的阶段反馈
+    beginRun(useSid, mode)
+    // 登记 AbortController：删会话时 ConvoStore.removeSession 会 abort，
+    // 在途 SSE 立刻断开，不必等 LLM 跑完（结果本来也会被 removedRef 丢弃）
+    await driveStream(
+      useSid,
+      { instruction: question, mode, tag: activeTag, skill_refs: skillRefs, max_papers: mode === 'deep' ? maxPapers : undefined, ...chatEnvelope() },
+      new AbortController(),
+    )
   }
 
-  /** 提案卡「启动」：标题 + 详情合成指令，确认后才真正发送 */
-  const launchProposal = () => {
-    if (!proposal || busy) return
-    const text = [proposal.title.trim(), proposal.desc.trim()].filter(Boolean).join('\n')
-    const tag = proposal.mode === 'deep' ? '深度检索' : '报告撰写'
-    setProposal(null)
-    if (text) send(text, tag)
+  /** 文献检索栏勾选子集 → 只对勾选的文献写综述（后端 review 模式，只引用勾选来源） */
+  const reviewSelected = async (papers: PaperHit[]) => {
+    if (busy) return
+    const ids = Array.from(new Set(papers.map((p) => p.lit_id).filter((x): x is number => typeof x === 'number')))
+    if (!ids.length) {
+      toast('勾选的文献没有入库 id，无法定向综述', 'error')
+      return
+    }
+    let useSid: number
+    if (!sid) {
+      const s = await post('/rchat/sessions', {})
+      useSid = s.id
+      setSid(s.id)
+      await loadSessions()
+    } else {
+      useSid = sid
+    }
+    const question = `对勾选的 ${ids.length} 篇文献写综述`
+    rchatStore.appendMessage(useSid, { role: 'user', content: question, skillTag: '综述撰写' })
+    rchatStore.setBusy(useSid, true)
+    beginRun(useSid, 'review')
+    await driveStream(
+      useSid,
+      { instruction: question, mode: 'review', lit_ids: ids, ...chatEnvelope() },
+      new AbortController(),
+    )
+  }
+
+  /** 快捷 chip：只切换输入框里的能力 chip，不弹提案大卡、不新开面板；再点一次取消 */
+  const toggleMode = (t: ModeTag) => {
+    setModeTag((cur) => (cur === t ? null : t))
+    setPickerOpen(false)
+  }
+
+  /** 加号 → 技能选择器：选中后挂成输入框内的 chip，发送时才转成 skill_refs */
+  const addSkill = (o: SkillOption) => {
+    setMounted((prev) => (prev.some((x) => x.key === o.key) ? prev : [...prev, o]))
+    setPickerOpen(false)
+    setPickerQ('')
   }
 
   const importBib = async () => {
@@ -345,18 +477,107 @@ export default function ResearchChat() {
   }
 
   const plusItems: PlusItem[] = [
+    { icon: 'sparkle', label: '添加技能', desc: '本机 SKILL.md / GitHub 技能 / 内置科研技能，挂上后只对这一轮生效', onClick: () => { setPickerQ(''); setPickerOpen(true) } },
     { icon: 'inbox', label: 'Add papers', desc: '上传已发表的论文或预印本（PDF，一次最多 5 篇）', onClick: () => pdfRef.current?.click() },
     { icon: 'library', label: 'Import bibliography', desc: '粘贴或上传 BibTeX / RIS / CSL JSON 参考文献列表', onClick: () => setBibOpen(true) },
   ]
+
+  const composerPlaceholder =
+    modeTag === '深度检索'
+      ? '写检索主题（可补充年份 / 会议 / 关注角度 / 排除项），回车启动检索'
+      : modeTag === '报告撰写'
+        ? '写报告主题与要求（结构 / 篇幅 / 受众），回车生成报告'
+        : modeTag === '文献检索'
+          ? '写要检索的方向，回车查 OpenAlex 真数据并入库'
+          : '输入消息…'
 
   const cur = sessions.find((s) => s.id === sid)
   const reportName =
     pane?.kind === 'report' ? pane.msg.content.match(/^#\s+(.+)$/m)?.[1]?.trim() : undefined
 
+  /** 当前会话的提问列表：点一条滚到对话里的对应消息（图 3 的高亮行 = 最近跳转的那条） */
+  const userMsgs = useMemo(
+    () => messages.map((m, i) => ({ m, i })).filter((x) => x.m.role === 'user'),
+    [messages],
+  )
+  const lastQuestion = userMsgs.length ? userMsgs[userMsgs.length - 1].m.content : ''
+  const PAPER_OPTS = [8, 15, 25, 40]
+  const historyExtra = (
+    <>
+      <div className="flex items-center gap-1.5" title="深度检索保留的文献篇数上限（仅「深度检索 / 文献检索」生效）">
+        <span className="text-[10.5px] text-[color:var(--wb-muted)]">检索数量</span>
+        <div className="flex items-center rounded-[8px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] p-0.5">
+          {PAPER_OPTS.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setMaxPapers(n)}
+              className={`rounded-[6px] px-1.5 py-[2px] text-[11px] transition ${
+                maxPapers === n
+                  ? 'bg-[color:var(--wb-accent)] text-white'
+                  : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div data-history-root className="relative">
+      <button
+        type="button"
+        onClick={() => setHistOpen((v) => !v)}
+        title="跳转到对应历史提问"
+        className={`flex items-center gap-1 rounded-[8px] px-2 py-1 text-[11.5px] transition ${
+          histOpen
+            ? 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent-strong)]'
+            : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
+        }`}
+      >
+        <Icon name="clock" size={12} />
+        历史{userMsgs.length ? ` · ${userMsgs.length}` : ''}
+      </button>
+      {histOpen && (
+        <div className="absolute right-0 top-full z-40 mt-2 w-[340px] overflow-hidden rounded-[14px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-md)]">
+          <div className="border-b border-[color:var(--wb-border)] px-3.5 py-2.5 text-[11px] font-semibold text-[color:var(--wb-muted)]">
+            提问历史 · 点击跳到对话中对应位置
+          </div>
+          <div className="max-h-[320px] overflow-y-auto py-1">
+            {userMsgs.length ? (
+              userMsgs.map(({ m, i }) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    setActiveHist(i)
+                    setJumpTo({ index: i, nonce: Date.now() })
+                    setHistOpen(false)
+                  }}
+                  className={`block w-full px-3.5 py-2 text-left text-[12px] leading-relaxed transition ${
+                    activeHist === i
+                      ? 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent-strong)]'
+                      : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
+                  }`}
+                >
+                  <span className="line-clamp-2">{m.content}</span>
+                </button>
+              ))
+            ) : (
+              <p className="px-3.5 py-4 text-[11px] text-[color:var(--wb-muted)]">这个会话还没有提问。</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+    </>
+  )
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-0 flex-1">
-      {/* 左栏：对话管理（对标 Undermind 侧栏）；右边缘可拖拽调宽 */}
+      {/* 左栏：对话管理（对标 Undermind 侧栏）；可整体收起，展开时右边缘可拖拽调宽 */}
+      {leftOpen ? (
+        <>
       <aside
         data-resizable
         data-tour="tour-research-dock"
@@ -367,7 +588,16 @@ export default function ResearchChat() {
           <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--wb-muted)]">
             Chats
           </span>
-          <IconBtn icon="plus" size="sm" ariaLabel="新对话" onClick={newChat} />
+          <div className="flex items-center gap-0.5">
+            <IconBtn icon="plus" size="sm" ariaLabel="新对话" onClick={newChat} />
+            <IconBtn
+              icon="chevronsLeft"
+              size="sm"
+              ariaLabel="收起侧栏"
+              title="收起侧栏（保留图标条）"
+              onClick={() => setLeftOpen(false)}
+            />
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {sessions.map((s) => (
@@ -483,6 +713,24 @@ export default function ResearchChat() {
             )}
             <Icon name="arrowRight" size={11} className="ml-auto text-[color:var(--wb-muted)]" />
           </button>
+          {/* 共识：对本次命中的文献做人工投票 + Agent 立场判定（对标 Consensus 的 Paper / Answer） */}
+          <button
+            onClick={openConsensus}
+            className={`flex w-full items-center gap-2 border-l-2 px-2 py-2 text-[12px] transition ${
+              pane?.kind === 'consensus'
+                ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-surface)] font-medium text-[color:var(--wb-accent-strong)]'
+                : 'border-transparent text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-surface)]/50'
+            }`}
+          >
+            <Icon name="layers" size={13} className="shrink-0 text-[color:var(--wb-muted)]" />
+            共识
+            {(run?.papers.length || 0) > 0 && (
+              <span className="rounded-[3px] bg-[color:var(--wb-accent-soft)] px-1.5 py-[1px] text-[10px] text-[color:var(--wb-accent-strong)]">
+                {run?.papers.length} 篇
+              </span>
+            )}
+            <Icon name="arrowRight" size={11} className="ml-auto text-[color:var(--wb-muted)]" />
+          </button>
           <button
             onClick={() => nav('/literature')}
             className="flex w-full items-center gap-2 border-l-2 border-transparent px-2 py-2 text-[12px] text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-surface)]/50"
@@ -501,6 +749,18 @@ export default function ResearchChat() {
         max={400}
         label="调整对话列表宽度"
       />
+        </>
+      ) : (
+        /* 收起态：36px 图标条，随时恢复左栏；常用入口不丢 */
+        <aside className="flex w-9 shrink-0 flex-col items-center gap-1 border-r border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] py-2">
+          <IconBtn icon="chevronsRight" size="sm" ariaLabel="展开侧栏" title="展开侧栏" onClick={() => setLeftOpen(true)} />
+          <span className="my-1 h-px w-4 bg-[color:var(--wb-border)]" />
+          <IconBtn icon="plus" size="sm" ariaLabel="新对话" title="新对话" onClick={newChat} />
+          <IconBtn icon="search" size="sm" ariaLabel="文献检索" title="文献检索" onClick={openLit} />
+          <IconBtn icon="layers" size="sm" ariaLabel="共识" title="共识" onClick={openConsensus} />
+          <IconBtn icon="book" size="sm" ariaLabel="文献库" title="文献库" onClick={() => nav('/literature')} />
+        </aside>
+      )}
 
       {/* 右侧：Undermind 版式对话面板；minWidth 保证三栏都拖到极限时聊天区仍可见 */}
       <ChatPanel
@@ -521,67 +781,69 @@ export default function ResearchChat() {
         dock={<ResearchDock run={run} onOpenLiterature={openLit} />}
         chips={CHIPS.map((c) => ({
           ...c,
-          onClick: () => (c.tag === '文献检索' ? toggleLit() : openProposal(c)),
+          active: modeTag === c.tag,
+          onClick: () => toggleMode(c.tag as ModeTag),
         }))}
-        proposal={
-          proposal ? (
-            <div className="mb-2 overflow-hidden rounded-[14px] border border-[color:var(--wb-accent)]/35 bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-sm)]">
-              {/* 明确的「提案已就绪」抬头：点 chip 后交互落在这张卡上，不是回到输入框继续打字 */}
-              <div className="flex items-center gap-1.5 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-accent-soft)] px-3.5 py-1.5">
-                <Icon name="sparkle" size={10} className="shrink-0 text-[color:var(--wb-accent)]" />
-                <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--wb-accent-strong)]">
-                  {proposal.mode === 'deep' ? 'Search proposal · 检索提案' : 'Report proposal · 报告提案'}
+        composerChips={
+          modeTag || mounted.length ? (
+            <div className="flex flex-wrap items-center gap-1.5 px-3.5 pt-2.5">
+              {modeTag && (
+                <span className="inline-flex items-center gap-1 rounded-[8px] border border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)] px-2 py-1 text-[11.5px] font-medium text-[color:var(--wb-accent)]">
+                  <Icon name={CHIPS.find((c) => c.tag === modeTag)?.icon || 'sparkle'} size={11} />
+                  {modeTag}
+                  <button
+                    onClick={() => setModeTag(null)}
+                    aria-label={`移除${modeTag}`}
+                    className="ml-0.5 rounded-full transition hover:opacity-70"
+                  >
+                    <Icon name="close" size={10} />
+                  </button>
                 </span>
-                <span className="ml-auto whitespace-nowrap text-[10px] text-[color:var(--wb-muted)]">
-                  提案已就绪 · 确认后才执行
-                </span>
-              </div>
-              <div className="flex items-center gap-2 border-b border-[color:var(--wb-border)] px-3.5 py-2.5">
-                <Icon
-                  name={proposal.mode === 'deep' ? 'search' : 'file'}
-                  size={13}
-                  className="shrink-0 text-[color:var(--wb-accent)]"
-                />
-                <input
-                  autoFocus
-                  value={proposal.title}
-                  onChange={(e: any) => setProposal({ ...proposal, title: e.target.value })}
-                  placeholder={proposal.mode === 'deep' ? '检索主题（可留空，直接写下方补充）' : '报告主题（可留空，直接写下方补充）'}
-                  className="min-w-0 flex-1 bg-transparent text-[12.5px] font-medium text-[color:var(--wb-text)] outline-none placeholder:font-normal placeholder:text-[color:var(--wb-muted)]"
-                />
-                <IconBtn icon="close" size="sm" ariaLabel="取消提案" onClick={() => setProposal(null)} />
-              </div>
-              <textarea
-                rows={3}
-                value={proposal.desc}
-                onChange={(e: any) => setProposal({ ...proposal, desc: e.target.value })}
-                placeholder={
-                  proposal.mode === 'deep'
-                    ? '补充检索范围：年份、会议/期刊、关注角度、排除项…'
-                    : '补充报告要求：结构、篇幅、受众、必须覆盖的问题…'
-                }
-                className="block w-full resize-none bg-transparent px-3.5 py-2.5 text-[12px] leading-relaxed text-[color:var(--wb-text)] outline-none placeholder:text-[color:var(--wb-muted)]"
-              />
-              <div className="flex items-center gap-2 px-3.5 pb-3">
-                <Btn
-                  variant="primary"
-                  onClick={launchProposal}
-                  disabled={busy || !(proposal.title.trim() || proposal.desc.trim())}
+              )}
+              {mounted.map((o) => (
+                <span
+                  key={o.key}
+                  title={o.desc || o.path || o.group}
+                  className="inline-flex max-w-full items-center gap-1 rounded-[8px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2 py-1 text-[11.5px] text-[color:var(--wb-text-soft)]"
                 >
-                  <Icon name="play" size={12} />
-                  {proposal.mode === 'deep' ? '启动检索' : '生成报告'}
-                </Btn>
-                <Btn onClick={() => setProposal(null)}>取消</Btn>
-                <span className="ml-auto whitespace-nowrap text-[10.5px] text-[color:var(--wb-muted)]">
-                  启动后进度显示在上方卡片
+                  <Icon
+                    name={o.group === 'GitHub 技能' ? 'gitBranch' : o.group === '科研技能' ? 'sparkle' : 'bookOpen'}
+                    size={11}
+                  />
+                  <span className="max-w-[180px] truncate">{o.name}</span>
+                  <button
+                    onClick={() => setMounted((prev) => prev.filter((x) => x.key !== o.key))}
+                    aria-label={`移除技能 ${o.name}`}
+                    className="ml-0.5 rounded-full transition hover:opacity-70"
+                  >
+                    <Icon name="close" size={10} />
+                  </button>
                 </span>
-              </div>
+              ))}
             </div>
           ) : undefined
         }
+        composerOverlay={
+          <SkillPicker
+            open={pickerOpen}
+            groups={pickerGroups}
+            query={pickerQ}
+            onQuery={setPickerQ}
+            onPick={addSkill}
+            onClose={() => {
+              setPickerOpen(false)
+              setPickerQ('')
+            }}
+          />
+        }
+        overlayOpen={pickerOpen}
+        placeholder={composerPlaceholder}
         samples={[]}
         plusItems={plusItems}
         exportName={cur?.title || '研究对话'}
+        onCite={(c) => setPaperInfo(c)}
+        headerExtra={historyExtra}
+        jumpTo={jumpTo}
       />
 
       {/* 右侧附属栏：报告文档 / 文献检索二选一，与对话栏并排组成双栏；栏内右上角叉收起，回到单栏对话 */}
@@ -597,9 +859,33 @@ export default function ResearchChat() {
         />
       )}
       {pane?.kind === 'report' && (
-        <ReportPane report={pane.msg} name={reportName} width={paneW} onClose={closePane} />
+        <ReportPane
+          report={pane.msg}
+          name={reportName}
+          width={paneW}
+          onClose={closePane}
+          onOpenPaper={(c) => setPaperInfo(c)}
+        />
       )}
-      {pane?.kind === 'literature' && <LiteraturePane run={run} width={paneW} onClose={closePane} />}
+      {pane?.kind === 'literature' && (
+        <LiteraturePane
+          run={run}
+          width={paneW}
+          onClose={closePane}
+          onOpenPaper={(p) => setPaperInfo(p)}
+          onReview={reviewSelected}
+        />
+      )}
+      {pane?.kind === 'consensus' && (
+        <ConsensusPane
+          sid={sid}
+          question={lastQuestion}
+          papers={run?.papers || []}
+          width={paneW}
+          onClose={closePane}
+          onOpenPaper={(p) => setPaperInfo(p)}
+        />
+      )}
 
       {/* 隐藏的 PDF 选择器（Add papers） */}
       <input
@@ -656,6 +942,13 @@ export default function ResearchChat() {
         </div>
       </Modal>
 
+      {/* 正文 [n] / 引用 chips / 文献标题 / 报告引用 → 同一个文献详情弹窗 */}
+      <PaperDetailModal
+        info={paperInfo}
+        onClose={() => setPaperInfo(null)}
+        onOpenLibrary={() => nav('/literature')}
+      />
+
       </div>
     </div>
   )
@@ -665,7 +958,15 @@ export default function ResearchChat() {
  * 报告文档栏：与右侧对话栏并排组成双栏，不再用点击后「跳出来」的弹窗。
  * 栏头右上角的叉 = 收起这一栏、对话恢复单栏全宽；导出 Markdown 保留。
  */
-function ReportPane({ report, name, width, onClose }: { report: ChatMsg; name?: string; width: number; onClose: () => void }) {
+function ReportPane({
+  report, name, width, onClose, onOpenPaper,
+}: {
+  report: ChatMsg
+  name?: string
+  width: number
+  onClose: () => void
+  onOpenPaper?: (c: Citation) => void
+}) {
   const exportMd = () => {
     const blob = new Blob([report.content], { type: 'text/markdown;charset=utf-8' })
     const a = document.createElement('a')
@@ -703,7 +1004,7 @@ function ReportPane({ report, name, width, onClose }: { report: ChatMsg; name?: 
       {/* 文档式白底正文：常驻面板高度写死为 flex-1，滚动只在内部 */}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-2.5">
         <div className="px-4 py-3">
-          <ReportMd text={report.content} citations={report.citations} />
+          <ReportMd text={report.content} citations={report.citations} onOpenPaper={onOpenPaper} />
         </div>
       </div>
     </aside>
@@ -711,7 +1012,15 @@ function ReportPane({ report, name, width, onClose }: { report: ChatMsg; name?: 
 }
 
 /** 报告 Markdown 轻渲染：标题/列表 + [n] 可点引用（点开在序号下方浮出半透明说明框） */
-function ReportMd({ text, citations = [] }: { text: string; citations?: Citation[] }) {
+function ReportMd({
+  text,
+  citations = [],
+  onOpenPaper,
+}: {
+  text: string
+  citations?: Citation[]
+  onOpenPaper?: (c: Citation) => void
+}) {
   // 一次只开一个说明框；key 用「行-序号」区分报告里同编号的多个 [n]
   const [openKey, setOpenKey] = useState<string | null>(null)
   useEffect(() => {
@@ -735,6 +1044,7 @@ function ReportMd({ text, citations = [] }: { text: string; citations?: Citation
     openKey,
     toggle: (key: string) => setOpenKey((cur) => (cur === key ? null : key)),
     close: () => setOpenKey(null),
+    onOpenPaper,
   }
 
   const lines = text.split('\n')
@@ -797,6 +1107,7 @@ type CiteCtx = {
   openKey: string | null
   toggle: (key: string) => void
   close: () => void
+  onOpenPaper?: (c: Citation) => void
 }
 
 /** 行内渲染：**加粗** + [n] 引用（可点，点开浮层说明引用的是哪篇文献） */
@@ -820,6 +1131,7 @@ function inline(s: string, lineKey: string, ctx: CiteCtx): any[] {
           open={ctx.openKey === key}
           onToggle={() => ctx.toggle(key)}
           onClose={ctx.close}
+          onOpenPaper={ctx.onOpenPaper}
         />
       )
     }
@@ -834,12 +1146,14 @@ function CiteMark({
   open,
   onToggle,
   onClose,
+  onOpenPaper,
 }: {
   n: number
   info?: Citation
   open: boolean
   onToggle: () => void
   onClose: () => void
+  onOpenPaper?: (c: Citation) => void
 }) {
   const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null)
   const click = (e: any) => {
@@ -919,6 +1233,18 @@ function CiteMark({
               <span className="mt-2 block border-t border-[color:var(--wb-border)] pt-1.5 text-[10.5px] leading-relaxed text-[color:var(--wb-muted)]">
                 本报告在此处引用了该来源（会话检索命中的参考文献 [{n}]）
               </span>
+              {onOpenPaper && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose()
+                    onOpenPaper(info)
+                  }}
+                  className="mt-2 block w-full rounded-[8px] bg-[color:var(--wb-accent)] px-2 py-1.5 text-[11px] font-medium text-white transition hover:opacity-90"
+                >
+                  查看这篇文献的对应内容
+                </button>
+              )}
             </>
           ) : (
             <span className="block text-[11px] leading-relaxed text-[color:var(--wb-text-soft)]">

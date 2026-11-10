@@ -23,9 +23,12 @@ const norm = (s: string) =>
 export default function LitSearchCard({
   libTitles,
   onImported,
+  flat = false,
 }: {
   libTitles: string[]
   onImported: () => void
+  /** 嵌入检索 tab 时铺平：去掉独立卡片的圆角 / 外框 / 阴影，与上方发现区连成一整片 */
+  flat?: boolean
 }) {
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
@@ -57,7 +60,8 @@ export default function LitSearchCard({
     try {
       const r: any = await get(`/litsearch?q=${encodeURIComponent(kw)}&limit=100`)
       if (r.ok === false) {
-        setErr(r.error || '检索失败')
+        // 后端会把「额度用尽」这类限流写成一句人话，hint 里带怎么恢复
+        setErr([r.error || '检索失败', r.hint].filter(Boolean).join(' '))
         setHits(null)
       } else {
         setHits(r.results || [])
@@ -95,6 +99,7 @@ export default function LitSearchCard({
 
   return (
     <Card
+      className={flat ? '!rounded-none !border-0 !shadow-none' : ''}
       title="在线检索"
       extra={
         <span className="text-[11.5px] text-[color:var(--wb-muted)]">

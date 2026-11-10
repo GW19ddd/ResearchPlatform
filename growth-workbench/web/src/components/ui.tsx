@@ -762,37 +762,29 @@ export function Drawer({
 
 // ---------------------------------------------------------------- 页面骨架
 
+/**
+ * 页面操作条（不是页头）：全站细顶栏已承担「我在哪 / 去哪」，
+ * 这里只留一行紧凑操作 + 可选说明小字，点菜单后直接进重点，不再渲染大标题。
+ * title / eyebrow 保留在 props 类型里兼容既有调用方，但不再渲染。
+ */
 export function PageHeader({
-  title,
   desc,
   actions,
-  eyebrow,
 }: {
-  title: ReactNode
+  title?: ReactNode
   desc?: ReactNode
   actions?: ReactNode
-  /** 标题左侧的小字引导（如分组名 / 当前阶段），只在需要交代语境时给 */
   eyebrow?: ReactNode
 }) {
-  /** 紧凑单行：模块页的操作区才是主角，页头只做一条轻量定位行（大标题时代已废弃） */
+  if (!desc && !actions) return null
   return (
-    <div className="wb-anim-rise mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-        {eyebrow && (
-          <span className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
-            {eyebrow}
-          </span>
-        )}
-        <h1 className="text-[15.5px] font-semibold leading-snug tracking-[-0.01em] text-[color:var(--wb-text)]">
-          {title}
-        </h1>
-        {desc && (
-          <p className="min-w-0 max-w-[72ch] text-[12px] leading-relaxed text-[color:var(--wb-muted)]">
-            {desc}
-          </p>
-        )}
-      </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+      {desc && (
+        <p className="min-w-0 max-w-[80ch] text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
+          {desc}
+        </p>
+      )}
+      {actions && <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   )
 }

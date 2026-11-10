@@ -10,6 +10,7 @@
  * 之后的去重、AI 笔记、对比矩阵与文献库共用同一条链路。
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Btn,
   Empty,
@@ -31,6 +32,7 @@ import {
   shortLabel,
   streamDiscover,
   type DiscoverEvent,
+  type DiscoverError,
   type DiscoverPaper,
   type DiscoverResult,
   type DiscoverStage,
@@ -84,6 +86,7 @@ function HeroDoodle() {
 }
 
 export default function Discover({ onImported }: { onImported?: () => void }) {
+  const navigate = useNavigate()
   // ---- 本地馆藏：给建议项 + 去重「已在库」 ----
   const [libRows, setLibRows] = useState<any[]>([])
   const loadLib = useCallback(async () => {
@@ -147,7 +150,8 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
     return out
   }, [localSug, remoteSug])
 
-  // 输入停顿 380ms 才打 OpenAlex，避免每敲一个字发一次请求
+  // 输入停顿 650ms 才打 OpenAlex：一次关键词检索要花 10 credits（无 key 时每天只够约 100 次），
+  // 停得越久越省；后端对同一 query 还有 15 分钟缓存。
   useEffect(() => {
     const kw = q.trim()
     if (kw.length < 2) {
@@ -177,7 +181,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
       } finally {
         if (seq === sugSeq.current) setSugLoading(false)
       }
-    }, 380)
+    }, 650)
     return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q])
@@ -196,7 +200,9 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
   const [stage, setStage] = useState<DiscoverStage | null>(null)
   const [seed, setSeed] = useState<DiscoverPaper | null>(null)
   const [result, setResult] = useState<DiscoverResult | null>(null)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<
+    { message: string; code?: string; hint?: string; reset_in?: number } | null
+  >(null)
   const abortRef = useRef<AbortController | null>(null)
   const lastParams = useRef<StartParams>({})
 
@@ -216,7 +222,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
     setPhase('idle')
     setStage(null)
     setResult(null)
-    setError('')
+    setError(null)
     setSelectedId(null)
     setListQ('')
     setRelationFilter('all')
@@ -234,7 +240,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
     setStage(null)
     setSeed(null)
     setResult(null)
-    setError('')
+    setError(null)
     setSelectedId(null)
     setPage(1)
     setListQ('')
@@ -258,7 +264,13 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
       setPhase('results')
     } catch (e: any) {
       if (ctrl.signal.aborted) return
-      setError(e?.message || '检索失败')
+      const err = e as DiscoverError
+      setError({
+        message: err?.message || '检索失败',
+        code: err?.code,
+        hint: err?.hint,
+        reset_in: err?.reset_in,
+      })
     }
   }, [])
 
@@ -368,14 +380,18 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
   // ---------------------------------------------------------------- 三段视图
 
   if (phase === 'idle') {
+    // 首屏不是独立卡片：与下方分段共用一整片白底，块与块之间只有细线、没有留白
     return (
-      <div className="flex flex-col gap-3.5">
+      <div className="flex flex-col">
         {error && (
-          <div className="rounded-[10px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-3 py-2 text-[12px] text-[color:var(--wb-danger)]">
-            {error}
+          <div className="border-b border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-6 py-2 text-[12px] leading-relaxed text-[color:var(--wb-danger)]">
+            {error.message}
+            {error.hint && (
+              <span className="ml-1 text-[color:var(--wb-text-soft)]">{error.hint}</span>
+            )}
           </div>
         )}
-        <div className="relative overflow-hidden rounded-[16px] border border-[color:var(--wb-border)] bg-white">
+        <div className="relative overflow-hidden bg-[color:var(--wb-surface)]">
           <div className="pointer-events-none absolute inset-x-0 top-[168px] h-[190px] bg-[color:var(--wb-accent-soft)]/55">
             <HeroDoodle />
           </div>
@@ -489,9 +505,9 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
             ))}
           </div>
         </div>
-        <p className="text-center text-[11px] text-[color:var(--wb-muted)]">
+        <div className="border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-6 py-2.5 text-center text-[11px] text-[color:var(--wb-muted)]">
           数据来源 OpenAlex · 结果实时检索、默认不落库 · 点「入库」后与文献库共用同一条链路
-        </p>
+        </div>
       </div>
     )
   }
@@ -524,16 +540,56 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
               </div>
 
               {error ? (
-                <div className="mt-5 flex flex-col items-start gap-2 rounded-[10px] bg-[color:var(--wb-danger-soft)] p-3">
-                  <div className="text-[12px] text-[color:var(--wb-danger)]">{error}</div>
-                  <div className="flex gap-1.5">
-                    <Btn size="sm" variant="primary" onClick={() => start(lastParams.current)}>
-                      重试
-                    </Btn>
-                    <Btn size="sm" onClick={reset}>
-                      换个关键词
-                    </Btn>
+                <div className="mt-5 flex flex-col items-start gap-2.5 rounded-[10px] bg-[color:var(--wb-danger-soft)] p-3">
+                  <div className="flex items-start gap-1.5">
+                    <Icon
+                      name="alert"
+                      size={13}
+                      className="mt-[1px] shrink-0 text-[color:var(--wb-danger)]"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-[12px] font-medium leading-relaxed text-[color:var(--wb-danger)]">
+                        {error.message}
+                      </div>
+                      {error.hint && (
+                        <div className="mt-1 text-[11px] leading-relaxed text-[color:var(--wb-text-soft)]">
+                          {error.hint}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {error.code === 'rate_limited' ? (
+                      <>
+                        <Btn size="sm" variant="primary" onClick={() => navigate('/settings')}>
+                          去设置填 key
+                        </Btn>
+                        <Btn
+                          size="sm"
+                          onClick={() => window.open('https://openalex.org/settings/api', '_blank')}
+                        >
+                          免费申请 key
+                        </Btn>
+                        <Btn size="sm" onClick={reset}>
+                          换个关键词
+                        </Btn>
+                      </>
+                    ) : (
+                      <>
+                        <Btn size="sm" variant="primary" onClick={() => start(lastParams.current)}>
+                          重试
+                        </Btn>
+                        <Btn size="sm" onClick={reset}>
+                          换个关键词
+                        </Btn>
+                      </>
+                    )}
+                  </div>
+                  {error.code === 'rate_limited' && (
+                    <div className="text-[10.5px] leading-relaxed text-[color:var(--wb-muted)]">
+                      免费额度按出口 IP 共享，同网络下所有人一起花；反复点「重试」不会变快，等重置或填自己的 key 才有用。
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>

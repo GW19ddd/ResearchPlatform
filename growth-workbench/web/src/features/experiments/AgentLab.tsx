@@ -6,6 +6,7 @@ import ChatPanel, { type ChatMsg, type ChipConf } from '../canvas/ChatPanel'
 import { ResizeHandle } from '../../components/ResizeHandle'
 import { del, get, post } from '../../lib/api'
 import { usePersist } from '../../lib/state'
+import { chatEnvelope } from '../chat/prefs'
 
 const fmtSize = (n: number) =>
   n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${(n / 1024).toFixed(1)} KB` : `${n} B`
@@ -134,7 +135,7 @@ export function AgentLab({
     setErr(null)
     setInput('')
     try {
-      const r: any = await post(`/experiments/${exp.id}/agent`, { message: msg }, { ok: false })
+      const r: any = await post(`/experiments/${exp.id}/agent`, { message: msg, ...chatEnvelope() }, { ok: false })
       if (r && r.ok === false) {
         setErr(r.error || { kind: 'unknown', label: 'Agent 没有跑通', message: '请重试' })
       }
@@ -156,8 +157,10 @@ export function AgentLab({
   /** 左栏技能：点一下即作为指令发送 */
   const runSkill = (s: (typeof SKILLS)[number]) => send(s.text)
 
+  // 高度由外层 flex-1 决定，不再写死 calc(100vh-260px)：父容器满铺时三栏跟着铺满
   return (
-    <div className="flex h-[calc(100vh-260px)] min-h-[560px] overflow-hidden rounded-[var(--wb-radius-lg)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-sm)]">
+    <div className="flex h-full min-h-0 overflow-hidden bg-[color:var(--wb-surface)]">
+      {/* 去卡片化：不再带边框/圆角/阴影大卡，改为无边框满铺工作台，与文献关联图同款 */}
       {/* 左栏 dock：实验列表 + 新建实验 + 技能，可拖宽（对标调研页左栏） */}
       <aside
         data-resizable
@@ -219,9 +222,13 @@ export function AgentLab({
             </div>
           ))}
           {!exps.length && (
-            <p className="px-2 py-4 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
-              还没有实验。点右上角 + 新建一个，把假设写下来再跑。
-            </p>
+            <div className="flex h-full flex-col items-center justify-center gap-2 px-3 text-center">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
+                <Icon name="beaker" size={16} />
+              </span>
+              <span className="text-[12px] font-medium text-[color:var(--wb-text-soft)]">还没有实验</span>
+              <span className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">点右上角 + 新建一个，把假设写下来再跑</span>
+            </div>
           )}
         </div>
         <div className="mt-1 border-t border-[color:var(--wb-border)]">
@@ -315,8 +322,14 @@ export function AgentLab({
         </div>
         <div className="flex-1 overflow-y-auto">
           {files.length === 0 ? (
-            <div className="px-2 py-3 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
-              Agent 写的脚本与产物会出现在这里，点击查看代码。
+            <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
+                <Icon name="file" size={17} />
+              </span>
+              <span className="text-[12.5px] font-medium text-[color:var(--wb-text-soft)]">还没有工作区文件</span>
+              <span className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
+                Agent 跑出的脚本和产物会出现在这里，点一下就能看代码
+              </span>
             </div>
           ) : (
             <div className="flex flex-col">
@@ -336,9 +349,6 @@ export function AgentLab({
               ))}
             </div>
           )}
-        </div>
-        <div className="border-t border-[color:var(--wb-border)] px-2.5 py-1.5 text-[10.5px] leading-relaxed text-[color:var(--wb-muted)]">
-          输出固定写 runs/&lt;新时间戳&gt;，旧结果永不被覆盖
         </div>
       </div>
 

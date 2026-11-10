@@ -378,6 +378,87 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
   response TEXT,
   created_at TEXT
 );
+
+-- 科研社区：帖子 / 评论 / 点赞收藏。
+-- 作者署名随帖冗余存一份：以后改了账户显示名，历史帖的署名仍保持发帖当时的样子。
+CREATE TABLE IF NOT EXISTS community_posts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  summary TEXT,
+  content TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT '方法讨论',
+  kind TEXT DEFAULT 'discussion',
+  tags TEXT,
+  cover_style TEXT DEFAULT 'paper',
+  cover_url TEXT,
+  author_id INTEGER DEFAULT 0,
+  author_name TEXT,
+  author_hue INTEGER DEFAULT 240,
+  is_sample INTEGER DEFAULT 0,
+  views INTEGER DEFAULT 0,
+  likes INTEGER DEFAULT 0,
+  favorites INTEGER DEFAULT 0,
+  comments_count INTEGER DEFAULT 0,
+  pinned INTEGER DEFAULT 0,
+  created_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS community_comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id INTEGER NOT NULL,
+  parent_id INTEGER,
+  author_id INTEGER DEFAULT 0,
+  author_name TEXT,
+  author_hue INTEGER DEFAULT 240,
+  content TEXT NOT NULL,
+  created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS community_reactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  created_at TEXT,
+  UNIQUE(post_id, user_id, kind)
+);
+
+CREATE INDEX IF NOT EXISTS idx_community_posts_category ON community_posts(category);
+CREATE INDEX IF NOT EXISTS idx_community_comments_post ON community_comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_community_reactions_post ON community_reactions(post_id);
+
+-- 论文速递（对标 paperdance）：arXiv 拉取 + 邮件投喂的短视频式论文卡片流。
+-- arxiv_id 唯一：同一篇论文不管从哪条渠道来都只落一次库。
+CREATE TABLE IF NOT EXISTS paperfeed_papers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  arxiv_id TEXT UNIQUE,
+  title TEXT NOT NULL,
+  authors TEXT,
+  abstract TEXT,
+  cats TEXT,
+  primary_cat TEXT,
+  figure_url TEXT,
+  link TEXT,
+  published TEXT,
+  source TEXT DEFAULT 'arxiv',
+  liked INTEGER DEFAULT 0,
+  saved INTEGER DEFAULT 0,
+  hidden INTEGER DEFAULT 0,
+  title_zh TEXT,
+  abstract_zh TEXT,
+  figure_kind TEXT DEFAULT 'arxiv',
+  created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS paperfeed_notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  paper_id INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_paperfeed_notes_paper ON paperfeed_notes(paper_id);
 """
 
 
@@ -441,6 +522,13 @@ def seed(conn: sqlite3.Connection):
         conn.executemany(
             "INSERT INTO rewards (name, cost) VALUES (?,?)", DEFAULT_REWARDS
         )
+    # 社区示例帖：只在表为空时写一次，用户删干净后不会在下次启动又冒出来
+    try:
+        from routers.community import seed_community
+
+        seed_community(conn)
+    except Exception as exc:  # noqa: BLE001 —— 示例内容写不进去不能阻断启动
+        print(f"[seed] 社区示例帖跳过：{type(exc).__name__}: {exc}")
 
 
 # 老库升级：补上后加的列，不动已有数据。只做加法（ADD COLUMN），
@@ -453,10 +541,16 @@ MIGRATIONS = [
     ("literature", "pdf_path", "TEXT"),
     ("literature", "gloss_id", "TEXT"),
     ("literature", "openalex_id", "TEXT"),
+    ("literature", "abstract", "TEXT"),
+    ("literature", "cited_by_count", "INTEGER"),
+    ("literature", "ref_count", "INTEGER"),
     ("canvas_node_outputs", "status", "TEXT"),
     ("canvas_node_outputs", "error_json", "TEXT"),
     ("chat_sessions", "stage", "TEXT DEFAULT 'survey'"),
     ("exp_results", "provenance", "TEXT DEFAULT 'measured'"),
+    ("paperfeed_papers", "title_zh", "TEXT"),
+    ("paperfeed_papers", "abstract_zh", "TEXT"),
+    ("paperfeed_papers", "figure_kind", "TEXT DEFAULT 'arxiv'"),
 ]
 
 
