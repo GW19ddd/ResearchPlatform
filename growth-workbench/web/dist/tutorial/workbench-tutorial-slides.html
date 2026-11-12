@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>研流 · 科研一站式工作台 · 从零上手 · 教学幻灯片</title>
+<style>
+  :root { --paper:#FBFAF7; --ink:#1A1A1A; --muted:#6B6B66; --red:#A4262C; --green:#2F5D50; --line:#DDD9CF; --card:#F2F0E9; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; padding:0; background:var(--paper); color:var(--ink);
+    font-family:"Source Han Sans SC","Noto Sans CJK SC","Microsoft YaHei","PingFang SC",Arial,sans-serif; }
+  .slide { width:1920px; height:1080px; padding:78px 108px 46px; display:none; flex-direction:column; position:relative; }
+  .slide.active { display:flex; }
+  .top { display:flex; align-items:center; justify-content:space-between; height:34px; }
+  .kicker { display:flex; align-items:center; gap:16px; font-size:21px; letter-spacing:.14em;
+    font-weight:600; color:var(--red); }
+  .kicker-bar { width:7px; height:26px; background:var(--red); display:inline-block; }
+  .brand { font-size:18px; letter-spacing:.1em; color:var(--muted); }
+  .title-wrap { margin-top:64px; }
+  .cover-rule { width:120px; height:9px; background:var(--red); margin-bottom:30px; }
+  h1 { font-size:70px; line-height:1.16; margin:0; font-weight:700; letter-spacing:-.02em; }
+  .slide-cover h1 { font-size:94px; }
+  .sub { margin-top:22px; font-size:27px; color:var(--muted); font-weight:400; letter-spacing:.01em; }
+  .main { flex:1; display:grid; grid-template-columns:1fr 660px; gap:76px; margin-top:56px; min-height:0; }
+  .bullets { list-style:none; margin:0; padding:0; }
+  .bullets li { display:flex; gap:20px; align-items:flex-start; font-size:27px; line-height:1.62;
+    margin-bottom:26px; color:var(--ink); }
+  .bullets-wide li { font-size:29px; margin-bottom:30px; }
+  .mark { width:12px; height:12px; background:var(--red); flex:none; margin-top:15px; }
+  .ex { background:var(--card); border-left:6px solid var(--green); padding:28px 32px 26px;
+    height:100%; overflow:hidden; display:flex; flex-direction:column; }
+  .ex-head { display:flex; align-items:center; gap:12px; font-size:22px; font-weight:700;
+    letter-spacing:.08em; color:var(--green); margin-bottom:20px; }
+  .ex-dot { width:10px; height:10px; border-radius:50%; background:var(--red); }
+  .ex-label { font-size:18px; letter-spacing:.08em; color:var(--muted); margin-bottom:9px; }
+  pre.ex-input { margin:0; background:#fff; border:1px solid var(--line); padding:16px 18px;
+    font-family:"Cascadia Mono","Consolas","Microsoft YaHei",monospace; font-size:20px; line-height:1.55;
+    white-space:pre-wrap; word-break:break-word; color:var(--ink); max-height:196px; overflow:hidden; }
+  .ex-arrow { margin:18px 0 9px; font-size:18px; letter-spacing:.08em; color:var(--red); font-weight:600; }
+  .ex-output { font-size:21px; line-height:1.55; white-space:pre-wrap; color:var(--ink); }
+  .ex-points { margin-top:auto; padding-top:18px; border-top:1px solid var(--line); }
+  .ex-points-head { font-size:16px; font-weight:700; letter-spacing:.05em; color:var(--green); margin-bottom:8px; }
+  .ex-points ul { margin:0; padding:0; list-style:none; columns:2; column-gap:28px; }
+  .ex-points li { font-size:15px; line-height:1.7; color:var(--muted); break-inside:avoid;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ex-points li::before { content:"·"; color:var(--red); font-weight:700; margin-right:7px; }
+  .ex-points li.more { color:var(--green); }
+  .foot { display:flex; align-items:center; justify-content:space-between; height:40px; }
+  .bars { display:flex; gap:7px; }
+  .bar { width:44px; height:6px; background:var(--line); }
+  .bar.on { background:var(--red); }
+  .foot-right { display:flex; align-items:center; gap:26px; }
+  .disclaimer { font-size:15px; color:var(--muted); letter-spacing:.04em; }
+  .pageno { font-size:22px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .hint { position:fixed; right:18px; bottom:12px; font-size:13px; color:var(--muted); opacity:.55; }
+</style></head>
+<body>
+
+    <section class="slide slide-cover" data-no="1">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>研流 · 教学包 v2.0</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        <div class="cover-rule"></div>
+        <h1>从零上手研流</h1>
+        <div class="sub">一条示例研究线，走通全站 28 个引导环节</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets bullets-wide"><li><span class="mark"></span><span>新手引导：每个功能点配一条可照抄的示例</span></li><li><span class="mark"></span><span>教学视频：六章串讲，约 2 分钟</span></li><li><span class="mark"></span><span>配套 PPT：与视频逐页对应，可编辑</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">示例课题：用变异信号定位 LLM 生成测试的失败根因</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">Baseline：规则分流 / 固定策略 / Jev 受约束选择　·　LLM：DeepSeek</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">全站六章 · 目录</div>
+        <ul><li>01 起步 — 认路、接模型</li><li>02 三大工作台 — 启动 · 编排 · 调研</li><li>03 研究资产 — 创新 → 文献 → 实验 → 论文</li><li>04 节奏闭环 — 今日 · 复盘 · 导师 · 激励</li><li>05 工具与产出 — 工作室 · 概览 · 速递 · 社区</li><li>06 教学视频 — 看完就能带别人上手</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">01 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="2">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>00 · 全局地图</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>六章，一条科研流水线</h1>
+        <div class="sub">起步 → 三大工作台 → 研究资产 → 节奏闭环 → 工具与产出 → 教学视频</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets bullets-wide"><li><span class="mark"></span><span>起步：认路 + 接模型，AI 才能出结果</span></li><li><span class="mark"></span><span>三大工作台：一句话启动 / 画布编排 / 深度检索</span></li><li><span class="mark"></span><span>研究资产：创新点 → 文献 → 实验 → 论文</span></li><li><span class="mark"></span><span>节奏闭环：今日 → 周复盘 → 导师 → 激励</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">输入：一句话研究契约</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">产出：文献、创新点、结构化实验、论文阶段、周报与积分，全部留在同一条线上</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">全站六章 · 目录</div>
+        <ul><li>01 起步 — 认路、接模型</li><li>02 三大工作台 — 启动 · 编排 · 调研</li><li>03 研究资产 — 创新 → 文献 → 实验 → 论文</li><li>04 节奏闭环 — 今日 · 复盘 · 导师 · 激励</li><li>05 工具与产出 — 工作室 · 概览 · 速递 · 社区</li><li>06 教学视频 — 看完就能带别人上手</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">02 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="3">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>01 · 起步</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>认路，然后把模型接上</h1>
+        <div class="sub">侧栏两层 IA + 左下角头像里的设置</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets"><li><span class="mark"></span><span>顶部「工作台」是做科研的地方，下面是研究 / 工具 / 节奏 / 更多</span></li><li><span class="mark"></span><span>页面内页签不再提升为侧栏项：文献四视图在同一页用 ?tab= 切换</span></li><li><span class="mark"></span><span>设置唯一入口：左下角账户头像 → 设置 → 模型供应商</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">名称 DeepSeek｜Base URL https://api.deepseek.com/v1｜模型 deepseek-chat</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">「测试连接」成功后，画布节点、调研报告、AI 分析才有真实输出</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">01 · 起步（3 个功能点）</div>
+        <ul><li>欢迎：一条线走完全站</li><li>侧边栏：两层信息架构</li><li>设置：先把模型接上</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">03 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="4">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>02 · 三大工作台</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>一句话启动：把今天要做的事送进流水线</h1>
+        <div class="sub">首页三胶囊（对话 / 调研 / 实验）+ 一个大输入框</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets"><li><span class="mark"></span><span>选中模式、写一句话、回车即可，不需要先开表单</span></li><li><span class="mark"></span><span>技能与能力就地变成输入框里的 chip</span></li><li><span class="mark"></span><span>调研模式会带着启动信封直接进入 /research</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">帮我梳理近三年 LLM 生成单元测试的失败归因方法，重点看变异信号能否区分「测试写错」与「源码有 bug」</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">检索式 → 真实文献 → 去重入库 → 带 [n] 引用的综述草稿</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">02 · 三大工作台（4 个功能点）</div>
+        <ul><li>统一工作台：一句话启动</li><li>课题 Quest：契约 + 四阶段门禁</li><li>编排画布：把多步 AI 任务连成 DAG</li><li>调研 Research：深度检索到带引用报告</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">04 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="5">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>02 · 三大工作台</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>课题 Quest：契约 + 四阶段门禁</h1>
+        <div class="sub">调研 → 计划 → 实验 → 成文，每道门禁停下来等确认</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets"><li><span class="mark"></span><span>先写目标 / Baseline / 成功标准 / 硬约束</span></li><li><span class="mark"></span><span>每阶段有交付物与门禁，AI 不会自己跳过</span></li><li><span class="mark"></span><span>关键结论「沉淀为发现」，后续每轮自动带上</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">目标：训练无关的失败分流｜成功标准：质量不降、额外调用减少｜硬约束：不微调模型</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">阶段条 + 发现记忆；例如「高置信样本直接走 Jev、低置信交 LLM」会成为后续每轮的固定上下文</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">02 · 三大工作台（4 个功能点）</div>
+        <ul><li>统一工作台：一句话启动</li><li>课题 Quest：契约 + 四阶段门禁</li><li>编排画布：把多步 AI 任务连成 DAG</li><li>调研 Research：深度检索到带引用报告</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">05 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="6">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>03 · 研究资产</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>创新点：先落库，再让审稿人挑刺</h1>
+        <div class="sub">捕获 + 四维评分 → 结构化风暴 → 三角色质疑</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets"><li><span class="mark"></span><span>一句话说清「要解决什么」，选分类、打分</span></li><li><span class="mark"></span><span>AI 风暴产出 defect / mve / risk 三类候选，可批量入库</span></li><li><span class="mark"></span><span>质疑历史归档，回头能看清方案为什么改</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">标题：用变异存活分布区分「测试写错」与「源码有 bug」；一句话：在代码结构图上做节点级定位</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">质疑：MVE 缺阈值敏感性分析、Baseline 至少要覆盖 rule / fixed / Jev 三策略</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">03 · 研究资产（9 个功能点）</div>
+        <ul><li>创新点：捕获 + 四维评分</li><li>创新点：AI 头脑风暴与三角色质疑</li><li>文献库：录入、精读与 PDF</li><li>文献 · 在线检索</li><li>文献 · 关联图</li><li>文献 · 对比矩阵</li><li>实验：假设 → 结构化结果 → 结论写回</li><li>论文：七阶段流水线</li><li>论文速递：把新论文收进流里</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">06 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="7">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>03 · 研究资产</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>文献：一条 BibTeX 长出四个视图</h1>
+        <div class="sub">文献库 / 检索 / 关联图 / 对比矩阵，同一页用 ?tab= 切换</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets"><li><span class="mark"></span><span>导入：BibTeX·RIS·CSL 粘贴 / PDF / Zotero 三通道，按 DOI 去重</span></li><li><span class="mark"></span><span>检索：OpenAlex 真实条目，标题归一化后批量入库</span></li><li><span class="mark"></span><span>关联图：x=年份、y=被引 log，双向扩边自动补库</span></li><li><span class="mark"></span><span>对比矩阵：动态维度、失焦即存，直接当 Related Work 底稿</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">@article{demo2026mutation, title={A Demo Study on Mutation Signals...}, year={2026}, doi={10.0000/demo.2026}}</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">一条「待读」文献 → 抽屉精读笔记 / PDF 三档定位 → 关联图扩边 → 对比矩阵的一行</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">03 · 研究资产（9 个功能点）</div>
+        <ul><li>创新点：捕获 + 四维评分</li><li>创新点：AI 头脑风暴与三角色质疑</li><li>文献库：录入、精读与 PDF</li><li>文献 · 在线检索</li><li>文献 · 关联图</li><li>文献 · 对比矩阵</li><li>实验：假设 → 结构化结果 → 结论写回</li><li>论文：七阶段流水线</li><li>论文速递：把新论文收进流里</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">07 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="8">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>03 · 研究资产</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>实验 → 论文：每个数字都有来处</h1>
+        <div class="sub">结构化结果写回结论，再被七阶段流水线消费</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets"><li><span class="mark"></span><span>实验：case / method / metrics_json / success，AI 归因写回 conclusion</span></li><li><span class="mark"></span><span>卡住的实验明确标 blocked，不让它悄悄消失</span></li><li><span class="mark"></span><span>论文：7 阶段 stepper，阻塞 &gt;3 天红牌并顶到「今日」</span></li><li><span class="mark"></span><span>章节双轨字数与 readiness 自动汇总</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">假设：受约束选择能在不降低分流质量的前提下减少额外 LLM 调用；策略 = rule / fixed / Jev；结果列只填实测值</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">结构化结果表 + 横向对比 + 关联 idea_id；论文阶段标 blocked 后进入铃铛待办</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">03 · 研究资产（9 个功能点）</div>
+        <ul><li>创新点：捕获 + 四维评分</li><li>创新点：AI 头脑风暴与三角色质疑</li><li>文献库：录入、精读与 PDF</li><li>文献 · 在线检索</li><li>文献 · 关联图</li><li>文献 · 对比矩阵</li><li>实验：假设 → 结构化结果 → 结论写回</li><li>论文：七阶段流水线</li><li>论文速递：把新论文收进流里</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">08 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="9">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>04 · 节奏闭环</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>今日 → 周复盘 → 导师 → 激励</h1>
+        <div class="sub">资产做完了，还得有人推进</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets"><li><span class="mark"></span><span>今日：阻塞与逾期承诺顶到页首，热力图 + 趋势曲线</span></li><li><span class="mark"></span><span>计划复盘：周成果 / 支撑任务 / done·missed 互斥 / 双周组会材料</span></li><li><span class="mark"></span><span>导师：AI 抽取承诺 → 人工确认才入库</span></li><li><span class="mark"></span><span>激励规则：加减分、保护下限、奖励清单，规则数值可改</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">页首红条「实验阶段已阻塞 4 天」+ 本周新增文献 0 + 热力图断签 2 天</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">先推进论文阶段 → 再补本周精读 → 最后在周复盘里诚实记一次 missed</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">04 · 节奏闭环（4 个功能点）</div>
+        <ul><li>今日：每天的总览</li><li>计划复盘：周计划 + 双周组会</li><li>导师：承诺台账与沟通档案</li><li>激励规则：加减分、保护下限与奖励</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">09 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="10">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>05 · 工具与产出</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>编排画布：把重复流程搭成 DAG</h1>
+        <div class="sub">一句话自动编排，或手拖五类节点</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets"><li><span class="mark"></span><span>input / prompt / skill / tool / output，同层并行</span></li><li><span class="mark"></span><span>运行条显示 done/total、耗时与取消；节点里留模型 / token / 耗时证据</span></li><li><span class="mark"></span><span>产出可一键存成创新点、文献、论文，或立项为 Quest</span></li><li><span class="mark"></span><span>四视图：编排 / 访问 / 日志 / 监控，URL 即状态</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">检索近三年论文 → 生成带引用综述 → 提炼 3 个创新点 → 设计 rule / fixed / Jev 三策略对照实验</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">一条可运行、可复用、可导出的 DAG，每个节点的调用都有账本</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">05 · 工具与产出（7 个功能点）</div>
+        <ul><li>论文工作室：本机写 .tex 并编译</li><li>绘图工作室：脚本 / spec 出图</li><li>数据分析工作室：跑表、出统计</li><li>代码工作室：写脚本并执行</li><li>概览指标：全站数字的唯一汇总页</li><li>科研社区：本机内容板</li><li>全局搜索与铃铛待办</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">10 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="11">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>05 · 工具与产出</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>调研 Research 与四个工作室</h1>
+        <div class="sub">可核验的检索 + 本机可跑的 TeX / matplotlib / Python</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets"><li><span class="mark"></span><span>深度检索：检索式 → OpenAlex 真数据 → 去重入库 → 带 [n] 报告</span></li><li><span class="mark"></span><span>论文工作室：写 .tex、配 TeX bin、本机编译</span></li><li><span class="mark"></span><span>绘图工作室：matplotlib 脚本或 figure.json spec，出图可复现</span></li><li><span class="mark"></span><span>数据分析 / 代码工作室：隔离 venv 跑 pandas / scipy / 脚本</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">调研：LLM 测试生成失败归因 + mutation signal（2022–2026）｜绘图：labels=[&#x27;rule&#x27;,&#x27;fixed&#x27;,&#x27;Jev&#x27;]，values 用实测值</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">带 [n] 且可点开 DOI 的报告；同一份 figure spec 换数据即可重画</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">05 · 工具与产出（7 个功能点）</div>
+        <ul><li>论文工作室：本机写 .tex 并编译</li><li>绘图工作室：脚本 / spec 出图</li><li>数据分析工作室：跑表、出统计</li><li>代码工作室：写脚本并执行</li><li>概览指标：全站数字的唯一汇总页</li><li>科研社区：本机内容板</li><li>全局搜索与铃铛待办</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">11 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="12">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>05 · 工具与产出</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>信息流与汇总：速递 / 概览 / 社区 / 搜索</h1>
+        <div class="sub">低频但各有明确职责</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets"><li><span class="mark"></span><span>论文速递：arXiv 拉取 / 邮箱投喂 / 手动粘贴，标题摘要可翻译</span></li><li><span class="mark"></span><span>概览指标：全站数字唯一汇总页，只读、实时接口</span></li><li><span class="mark"></span><span>科研社区：本机内容板，内置示例帖可删</span></li><li><span class="mark"></span><span>顶栏搜索跨模块；铃铛只放三类真实待办</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">组会前打开「概览指标」核对文献待读数、实验计划中数、论文阻塞数</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">一份口径一致的当期数字；和「今日」页首对不上时先刷新再汇报</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">05 · 工具与产出（7 个功能点）</div>
+        <ul><li>论文工作室：本机写 .tex 并编译</li><li>绘图工作室：脚本 / spec 出图</li><li>数据分析工作室：跑表、出统计</li><li>代码工作室：写脚本并执行</li><li>概览指标：全站数字的唯一汇总页</li><li>科研社区：本机内容板</li><li>全局搜索与铃铛待办</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">12 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="13">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>端到端 · 把示例走一遍</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>同一条研究线，在 8 个页面里怎么流动</h1>
+        <div class="sub">从一句话契约到组会材料</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets bullets-wide"><li><span class="mark"></span><span>① 首页一句话启动 → ② 课题 Quest 写契约、沉淀发现</span></li><li><span class="mark"></span><span>③ 调研 Research 出带引用综述 → ④ 文献库 / 关联图 / 对比矩阵</span></li><li><span class="mark"></span><span>⑤ 创新点落库 + 审稿视角质疑 → ⑥ 实验三策略对照、结果写回</span></li><li><span class="mark"></span><span>⑦ 论文七阶段推进 → ⑧ 今日 / 周复盘 / 概览指标汇总成组会材料</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">起点：用变异信号定位 LLM 生成测试的失败根因</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">终点：一份有引用、有实测结果、有阻塞记录、口径可核对的组会汇报</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">全站六章 · 目录</div>
+        <ul><li>01 起步 — 认路、接模型</li><li>02 三大工作台 — 启动 · 编排 · 调研</li><li>03 研究资产 — 创新 → 文献 → 实验 → 论文</li><li>04 节奏闭环 — 今日 · 复盘 · 导师 · 激励</li><li>05 工具与产出 — 工作室 · 概览 · 速递 · 社区</li><li>06 教学视频 — 看完就能带别人上手</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">13 / 14</span>
+        </div>
+      </footer>
+    </section>
+    <section class="slide " data-no="14">
+      <header class="top">
+        <div class="kicker"><span class="kicker-bar"></span>06 · 教学视频</div>
+        <div class="brand">研流 · 教学包 2.0</div>
+      </header>
+      <div class="title-wrap">
+        
+        <h1>教学包怎么用</h1>
+        <div class="sub">视频 · PPT · 讲稿 · 字幕 · 交互引导，共用同一份内容源</div>
+      </div>
+      <div class="main">
+        <div class="left"><ul class="bullets bullets-wide"><li><span class="mark"></span><span>视频：约 2 分钟，六章串讲，适合新人第一遍</span></li><li><span class="mark"></span><span>PPT：与视频逐页对应，可编辑，适合组会 / 培训</span></li><li><span class="mark"></span><span>讲稿与字幕：可二次剪辑、配音或本地化</span></li><li><span class="mark"></span><span>交互引导：侧栏底部随时打开，按目录跳到任意功能点现场演示</span></li></ul></div>
+        <div class="right">
+      <div class="ex">
+        <div class="ex-head"><span class="ex-dot"></span>配套示例</div>
+        <div class="ex-label">输入 / 你可以这样填</div>
+        <pre class="ex-input">重要边界：本材料全部示例均为演示占位内容</pre>
+        <div class="ex-arrow">产出 / 你会得到</div>
+        <div class="ex-output">不是真实实验数据、不是真实文献元数据、不构成任何研究结论；对外使用前请替换成你自己的真实数据</div>
+        
+      <div class="ex-points">
+        <div class="ex-points-head">06 · 教学视频（1 个功能点）</div>
+        <ul><li>教学视频与配套 PPT</li></ul>
+      </div>
+      </div></div>
+      </div>
+      <footer class="foot">
+        <div class="bars"><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span><span class="bar on"></span></div>
+        <div class="foot-right">
+          <span class="disclaimer">示例均为演示占位 · 非实测数据</span>
+          <span class="pageno">14 / 14</span>
+        </div>
+      </footer>
+    </section>
+<div class="hint">← → / 空格 翻页 · 投影时用 F11 全屏</div>
+<script>
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var cur = 1;
+  function show(n) {
+    cur = Math.max(1, Math.min(slides.length, n));
+    slides.forEach(function (s, k) { s.classList.toggle('active', k === cur - 1); });
+    if (location.hash !== '#p=' + cur) history.replaceState(null, '', '#p=' + cur);
+    document.title = '教学幻灯片 ' + cur + '/' + slides.length;
+  }
+  window.__showSlide = show;
+  window.__slideCount = slides.length;
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'ArrowRight' || ev.key === ' ' || ev.key === 'PageDown') { ev.preventDefault(); show(cur + 1); }
+    else if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') { ev.preventDefault(); show(cur - 1); }
+    else if (ev.key === 'Home') show(1);
+    else if (ev.key === 'End') show(slides.length);
+  });
+  document.addEventListener('click', function (ev) { if (!ev.target.closest('a')) show(cur + 1); });
+  var m = location.hash.match(/p=(\d+)/);
+  show(m ? parseInt(m[1], 10) : 1);
+</script>
+</body></html>

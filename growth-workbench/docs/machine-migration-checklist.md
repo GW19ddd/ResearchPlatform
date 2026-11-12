@@ -9,8 +9,11 @@ git clone https://github.com/GW19ddd/ResearchPlatform.git
 ```
 
 - 已包含：`growth-workbench/` 全部代码、`data/workbench.db`（主数据库，含账号）、
-  `data/paperfeed_figs/`、`data/workspace/`
+  `data/paperfeed_figs/`、`data/workspace/`、`export/`、
+  **`web/dist/`（浏览器端构建产物，拉下来即可直接起服务，无需 npm build）**
+  —— dist 内两个教程视频 mp4 除外（可由教学包脚本重生成）
 - 后端启动：`python -m uvicorn server.main:app --port 8000`（或双击 `bin/launch.vbs`）
+- 前端如需改代码再构建：`cd web && npm install && npm run build`
 - 注意：`server/skills/github/` 按 .gitignore 不入库，首次需要在应用内
   「设置 → 技能库 → 克隆仓库」重新拉取。
 

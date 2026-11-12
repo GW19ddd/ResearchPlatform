@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>用研流生成《基于 LLM 的 AI 单元测试生成》英文论文 · 开发案例教程</title>
+<style>
+  :root{
+    --paper:#FBFAF7; --ink:#1A1A1A; --green:#2F5D50; --red:#A4262C;
+    --line:#E4E0D8; --muted:#6B6760; --chip:#F1EEE7;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Source Han Sans SC","Noto Sans CJK SC",system-ui,sans-serif;
+    line-height:1.7;font-size:16px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px 96px}
+  header.hero{padding:72px 24px 48px;max-width:960px;margin:0 auto;border-bottom:2px solid var(--ink)}
+  .kicker{letter-spacing:.18em;font-size:12px;text-transform:uppercase;color:var(--green);font-weight:700}
+  h1{font-size:34px;line-height:1.25;margin:14px 0 10px;font-weight:800}
+  .sub{font-size:17px;color:var(--muted);max-width:680px}
+  .pill{display:inline-block;border:1px solid var(--line);background:var(--chip);
+    border-radius:999px;padding:4px 12px;font-size:12.5px;color:var(--muted);margin:6px 6px 0 0}
+
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:34px 0 8px}
+  .card{border:1px solid var(--line);border-radius:12px;padding:16px;background:#fff}
+  .card .n{font-size:13px;color:var(--green);font-weight:700}
+  .card .t{font-weight:700;margin:4px 0 2px}
+  .card .d{font-size:13px;color:var(--muted)}
+  @media(max-width:720px){.cards{grid-template-columns:repeat(2,1fr)}}
+
+  h2{font-size:23px;margin:56px 0 8px;font-weight:800;padding-top:8px}
+  h2 .idx{color:var(--red);font-weight:800;margin-right:10px}
+  h3{font-size:16px;margin:22px 0 6px;color:var(--green);font-weight:700}
+  p{margin:10px 0}
+  a{color:var(--green);text-decoration:none;border-bottom:1px solid rgba(47,93,80,.35)}
+  a:hover{border-bottom-color:var(--green)}
+  code{background:var(--chip);padding:1px 6px;border-radius:5px;font-size:13.5px;
+    font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace}
+  pre{background:#1A1A1A;color:#EDE9E0;padding:16px 18px;border-radius:12px;overflow:auto;
+    font-size:13px;line-height:1.55;font-family:"SFMono-Regular",Consolas,Menlo,monospace}
+  pre .c{color:#8fb9ad}
+  pre .s{color:#e0b97d}
+  pre .k{color:#d98a8f}
+
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:18px 0 8px}
+  .step{flex:1 1 140px;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff}
+  .step b{color:var(--green)}
+  .step .arrow{color:var(--red);font-weight:800;display:block;margin-top:6px}
+
+  .asset{border-left:3px solid var(--green);background:#fff;border:1px solid var(--line);
+    border-left-width:3px;border-radius:0 10px 10px 0;padding:12px 16px;margin:12px 0}
+  .asset .id{font-weight:700;color:var(--green)}
+  .asset code{background:#f4f1ea}
+
+  .note{border:1px dashed var(--red);background:#fbf2f2;border-radius:10px;padding:14px 16px;margin:14px 0;color:#7a2226}
+  .note b{color:var(--red)}
+
+  figure{margin:20px 0;text-align:center}
+  figure img{max-width:100%;border:1px solid var(--line);border-radius:12px;background:#fff;padding:8px}
+  figcaption{font-size:13px;color:var(--muted);margin-top:8px}
+
+  .dl{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0}
+  .btn{display:inline-block;border:1px solid var(--ink);background:var(--ink);color:var(--paper);
+    padding:11px 18px;border-radius:10px;font-weight:700;font-size:14px}
+  .btn.ghost{background:#fff;color:var(--ink);border-color:var(--line)}
+  .btn:hover{opacity:.9}
+
+  footer{margin-top:64px;border-top:2px solid var(--ink);padding-top:22px;color:var(--muted);font-size:13.5px}
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 0}
+  .toc a{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 14px;font-size:13px;color:var(--ink);border-bottom:none}
+  figure.wide{margin:26px 0}
+  figure.wide img{width:100%;padding:6px}
+  .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:20px 0}
+  .gallery a{display:block;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;border-bottom:none}
+  .gallery a:hover{border-color:var(--green)}
+  .gallery img{display:block;width:100%;height:auto;border:none;border-radius:0;padding:0}
+  .gallery span{display:block;padding:9px 12px;font-size:13px;font-weight:700;color:var(--ink)}
+  @media(max-width:720px){.gallery{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="kicker">研流 · 开发案例教程</div>
+  <h1>用工作台生成《基于大语言模型的 AI 单元测试生成》英文论文</h1>
+  <p class="sub">一份「边做边学」的研发案例：教你在研流里，把一条真实研究线（LLM 驱动单元测试生成）走完
+    <b>调研 → 选题 → 创新 → 实验 → 数据后处理 → 写作</b>，并直接用工作台的 LaTeX 编译出英文论文 PDF。
+    <br/><b>本案例已用一份合成的演示实验数据完整跑通</b>——打开就能看到真实的表格、带 95% CI 的图和编译好的 PDF。</p>
+  <div>
+    <span class="pill">产品：growth-workbench</span>
+    <span class="pill">方法：动态多源反馈图 + Jev 类型化决策 (τ=0.5)</span>
+    <span class="pill">目标期刊：CCF-A / TOSEM</span>
+    <span class="pill">全英文论文 + 架构图 + 图表</span>
+  </div>
+  <div class="toc">
+    <a href="#overview">产出概览</a>
+    <a href="#flow">六阶段流程</a>
+    <a href="#s1">1 调研</a><a href="#s2">2 选题</a>
+    <a href="#s3">3 创新</a><a href="#s4">4 实验</a>
+    <a href="#s5">5 后处理</a><a href="#s6">6 写作</a>
+    <a href="#gallery">界面速览</a><a href="#arch">架构图</a><a href="#download">下载</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <h2 id="overview">产出概览</h2>
+  <p>跟着本教程走完，你将获得一份<strong>可直接编译的英文论文</strong>，以及在工作台里真实落地的研究资产。</p>
+  <div class="cards">
+    <div class="card"><div class="n">交付物 01</div><div class="t">英文论文 PDF</div><div class="d">工作台 LaTeX 编译，含 TikZ 架构图与带 95% CI 的结果图</div></div>
+    <div class="card"><div class="n">交付物 02</div><div class="t">架构图</div><div class="d">动态多源反馈图 + Jev 决策（画布 ID 25 / SVG）</div></div>
+    <div class="card"><div class="n">交付物 03</div><div class="t">六步教程</div><div class="d">每一阶段附真实资产 ID 与可照抄的 curl</div></div>
+    <div class="card"><div class="n">交付物 04</div><div class="t">演示实验数据</div><div class="d">486 模块 × 3 方法 × 3 指标，含 JSON 汇总</div></div>
+  </div>
+
+  <figure class="wide">
+    <img src="../ui/ui-workbench.png" alt="研流统一首页"/>
+    <figcaption>图：统一工作台首页 —— 侧栏五组导航、一句话输入框、能力入口与最近对话（本机运行时真实界面截图，非示意图）。</figcaption>
+  </figure>
+
+  <div class="note" style="border-color:#2F5D50;background:#F1F5F3;color:#22463c">
+    <b style="color:#2F5D50">这一份是「跑通了的演示」：</b>为了让你看到整条链路真的能出论文，我们用<b>带随机种子的合成数据</b>
+    （seed 20261112，486 模块）代替真实实验，已完整跑完 统计 → 表格 → 图 → 编译。
+    论文与图表里都明确标注 <code>DEMO</code>。换成你自己的实测数据重跑同一套命令，就是真论文。
+  </div>
+
+  <h2 id="flow">六阶段研究流水线</h2>
+  <p>整条流水线对应论文的章节结构。每一阶段都是工作台里<strong>可操作、可核对</strong>的一步。</p>
+  <div class="flow">
+    <div class="step"><b>1 调研</b><br/>文献入库<br/><span class="arrow">→ Related Work</span></div>
+    <div class="step"><b>2 选题</b><br/>痛点→研究问题<br/><span class="arrow">→ Motivation/RQ</span></div>
+    <div class="step"><b>3 创新</b><br/>三条可证伪主张<br/><span class="arrow">→ Method</span></div>
+    <div class="step"><b>4 实验</b><br/>基准/基线/指标<br/><span class="arrow">→ Exp. Design</span></div>
+    <div class="step"><b>5 后处理</b><br/>清洗/检验/可视化<br/><span class="arrow">→ Data Post-proc</span></div>
+    <div class="step"><b>6 写作</b><br/>组装+编译 PDF<br/><span class="arrow">→ 全文</span></div>
+  </div>
+
+  <figure class="wide">
+    <img src="../ui/ui-canvas.png" alt="编排画布"/>
+    <figcaption>图：编排画布 —— 六阶段研究线在画布上以节点与连线组织，URL 即状态（本机运行时真实界面截图，非示意图）。</figcaption>
+  </figure>
+
+  <!-- STEP 1 -->
+  <h2 id="s1"><span class="idx">01</span>论文调研（Literature Survey）</h2>
+  <figure class="wide">
+    <img src="../ui/ui-literature-annotated.png" alt="文献库界面（标注版）"/>
+    <figcaption>图：「文献库」标注版 —— 检索、入库、打标签与状态流转都在这里完成（本机运行时真实界面截图，非示意图）。</figcaption>
+  </figure>
+
+  <p><strong>目标：</strong>把「LLM 单元测试生成」领域的文献收进工作台的<strong>文献库</strong>，并标注与本研究的关联——这就是论文第 2 章 Related Work 的素材。</p>
+  <h3>在工作台里去哪做</h3>
+  <p>左侧导航 <strong>文献 Literature</strong>（<code>/literature</code>）；批量检索可用 <code>litsearch / OpenAlex / Zotero</code>；论文喂送用 <code>paperfeed</code>。
+    对应 API：<code>POST /api/literature</code>、<code>GET /api/literature</code>。</p>
+  <h3>怎么做（单篇入库示例）</h3>
+  <pre><span class="c"># 带 notes 标注关联，再入库</span>
+curl -b <span class="s">"wb_session=$TOK"</span> -X POST http://127.0.0.1:8000/api/literature \
+  -H <span class="s">'Content-Type: application/json'</span> \
+  -d <span class="s">'{ "title":"TestPilot: An LLM-Based Developer Tool for Authoring Tests",
+       "authors":"Schäfer, M. et al.","year":2023,"venue":"arXiv:2308.16521",
+       "url":"https://arxiv.org/abs/2308.16521","status":"read","rating":5,
+       "relevance":"high","tags":"test-generation,llm",
+       "notes":"生成-修复闭环范式；本研究 agent 接口参考它。" }'</span></pre>
+  <p>已有条目若是占位，可直接 <code>PATCH /api/literature/{id}</code> 填实。</p>
+  <h3>本教程已做好的真实资产（可去库里核对）</h3>
+  <div class="asset">库中<strong>原本就有</strong>这条线的核心文献：CodaMosa(<span class="id">16</span>)、TESTEVAL(<span class="id">21</span>)、CoverUp(<span class="id">24</span>)、mutation-guided(<span class="id">29</span>)、agentic TestForge(<span class="id">20</span>)。</div>
+  <div class="asset">本教程<strong>补录 / 填实</strong>：REFLEX(<span class="id">4</span>，填实了原「【待补】Feedback-driven Refinement」占位)、TestPilot(<span class="id">455</span>)、ChatUniTest(<span class="id">456</span>)、Pynguin(<span class="id">457</span>)、EvoSuite(<span class="id">458</span>)、AthenaTest(<span class="id">459</span>)。</div>
+  <p><strong>调研要点：</strong>先建「检索—筛选—矩阵」（<code>/api/literature/matrix</code>），再提炼「主张 vs 已有工作」的差距表。REFLEX 是方法内核出处；CodaMosa/TestEval/CoverUp 是基线与基准。</p>
+
+  <!-- STEP 2 -->
+  <h2 id="s2"><span class="idx">02</span>选题确定（Topic Selection）</h2>
+  <figure class="wide">
+    <img src="../ui/ui-ideas-annotated.png" alt="创新点界面（标注版）"/>
+    <figcaption>图：「创新点」标注版 —— 从文献缺口收口研究问题，并按 novelty / feasibility / impact 打分（本机运行时真实界面截图，非示意图）。</figcaption>
+  </figure>
+
+  <p><strong>目标：</strong>从已调研的文献缺口里，定位一个<strong>值得做、且能被实验检验</strong>的研究问题——而不是泛泛地「提升覆盖率」。</p>
+  <h3>怎么选（本教程的落点）</h3>
+  <p>工作台的文献矩阵暴露出一个被反复研究的维度（覆盖率提升）和一个<strong>被忽略的瓶颈</strong>：在覆盖率见顶后，<em>下一步该生成什么测试</em>仍靠启发式排序（<code>order_intentions / top_k</code>）。
+    本教程据此把选题收口为：<strong>用「动态多源反馈 + 类型化决策」替代静态覆盖排序</strong>。</p>
+  <div class="asset">对应研究问题（论文 §3）：RQ1 反馈图是否优于静态排序？· RQ2 Jev 置信带能否在保质量下降 LLM 调用？· RQ3 节点级定位是否优于行号启发式？</div>
+  <p>这一步的产出不直接入库为单独资产，而是沉淀为下一阶段「创新点」的种子。</p>
+
+  <!-- STEP 3 -->
+  <h2 id="s3"><span class="idx">03</span>创新点总结（Innovation Points）</h2>
+  <figure class="wide">
+    <img src="../ui/ui-canvas-annotated.png" alt="编排画布（标注版）"/>
+    <figcaption>图：「编排画布」标注版 —— 三条可证伪主张对应方法内核的节点与反馈闭环（本机运行时真实界面截图，非示意图）。</figcaption>
+  </figure>
+
+  <p><strong>目标：</strong>把选题落成<strong>三条可证伪主张（A/B/C）</strong>，而非空泛的「我们提出了一个框架」。这正是 CCF-A / TOSEM 审稿看重的 claim 可检验性。</p>
+  <h3>在工作台里去哪做</h3>
+  <p><strong>创新点 Ideas</strong>（<code>/api/ideas</code>）：每条带 <code>novelty / feasibility / impact / effort</code>（1–5 分）与 <code>one_liner</code>、<code>notes</code>。</p>
+  <h3>三条可证伪主张（已在库：ID 31 / 32 / 33）</h3>
+  <div class="asset"><span class="id">31 · A</span> 动态多源反馈图替代静态覆盖排序——六源反馈图驱动下一步意图选择，替代 <code>order_intentions/top_k</code>。否证条件：覆盖增益 &lt; 2pp 且 LLM 调用不降反升。</div>
+  <div class="asset"><span class="id">32 · B</span> Jev 类型化决策 + τ=0.5 置信带——高置信直达 Jev，低置信交 LLM。否证条件：质量下降超阈值或调用量未降。</div>
+  <div class="asset"><span class="id">33 · C</span> training-free + 节点级定位——免训练，仅在代码结构上做节点级定位。否证条件：定位精度不优于随机/行号启发式。</div>
+  <p>每条都<strong>绑定一个可被实验推翻的判据</strong>，方法实现见阶段 4，架构图见阶段 6 的画布 <span class="id">25</span>。</p>
+
+  <!-- STEP 4 -->
+  <h2 id="s4"><span class="idx">04</span>实施实验（Experiment Implementation）</h2>
+  <figure class="wide">
+    <img src="../ui/ui-experiments-annotated.png" alt="实验界面（标注版）"/>
+    <figcaption>图：「实验」标注版 —— 基准、基线与指标口径在这一页登记（本机运行时真实界面截图，非示意图）。</figcaption>
+  </figure>
+
+  <p><strong>目标：</strong>把三条主张变成<strong>可复现的实验</strong>：明确的基准、基线、指标定义。</p>
+  <h3>实验设计（论文 §5）</h3>
+  <ul>
+    <li><strong>基准：</strong>CodaMosa 486-module 套件（"CM"）+ TestEval 210 项。</li>
+    <li><strong>基线：</strong>codamosa、coverup、telpa、Undermind agent 策略（后两者出自本地 harness，出处待核实）。</li>
+    <li><strong>指标（显式定义，避免含糊）：</strong>行/分支覆盖率 ΔCov、强模型（LLM）调用次数 Calls、单模块耗时 Time、定位精度 Loc@k。</li>
+  </ul>
+  <div class="asset">实现落点：本地 harness 的 CM ablations 与 coverage_loop 变体；Jev 路由机制可经女娲（nuwa）网关做消融验证。</div>
+  <div class="note"><b>本案例怎么"跑"：</b>用带随机种子的合成生成器造了 <b>486 模块 × 3 方法</b> 的演示数据（seed 20261112），
+    每模块记录 coverage / valid_ratio / llm_calls / time_sec / localization。这样整条下游管线（统计→图→论文）能被真实执行，
+    而不是用一张手写死的表格。</div>
+
+  <!-- STEP 5 -->
+  <h2 id="s5"><span class="idx">05</span>实验数据后处理（Data Post-processing）</h2>
+  <figure class="wide">
+    <img src="../ui/ui-studio-analysis.png" alt="分析工作室"/>
+    <figcaption>图：「数据分析工作室」—— 清洗、统计与可视化在本机 venv 里真实执行（本机运行时真实界面截图，非示意图）。</figcaption>
+  </figure>
+
+  <p><strong>目标：</strong>把原始日志变成<strong>可放进论文的图表与统计结论</strong>，并显式声明真实/模拟边界。</p>
+  <h3>后处理步骤（论文 §6，已实际执行）</h3>
+  <ul>
+    <li><strong>清洗：</strong>剔除超时/崩溃样本，统一单位（Calls、Time）。</li>
+    <li><strong>统计：</strong>中位数 + bootstrap 95% CI（1,000 次重采样）；对 ΔCov 与 Calls 做配对 Wilcoxon（含 ties 修正）。</li>
+    <li><strong>效应量：</strong>Cliff's δ 对照 codamosa。</li>
+    <li><strong>可视化：</strong>覆盖率（带 CI 误差棒）、LLM 调用、验证率三联图。</li>
+  </ul>
+
+  <div class="asset">
+    <b>本案例实际算出的后处理结论（演示数据）：</b><br/>
+    DMF-Jev 中位覆盖率 <b>75.3%</b> [74.1, 76.2]，对 codamosa（68.6%）<b>+6.7 pp</b>，
+    配对 Wilcoxon <b>p &lt; 10<sup>-10</sup></b>，Cliff's δ = <b>0.38</b>（中等效应）；<br/>
+    LLM 调用 <b>9.6 → 5.7 次/模块</b>（<b>−41.1%</b>，p &lt; 10<sup>-10</sup>）；节点级定位精度 <b>0.786</b>。
+  </div>
+
+  <figure>
+    <img src="./fig_results.svg" alt="结果对比图（演示数据）"/>
+    <figcaption>图：覆盖率（含 95% CI 误差棒）/ 每模块 LLM 调用 / 验证测试比例。<b>合成演示数据 · seed 20261112 · n=486</b>，非实测。</figcaption>
+  </figure>
+
+  <!-- STEP 6 -->
+  <h2 id="s6"><span class="idx">06</span>论文撰写与编译（Paper Writing &amp; Compilation）</h2>
+  <figure class="wide">
+    <img src="../ui/ui-studio-paper-annotated.png" alt="论文工作室（标注版）"/>
+    <figcaption>图：「论文工作室」标注版 —— 写入 .tex、xelatex 编译并取回 PDF（本机运行时真实界面截图，非示意图）。</figcaption>
+  </figure>
+
+  <p><strong>目标：</strong>把前五阶段资产<strong>组装成英文论文</strong>，并<strong>在工作台里编译出 PDF</strong>。</p>
+  <h3>在工作台里去哪做</h3>
+  <p><strong>论文章节</strong>（<code>/api/paper/sections</code>、<code>/api/paper/stages</code>）做大纲与进度；
+    <strong>LaTeX 编译工作室</strong> <code>/api/workspace/tex/compile</code> 把 <code>.tex</code> 写进工作区 → 编译 → 取回 PDF。</p>
+  <h3>真实调用（本教程已执行）</h3>
+  <pre><span class="c"># 1) 上传 .tex 到工作区</span>
+curl -b <span class="s">"wb_session=$TOK"</span> -X PUT http://127.0.0.1:8000/api/workspace/file \
+  -H <span class="s">'Content-Type: application/json'</span> \
+  -d <span class="s">'{ "kind":"tex","owner":"default","name":"llmutg_paper.tex","content":"&lt;整篇 LaTeX 源码&gt;" }'</span>
+<span class="c"># 2) 编译（xelatex，连跑两次解析交叉引用）</span>
+curl -b <span class="s">"wb_session=$TOK"</span> -X POST http://127.0.0.1:8000/api/workspace/tex/compile \
+  -H <span class="s">'Content-Type: application/json'</span> -d <span class="s">'{ "name":"llmutg_paper.tex","engine":"xelatex" }'</span>
+<span class="c"># 3) 取回 PDF</span>
+curl -b <span class="s">"wb_session=$TOK"</span> <span class="s">"http://127.0.0.1:8000/api/workspace/artifact?kind=tex&name=llmutg_paper.pdf&owner=default"</span> -o llmutg_paper.pdf</pre>
+  <p>论文结构：1. Introduction · 2. Related Work · 3. Motivation &amp; RQ · 4. Method (DMF-Jev) · 5. Experimental Design · 6. Data Post-processing · 7. Results · 8. Discussion · 9. Threats · 10. Conclusion。</p>
+  <div class="asset">本案例的 <b>Results 段（§7）不是手写的</b>：由 `_demo_data.py` 从演示数据算出中位数、CI、p 值和效应量，
+    自动生成 LaTeX 表格与正文句子，再注入 `.tex` 后交给工作台编译。换数据 = 改一行参数重跑。</div>
+
+  <h2 id="arch">架构图：动态多源反馈图 + Jev 类型化决策</h2>
+  <p>下图为方法内核（论文 §4 图 1），同图也以画布形式存于工作台 <code>/api/canvas/25</code>（13 节点 / 20 边，含反馈闭环）。</p>
+  <figure>
+    <img src="./architecture.svg" alt="动态多源反馈图 + Jev 类型化决策架构图"/>
+    <figcaption>图：六源反馈（Coverage / Mutation / Compile / Execution / History / Code）经 Jev 类型化决策层选择下一步意图，置信带 τ=0.5 决定直达 Jev 或回退 LLM。</figcaption>
+  </figure>
+
+  <h2 id="gallery">界面速览：六个阶段在工作台里长什么样</h2>
+  <p>下面六张都是本机运行时的<strong>真实界面截图</strong>，不是示意图；点开可看大图。
+    它们与新手引导里 28 个功能点的示例卡图片来自同一套素材库 <code>/tutorial/ui/</code>。</p>
+  <div class="gallery">
+    <a href="../ui/ui-literature.png" target="_blank" rel="noopener"><img src="../ui/ui-literature.png" alt="文献库"/><span>01 文献库</span></a>
+    <a href="../ui/ui-ideas.png" target="_blank" rel="noopener"><img src="../ui/ui-ideas.png" alt="创新点"/><span>02 创新点</span></a>
+    <a href="../ui/ui-canvas.png" target="_blank" rel="noopener"><img src="../ui/ui-canvas.png" alt="编排画布"/><span>03 编排画布</span></a>
+    <a href="../ui/ui-experiments.png" target="_blank" rel="noopener"><img src="../ui/ui-experiments.png" alt="实验"/><span>04 实验</span></a>
+    <a href="../ui/ui-studio-analysis.png" target="_blank" rel="noopener"><img src="../ui/ui-studio-analysis.png" alt="分析工作室"/><span>05 分析工作室</span></a>
+    <a href="../ui/ui-studio-paper.png" target="_blank" rel="noopener"><img src="../ui/ui-studio-paper.png" alt="论文工作室"/><span>06 论文工作室</span></a>
+  </div>
+
+  <h2 id="download">下载与资源</h2>
+  <p>以下是本教程真实产出的可下载文件（相对本页同目录）：</p>
+  <div class="dl">
+    <a class="btn" href="./llmutg_paper.pdf">↓ 英文论文 PDF</a>
+    <a class="btn ghost" href="./llmutg_paper.tex">↓ LaTeX 源码</a>
+    <a class="btn ghost" href="./results_demo.csv">↓ 演示数据 CSV（486×3）</a>
+    <a class="btn ghost" href="./results_demo_summary.json">↓ 统计汇总 JSON</a>
+    <a class="btn ghost" href="./architecture.svg">↓ 架构图 SVG</a>
+    <a class="btn ghost" href="./fig_results.svg">↓ 结果图 SVG</a>
+  </div>
+
+  <div class="note">
+    <b>这一份是演示（DEMO），不是你的投稿数据：</b>
+    <ol style="margin:8px 0 0;padding-left:20px">
+      <li>论文所有数字由合成生成器产出（seed 20261112），正文与图注均已标注 DEMO；</li>
+      <li>要出真论文：把 harness 实测结果按 <code>results_demo.csv</code> 同款列替换 → 重跑统计与注入 → 工作台编译；</li>
+      <li>把 <code>[Author Name]</code> / 单位 / 邮箱换成真实署名；</li>
+      <li>核实 REFLEX 与 <code>telpa</code> / <code>Undermind</code> 的引用出处，补 CRediT / 基金 / 数据可用性。</li>
+    </ol>
+  </div>
+
+  <footer>
+    <p><strong>研流 · 开发案例教程</strong> —— 一条研究线，从调研到英文论文的完整闭环示范。</p>
+    <p>方法内核：Dynamic Multi-source Feedback Graph + Jev Typed Decision（REFLEX, Wu &amp; Lim 2026, τ=0.5）。
+       本节所有数值来自合成演示数据（seed 20261112），已在论文与图表中标注 <em>DEMO</em>，不代表真实测量结果。
+       本页为工作台内教程项目 <code>projects/llmutg-tutorial/</code> 的可视化入口。</p>
+  </footer>
+
+</div>
+</body>
+</html>
