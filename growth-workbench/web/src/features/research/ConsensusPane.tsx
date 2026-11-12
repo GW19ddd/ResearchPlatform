@@ -41,13 +41,16 @@ export default function ConsensusPane({
   width,
   onClose,
   onOpenPaper,
+  full = false,
 }: {
   sid: number | null
   question: string
   papers: PaperHit[]
   width: number
-  onClose: () => void
+  onClose?: () => void
   onOpenPaper?: (p: PaperHit) => void
+  /** full=true：作为 /consensus 独立页占满内容区（无固定宽度、无关闭按钮、去掉左侧描边） */
+  full?: boolean
 }) {
   const storeKey = `wb:rchat.votes.${sid ?? 'none'}`
   const [votes, setVotes] = useState<Record<string, Vote>>({})
@@ -116,9 +119,9 @@ export default function ConsensusPane({
 
   return (
     <aside
-      data-resizable
-      className="flex shrink-0 flex-col border-l border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)]"
-      style={{ width, minWidth: 280, maxWidth: 'calc(100vw - 700px)' }}
+      data-resizable={!full}
+      className={`flex min-h-0 shrink-0 flex-col ${full ? 'min-w-0 flex-1' : 'border-l border-[color:var(--wb-border)]'} bg-[color:var(--wb-surface-alt)]`}
+      style={full ? undefined : { width, minWidth: 280, maxWidth: 'calc(100vw - 700px)' }}
     >
       <div className="flex shrink-0 items-center gap-2 border-b border-[color:var(--wb-border)] px-3.5 py-2.5">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
@@ -138,7 +141,9 @@ export default function ConsensusPane({
           <Icon name="sparkle" size={11} />
           {agentBusy ? '判定中…' : 'Agent 判定'}
         </Btn>
-        <IconBtn icon="close" size="sm" ariaLabel="关闭共识栏" title="关闭共识" onClick={onClose} />
+        {!full && (
+          <IconBtn icon="close" size="sm" ariaLabel="关闭共识栏" title="关闭共识" onClick={onClose} />
+        )}
       </div>
       <div className="shrink-0 px-4 pt-3 text-[11px] text-[color:var(--wb-muted)]">
         基于本次真实检索 · 人工投票与模型推断分开标注

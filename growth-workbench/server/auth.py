@@ -63,6 +63,10 @@ def public_user(row) -> dict:
         "avatar_hue": int(row["avatar_hue"] or 240),
         "created_at": row["created_at"],
         "last_login_at": row["last_login_at"],
+        # 会员档位：free / pro，缺省一律按 free（兼容尚未迁移的老库）
+        "plan": (row.get("plan") or "free"),
+        # 是否关联了云端账户（WorkBuddy 云服务登录）
+        "cloud_linked": bool(row.get("cloud_uid")),
     }
 
 
@@ -96,6 +100,98 @@ def authenticate(username: str, password: str):
         return None
     execute("UPDATE users SET last_login_at=? WHERE id=?", (now(), row["id"]))
     return get_user(row["id"])
+
+
+# ------------------------------------------------------------------ 云端账户映射
+
+def find_user_by_cloud_uid(uid: str):
+    rows = query("SELECT * FROM users WHERE cloud_uid=?", ((uid or "").strip(),))
+    return rows[0] if rows else None
+
+
+def has_linkable_local_user() -> bool:
+    """还有没挂云端账户的本机用户吗（用于首次云登录时提供「关联」选项）。"""
+    return bool(query("SELECT 1 FROM users WHERE cloud_uid IS NULL LIMIT 1"))
+
+
+def list_linkable_users() -> list[dict]:
+    """可关联的本机账户：只回 id / 账号 / 称呼，不回任何密码或联系方式。"""
+    rows = query(
+        "SELECT id, username, display_name FROM users WHERE cloud_uid IS NULL ORDER BY id LIMIT 20"
+    )
+    return [
+        {
+            "id": r["id"],
+            "username": r["username"],
+            "display_name": (r["display_name"] or "").strip(),
+        }
+        for r in rows
+    ]
+
+
+def _unique_cloud_username(ident: dict) -> str:
+    base = ""
+    email = ident.get("email")
+    if email and "@" in email:
+        base = email.split("@")[0]
+    elif ident.get("phone"):
+        base = ident["phone"]
+    base = "".join(ch for ch in base if ch.isalnum() or ch in "-_")[:24] or "cloud"
+    username, n = base, 2
+    while query("SELECT 1 FROM users WHERE username=?", (username,)):
+        username = f"{base}-{n}"
+        n += 1
+    return username
+
+
+def create_cloud_user(ident: dict):
+    """云端账户首次登录且不关联本机账户时，开一个空白工作台用户。
+
+    密码哈希存一个随机串 —— 云端账户没有本机密码，本机密码登录永远进不来这个用户。
+    """
+    if find_user_by_cloud_uid(ident["uid"]):
+        raise ValueError("该云端账户已关联本机用户")
+    username = _unique_cloud_username(ident)
+    display = (ident.get("name") or ident.get("email") or ident.get("phone") or username).strip()
+    execute(
+        "INSERT INTO users (username, display_name, password_hash, avatar_hue, created_at, "
+        "cloud_uid, cloud_email, cloud_phone) VALUES (?,?,?,?,?,?,?,?)",
+        (
+            username,
+            display[:40],
+            hash_password(secrets.token_urlsafe(24)),
+            secrets.randbelow(360),
+            now(),
+            ident["uid"],
+            ident.get("email"),
+            ident.get("phone"),
+        ),
+    )
+    row = get_user_by_username(username)
+    execute("UPDATE users SET last_login_at=? WHERE id=?", (now(), row["id"]))
+    return row
+
+
+def get_user_by_username(username: str):
+    rows = query("SELECT * FROM users WHERE username=?", ((username or "").strip(),))
+    return rows[0] if rows else None
+
+
+def link_cloud_uid(user_id: int, ident: dict):
+    """把云端账户挂到已有本机用户上；该本机账户若已挂别的云端账号则拒绝。"""
+    row = get_user(user_id)
+    if not row:
+        raise ValueError("本机账户不存在")
+    existing_uid = row.get("cloud_uid")
+    if existing_uid and existing_uid != ident["uid"]:
+        raise ValueError("该本机账户已关联其它云端账号")
+    if find_user_by_cloud_uid(ident["uid"]):
+        raise ValueError("该云端账户已关联本机用户")
+    execute(
+        "UPDATE users SET cloud_uid=?, cloud_email=?, cloud_phone=?, last_login_at=? WHERE id=?",
+        (ident["uid"], ident.get("email"), ident.get("phone"), now(), user_id),
+    )
+    return get_user(user_id)
 
 
 def update_profile(user_id: int, display_name: str | None = None, avatar_hue: int | None = None):

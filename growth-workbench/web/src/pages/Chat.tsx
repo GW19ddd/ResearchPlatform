@@ -748,7 +748,7 @@ export default function Chat() {
             onClick={backHome}
             className="whitespace-nowrap rounded-[7px] px-1.5 py-1 text-[12.5px] text-[color:var(--wb-muted)] transition hover:text-[color:var(--wb-accent)]"
           >
-            科研工作台
+            研流
           </button>
           <Icon name="chevronRight" size={12} className="shrink-0 text-[color:var(--wb-border-strong)]" />
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--wb-text)]">
@@ -1009,7 +1009,7 @@ export default function Chat() {
               onClose={closePicker}
             />
             <div
-              className="rounded-[20px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-md)] transition-[border-color,box-shadow] duration-150 focus-within:border-[color:var(--wb-accent)]/60 focus-within:shadow-[0_1px_3px_rgba(16,17,20,0.05),0_12px_32px_-16px_rgba(81,69,224,0.35)]"
+              className="rounded-[20px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-md)] transition-[border-color,box-shadow] duration-150"
               data-tour="tour-chat-composer"
             >
               {/* 已挂载技能：输入框内的 chip，× 可摘掉 */}
@@ -1153,7 +1153,7 @@ export default function Chat() {
                 onClose={closePicker}
               />
               <div
-                className="group w-full rounded-[14px] border bg-[color:var(--wb-surface)] px-3 py-2.5 shadow-[var(--wb-shadow-xs)] transition-[border-color,box-shadow] focus-within:border-[color:var(--wb-accent)] focus-within:shadow-[var(--wb-ring)] border-[color:var(--wb-border-strong)]"
+                className="group w-full rounded-[14px] border bg-[color:var(--wb-surface)] px-3 py-2.5 shadow-[var(--wb-shadow-xs)] transition-[border-color,box-shadow] border-[color:var(--wb-border-strong)]"
                 onKeyDown={(e) => {
                   if (pickerOpen && pickerHost === 'home') return
                   if (e.key === 'Enter' && !e.shiftKey) {

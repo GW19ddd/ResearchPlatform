@@ -1,0 +1,21 @@
+{
+  "schema": "workbench_tutorial.v1",
+  "kind": "tutorial",
+  "title": "用研流生成《基于LLM的AI单元测试生成》英文论文",
+  "paper_title": "LLM-Driven Unit Test Generation with a Dynamic Multi-Source Feedback Graph and Jev Typed Decision",
+  "language": "en",
+  "target_venue": "CCF-A / TOSEM",
+  "stages": ["survey", "topic", "innovation", "experiment", "postprocess", "writing"],
+  "assets": {
+    "literature_ids": [4, 455, 456, 457, 458, 459],
+    "idea_ids": [31, 32, 33],
+    "canvas_id": 25,
+    "paper_tex": "sources/llmutg_paper.tex",
+    "paper_pdf": "exports/llmutg_paper.pdf",
+    "figures": ["exports/architecture.svg", "exports/fig_results.svg"]
+  },
+  "notes_dir": "notes",
+  "sources_dir": "sources",
+  "exports_dir": "exports",
+  "note": "六阶段教程：调研→选题→创新→实验→数据后处理→写作。每一步都可在工作台内复现（左侧导航 / API）。实验数值为 illustrative 占位，须替换为实测值。"
+}

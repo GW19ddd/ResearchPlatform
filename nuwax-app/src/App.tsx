@@ -92,7 +92,7 @@ function Sidebar({
         {!collapsed && (
           <div className="min-w-0 flex-1">
             <div className="truncate text-[12.5px] font-semibold text-[color:var(--wb-text)]">
-              科研工作台
+              研流
             </div>
             <div className="truncate text-[9px] tracking-[0.06em] text-[color:var(--wb-muted)]">RESEARCH NOTES</div>
           </div>

@@ -15,13 +15,16 @@ from routers import (
     advisor,
     ai_guard,
     auth as auth_router,
+    billing,
     backup,
     browse,
     canvas,
     chat,
+    consensus,
     community,
     dashboard,
     expagent,
+    figure_gallery,
     gloss,
     litsearch,
     paper,
@@ -32,6 +35,7 @@ from routers import (
     research,
     settings,
     skills_market,
+    workspace,
     zotero,
 )
 
@@ -75,13 +79,34 @@ async def require_login(request: Request, call_next):
     if not path.startswith("/api") or request.method == "OPTIONS":
         return await call_next(request)
 
-    # 登录自身与健康探测必须匿名可达
-    if path in ("/api/health", "/api/auth/state", "/api/auth/login", "/api/auth/setup"):
+    # 登录自身与健康探测必须匿名可达；云端账户登录在校验凭证前必须先能调到
+    if path in (
+        "/api/health",
+        "/api/auth/state",
+        "/api/auth/login",
+        "/api/auth/setup",
+        "/api/auth/cloud/status",
+        "/api/auth/cloud/local-users",
+        "/api/auth/cloud/exchange",
+    ):
         return await call_next(request)
 
-    # 论文图代理匿名可达：封面图是公开可读内容，<img> 不带鉴权，
-    # 会话过期时也不该整页图都挂掉
-    if path.startswith("/api/paperfeed/fig/"):
+    # 支付网关回调：由网关服务器调用，带网关自己的签名而非用户会话，必须匿名可达
+    if path == "/api/billing/webhook":
+        return await call_next(request)
+
+    # 论文速递：列表/状态/设置/学科/封面图都是公开可读内容，匿名可达；
+    # fetch 与 figures 是「写库 + 起线程池」的变更型操作，必须登录后才能触发，
+    # 不进白名单（避免未授权者任意写库 / 消耗资源）。页面渲染只依赖上面的只读端点。
+    if (
+        path.startswith("/api/paperfeed/fig/")
+        or path in (
+            "/api/paperfeed/status",
+            "/api/paperfeed/papers",
+            "/api/paperfeed/settings",
+            "/api/paperfeed/subjects",
+        )
+    ):
         return await call_next(request)
 
     if not auth_core.has_user():
@@ -162,7 +187,7 @@ async def idempotency(request: Request, call_next):
 _DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
     """`/` 直接回前端页面（dist 已构建时）。"""
     if (_DIST / "index.html").is_file():
@@ -178,8 +203,10 @@ def health():
 
 
 app.include_router(auth_router.router)
+app.include_router(billing.router)
 app.include_router(research.router)
 app.include_router(expagent.router)
+app.include_router(figure_gallery.router)
 app.include_router(paper.router)
 app.include_router(plan.router)
 app.include_router(advisor.router)
@@ -199,6 +226,8 @@ app.include_router(ai_guard.router)
 app.include_router(backup.router)
 app.include_router(community.router)
 app.include_router(paperfeed.router)
+app.include_router(consensus.router)
+app.include_router(workspace.router)
 
 if _DIST.is_dir():
     app.mount("/assets", StaticFiles(directory=_DIST / "assets"), name="assets")

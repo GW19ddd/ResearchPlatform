@@ -10,9 +10,9 @@ import {
   YAxis,
 } from 'recharts'
 import { Btn, Card, Empty, Input, Loading, PageHeader, Pill, Segmented } from '../components/ui'
-import { Icon } from '../components/Icon'
 import { toast } from '../components/toast'
 import Heatmap, { HeatDay } from '../components/Heatmap'
+import OverviewSummary from '../features/stats/OverviewSummary'
 import { get, post } from '../lib/api'
 import { usePersist } from '../lib/state'
 import { C_ACCENT as C_FOCUS, C_OK as C_SLEEP, C_AXIS as AXIS, C_GRID as GRID } from '../lib/chartTokens'
@@ -61,12 +61,19 @@ function sleepAxis(vals: number[]): { lo: number; hi: number } {
   return { lo, hi }
 }
 
+/**
+ * 今日页（2026-11-12 起也是全站唯一汇总页，原「概览指标」已并入）：
+ *   ① 今日打卡条（页首，一行填完直接提交）
+ *   ② 近 14 天打卡趋势（紧贴打卡条，填完就能看到曲线变化）
+ *   ③ 待办事项（论文阻塞红警 + 逾期承诺 + 当前阶段）
+ *   ④ 进度推进（研究漏斗 + 三构成 + 论文/节奏）
+ *   ⑤ 活跃热力图
+ * 数据全部来自 GET /dashboard 与 GET /activity/heatmap 的实时汇总。
+ */
 export default function Dashboard() {
   const [data, setData] = useState<any>(null)
   const [heat, setHeat] = useState<any>(null)
   const [heatRange, setHeatRange] = usePersist('dash.heatRange', '182')
-  // 生活打卡（睡眠/专注曲线 + 打卡表单）默认折叠：今日页主线是科研待办，生活数据低频
-  const [lifeOpen, setLifeOpen] = usePersist('dash.lifeOpen', false)
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
   const [form, setForm] = usePersist<any>('dash.form', {
@@ -148,6 +155,9 @@ export default function Dashboard() {
   const sAxis = sleepAxis(sleepRaw)
   const clipped = sleepRaw.filter((x: any) => x !== null && (x < sAxis.lo || x > sAxis.hi)).length
   const chartData = (data.checkins || []).map((c: any, i: number) => ({
+    // 时间轴按真实日期排布：只有打卡当天才有数据点，中间的空白就是「那天没记录」，
+    // 不能用序号当横轴，否则 10 条记录会被均摊到整段宽度、看起来像每天都有数据。
+    ts: new Date(String(c.date) + 'T00:00:00').getTime(),
     date: String(c.date).slice(5),
     专注: c.focus_min ? Number(c.focus_min) : null,
     // 画出来的是截断到轴内的值，真实值放在 sleepRaw 里给悬停用
@@ -159,46 +169,177 @@ export default function Dashboard() {
   }))
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3.5">
       <PageHeader
-        eyebrow="今日概览"
-        title="今天"
-        desc={new Date().toLocaleDateString('zh-CN', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          weekday: 'long',
-        })}
+        desc={
+          new Date().toLocaleDateString('zh-CN', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            weekday: 'long',
+          }) + ' · 打卡 / 待办 / 进度都在这一页'
+        }
       />
 
-      <Card
-        title="活跃热力图"
-        tourId="tour-dash-stats"
-        extra={
-          <div className="flex items-center gap-2">
-            {heat && (
-              <span className="hidden text-[11.5px] text-[color:var(--wb-muted)] sm:inline">
-                共 {heat.total} 次 · 活跃 {heat.active_days} 天 · 连续 {heat.streak} 天（最长{' '}
-                {heat.best_streak}）
-              </span>
-            )}
-            <Segmented value={heatRange} onChange={setHeatRange} options={HEAT_RANGES} />
+      {/* ① 今日打卡：每天的第一件事，整条置顶。
+          用自绘外壳而不是 Card，因为这里需要「状态灯 + 标题 + 字段行 + 右侧主按钮」同一行对齐，
+          Card 的标题栏会让状态胶囊和标题抢位置、按钮被挤到第二行。 */}
+      <section className="rounded-[var(--wb-radius-lg)] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-4 py-3.5 shadow-[var(--wb-shadow-xs)]">
+        <form
+          className="flex flex-wrap items-end gap-x-5 gap-y-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            checkin()
+          }}
+        >
+          <div className="flex min-w-[104px] flex-col justify-end self-stretch">
+            <span className="flex items-center gap-1.5 text-[10.5px] text-[color:var(--wb-muted)]">
+              <span
+                className={`inline-block h-[6px] w-[6px] rounded-full ${
+                  data.checkin_today ? 'bg-[color:var(--wb-ok)]' : 'bg-[color:var(--wb-warn)]'
+                }`}
+                aria-hidden
+              />
+              {data.checkin_today ? '今天已打卡' : '今天还没打卡'}
+            </span>
+            <span className="mt-1 text-[15px] font-semibold tracking-[-0.02em] text-[color:var(--wb-text)]">
+              今日打卡
+            </span>
           </div>
+
+          {(
+            [
+              { key: 'sleep_h', label: '睡眠', unit: 'h' },
+              { key: 'exercise_min', label: '运动', unit: 'min' },
+              { key: 'focus_min', label: '专注', unit: 'min' },
+              { key: 'mood', label: '心情', unit: '1-5' },
+            ] as const
+          ).map((f) => (
+            <label key={f.key} className="flex w-[76px] flex-col gap-1">
+              <span className="text-[10.5px] text-[color:var(--wb-muted)]">
+                {f.label}
+                <span className="ml-0.5 text-[9.5px] text-[color:var(--wb-muted)]/70">{f.unit}</span>
+              </span>
+              <Input
+                type="number"
+                value={form[f.key]}
+                onChange={(v) => setForm({ ...form, [f.key]: v })}
+              />
+            </label>
+          ))}
+
+          <label className="flex min-w-[180px] flex-1 flex-col gap-1">
+            <span className="text-[10.5px] text-[color:var(--wb-muted)]">一句话（可选）</span>
+            <Input
+              placeholder="今天的状态…"
+              value={form.note}
+              onChange={(v) => setForm({ ...form, note: v })}
+            />
+          </label>
+
+          <Btn variant="primary" loading={saving} onClick={checkin} className="h-[34px] px-5">
+            {data.checkin_today ? '更新' : '打卡'}
+          </Btn>
+        </form>
+      </section>
+
+      {/* ② 打卡趋势：紧跟打卡条 —— 刚填完就能看到曲线变化；缺失数据不补 0，折线断开 */}
+      <Card
+        title="近 14 天打卡趋势"
+        extra={
+          <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+            左轴 专注（分钟）· 右轴 睡眠（小时）
+            {clipped > 0 ? ` · ${clipped} 天离群已截断` : ''}
+          </span>
         }
       >
-        {!heat || heat.days.length === 0 ? (
-          <Empty text="暂无活动记录" />
+        {chartData.length === 0 ? (
+          <Empty text="还没有打卡记录" hint="右边打一次卡，这里就会有曲线" />
         ) : (
-          <Heatmap days={heat.days as HeatDay[]} max={heat.max} />
+          <>
+            <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">
+              缺失数据不补 0：某天没填的项折线直接断开，悬停也能看到当天只填了哪一项。
+            </div>
+            <div style={{ height: 236 }}>
+              <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 8, right: 6, bottom: 0, left: -6 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
+                <XAxis
+            dataKey="ts"
+            type="number"
+            domain={[
+              (dataMin: number) => dataMin - 12 * 3600 * 1000,
+              (dataMax: number) => dataMax + 12 * 3600 * 1000,
+            ]}
+            tick={{ fontSize: 11, fill: AXIS }}
+            tickLine={false}
+            minTickGap={28}
+            tickFormatter={(v: number) => {
+              const d = new Date(v)
+              return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+            }}
+          />
+                <YAxis
+                  yAxisId="focus"
+                  tick={{ fontSize: 11, fill: AXIS }}
+                  tickLine={false}
+                  width={44}
+                  tickFormatter={(v: number) => `${v}m`}
+                />
+                <YAxis
+                  yAxisId="sleep"
+                  orientation="right"
+                  domain={[sAxis.lo, sAxis.hi]}
+                  allowDecimals
+                  tick={{ fontSize: 11, fill: AXIS }}
+                  tickLine={false}
+                  width={34}
+                  tickFormatter={(v: number) => `${v}h`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    fontSize: 12,
+                    borderRadius: 12,
+                    border: '1px solid #ebecf0',
+                    background: '#ffffff',
+                    padding: '8px 10px',
+                    boxShadow: '0 12px 32px -12px rgba(16,17,20,0.18)',
+                  }}
+                  formatter={(v: any, n: any, item: any) => {
+                    if (n === '睡眠') {
+                      const real = item?.payload?.sleepRaw
+                      return [`${real ?? v} 小时`, n]
+                    }
+                    return [`${v} 分钟`, n]
+                  }}
+                />
+                <Legend iconType="plainline" wrapperStyle={{ fontSize: 11 }} />
+                <Line
+                  yAxisId="focus"
+                  type="monotone"
+                  dataKey="专注"
+                  stroke={C_FOCUS}
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                  connectNulls
+                />
+                <Line
+                  yAxisId="sleep"
+                  type="monotone"
+                  dataKey="睡眠"
+                  stroke={C_SLEEP}
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                  connectNulls
+                />
+              </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </>
         )}
-        <p className="mt-2 text-[11.5px] text-[color:var(--wb-muted)]">
-          统计范围：{heatRange} 天内的活跃记录。文献 / 创新点 / 实验 / 笔记 / 画布运行 / 对话 / 积分 /
-          打卡，任何一天动了东西都会点亮；同一条目同一天只算一次。
-          <br />
-          图例：颜色越深当天动作越多；灰色 = 当天无记录（不是 0 次，是没记录）。
-        </p>
       </Card>
 
+      {/* ③ 待办事项：阻塞红警置顶，下面是逾期承诺与当前阶段 */}
       {data.paper.blocked?.length > 0 && (
         <div className="rounded-[12px] border border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-4 py-3">
           <div className="text-[13px] font-medium text-[color:var(--wb-danger)]">
@@ -210,158 +351,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 生活打卡默认折叠，避免抢占科研主线首屏 */}
-      <div>
-        <button
-          type="button"
-          onClick={() => setLifeOpen(!lifeOpen)}
-          className="flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium text-[color:var(--wb-text-soft)] hover:text-[color:var(--wb-accent)]"
-        >
-          <Icon name={lifeOpen ? 'chevronDown' : 'chevronRight'} size={13} />
-          生活打卡{data.checkin_today ? '' : ' · 今日还没打'}
-        </button>
-        {lifeOpen && (
-        <div className="mt-3 grid gap-4 md:grid-cols-3">
-        <Card
-          className="md:col-span-2"
-          title="近 14 天状态"
-          extra={
-            <span className="text-[11.5px] text-[color:var(--wb-muted)]">
-              左轴 专注（分钟）· 右轴 睡眠（小时）
-              {clipped > 0 ? ` · ${clipped} 天离群已截断` : ''}
-            </span>
-          }
-        >
-          {chartData.length === 0 ? (
-            <Empty text="还没有打卡记录" hint="右边打一次卡，这里就会有曲线" />
-          ) : (
-            <>
-              <div className="mb-1 text-[11.5px] text-[color:var(--wb-muted)]">
-                缺失数据不补 0：某天没填的项折线直接断开，悬停也能看到当天只填了哪一项。
-              </div>
-              <div style={{ height: 236 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 8, right: 6, bottom: 0, left: -6 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: AXIS }} tickLine={false} />
-                  <YAxis
-                    yAxisId="focus"
-                    tick={{ fontSize: 11, fill: AXIS }}
-                    tickLine={false}
-                    width={44}
-                    tickFormatter={(v: number) => `${v}m`}
-                  />
-                  <YAxis
-                    yAxisId="sleep"
-                    orientation="right"
-                    domain={[sAxis.lo, sAxis.hi]}
-                    allowDecimals
-                    tick={{ fontSize: 11, fill: AXIS }}
-                    tickLine={false}
-                    width={34}
-                    tickFormatter={(v: number) => `${v}h`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      fontSize: 12,
-                      borderRadius: 12,
-                      border: '1px solid #ebecf0',
-                      background: '#ffffff',
-                      padding: '8px 10px',
-                      boxShadow: '0 12px 32px -12px rgba(16,17,20,0.18)',
-                    }}
-                    formatter={(v: any, n: any, item: any) => {
-                      if (n === '睡眠') {
-                        const real = item?.payload?.sleepRaw
-                        return [`${real ?? v} 小时`, n]
-                      }
-                      return [`${v} 分钟`, n]
-                    }}
-                  />
-                  <Legend iconType="plainline" wrapperStyle={{ fontSize: 11 }} />
-                  <Line
-                    yAxisId="focus"
-                    type="monotone"
-                    dataKey="专注"
-                    stroke={C_FOCUS}
-                    strokeWidth={2}
-                    dot={{ r: 2 }}
-                    connectNulls
-                  />
-                  <Line
-                    yAxisId="sleep"
-                    type="monotone"
-                    dataKey="睡眠"
-                    stroke={C_SLEEP}
-                    strokeWidth={2}
-                    dot={{ r: 2 }}
-                    connectNulls
-                  />
-                </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </>
-          )}
-        </Card>
-
-        <Card
-          title={data.checkin_today ? '今日已打卡' : '今日打卡'}
-          extra={
-            data.checkin_today ? <Pill tone="green">已记录</Pill> : <Pill tone="amber">待打卡</Pill>
-          }
-        >
-          <div className="flex flex-col gap-2.5">
-            <label className="flex items-center justify-between text-[12px] text-[color:var(--wb-text-soft)]">
-              睡眠(h)
-              <Input
-                className="w-20"
-                type="number"
-                value={form.sleep_h}
-                onChange={(v) => setForm({ ...form, sleep_h: v })}
-              />
-            </label>
-            <label className="flex items-center justify-between text-[12px] text-[color:var(--wb-text-soft)]">
-              运动(min)
-              <Input
-                className="w-20"
-                type="number"
-                value={form.exercise_min}
-                onChange={(v) => setForm({ ...form, exercise_min: v })}
-              />
-            </label>
-            <label className="flex items-center justify-between text-[12px] text-[color:var(--wb-text-soft)]">
-              专注(min)
-              <Input
-                className="w-20"
-                type="number"
-                value={form.focus_min}
-                onChange={(v) => setForm({ ...form, focus_min: v })}
-              />
-            </label>
-            <label className="flex items-center justify-between text-[12px] text-[color:var(--wb-text-soft)]">
-              心情(1-5)
-              <Input
-                className="w-20"
-                type="number"
-                value={form.mood}
-                onChange={(v) => setForm({ ...form, mood: v })}
-              />
-            </label>
-            <Input
-              placeholder="一句话（可选）"
-              value={form.note}
-              onChange={(v) => setForm({ ...form, note: v })}
-            />
-            <Btn variant="primary" loading={saving} onClick={checkin}>
-              {data.checkin_today ? '更新今日打卡' : '打卡'}
-            </Btn>
-          </div>
-        </Card>
-        </div>
-        )}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* items-start：两张卡各自按内容高度收口，没有承诺时不会撑出半屏空白 */}
+      <div className="grid items-start gap-3.5 md:grid-cols-2">
         <Card title="对导师的承诺">
           {data.commitments.items.length === 0 ? (
             <Empty text="没有逾期承诺" />
@@ -402,6 +393,39 @@ export default function Dashboard() {
           )}
         </Card>
       </div>
+
+      {/* ④ 进度推进：研究漏斗 + 三构成 + 论文/节奏（原概览指标内容并入，放日常动作之后） */}
+      <OverviewSummary data={data} />
+
+      {/* ⑤ 活跃热力图：全宽，区间可切 */}
+      <Card
+        title="活跃热力图"
+        tourId="tour-dash-stats"
+        extra={
+          <div className="flex items-center gap-2">
+            {heat && (
+              <span className="hidden text-[11.5px] text-[color:var(--wb-muted)] sm:inline">
+                共 {heat.total} 次 · 活跃 {heat.active_days} 天 · 连续 {heat.streak} 天（最长{' '}
+                {heat.best_streak}）
+              </span>
+            )}
+            <Segmented value={heatRange} onChange={setHeatRange} options={HEAT_RANGES} />
+          </div>
+        }
+      >
+        {!heat || heat.days.length === 0 ? (
+          <Empty text="暂无活动记录" />
+        ) : (
+          <Heatmap days={heat.days as HeatDay[]} max={heat.max} />
+        )}
+        <p className="mt-2 text-[11.5px] text-[color:var(--wb-muted)]">
+          统计范围：{heatRange} 天内的活跃记录。文献 / 创新点 / 实验 / 笔记 / 画布运行 / 对话 / 积分 /
+          打卡，任何一天动了东西都会点亮；同一条目同一天只算一次。
+          <br />
+          图例：颜色越深当天动作越多；灰色 = 当天无记录（不是 0 次，是没记录）。
+        </p>
+      </Card>
+
     </div>
   )
 }

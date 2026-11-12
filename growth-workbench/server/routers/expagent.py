@@ -13,11 +13,13 @@ import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import config
 import llm
 import chat_prefs
+import local_skills
 from chat_prefs import ChatPrefsIn
 from crud import row_or_404
 from db import execute, now, query
@@ -31,6 +33,62 @@ RUN_TIMEOUT_S = 300
 MAX_MSG_CHARS = 1500
 
 PROV_LEVELS = {"measured", "simulated", "illustrative"}
+
+# 实验 Agent 默认挂载的本地技能（每次实验自动生效，与前端 AgentLab 的
+# EXP_DEFAULT_SKILLS 对应）。只读本机 ~/.workbuddy/skills/<dir>/SKILL.md，
+# 缺失的技能静默跳过——绝不因技能目录变动而让实验崩溃。
+# 范围：与「写代码→执行→落账」实验闭环直接相关的技能（可复现性 / 证据批判 /
+# 结果一致性 / 基准基线 / 论文图表）。
+DEFAULT_EXP_SKILLS = [
+    "test-research-code",
+    "scientific-critical-thinking",
+    "verify-results",
+    "benchmark-and-baseline-selector",
+    "paper-figure",
+]
+
+
+def _agent_skill_block(body: "AgentIn") -> str:
+    """拼出每轮实验 Agent 的「挂载技能」system 片段。
+
+    - 前端显式传了 skill_refs（含空列表）→ 完全以它为准（用户可关闭默认）
+    - 未传（旧调用方 / 缺省）→ 回退到 DEFAULT_EXP_SKILLS，保证「每轮默认生效」
+    只读本机 SKILL.md，缺失的技能静默跳过（这里刻意不抛 400，与 _skill_mounts 不同，
+    因为实验 Agent 的默认挂载必须容忍技能目录被改名/卸载）。
+    """
+    refs = getattr(body, "skill_refs", None)
+    if refs is None:
+        ids: list[str] = list(DEFAULT_EXP_SKILLS)
+    else:
+        ids = []
+        for r in refs:
+            if not isinstance(r, dict):
+                continue
+            sid = str(r.get("id") or "").strip()
+            if sid.startswith("local:"):
+                ids.append(sid[6:])
+
+    # 默认挂载 5 个技能合计约 54K 字符（用户要求「都需要」），给足预算全部注入；
+    # 单技能仍封顶 16000，作为单个技能过长的兜底。
+    MAX_TOTAL = 60000
+    budget = MAX_TOTAL
+    mounts: list[tuple[str, str]] = []
+    for d in ids:
+        raw = local_skills.read_id("local:" + d)
+        if not raw:
+            continue  # 容忍：技能缺失不报错
+        raw = raw[:16000]
+        if budget <= 0:
+            break
+        if len(raw) > budget:
+            raw = local_skills.clip_text(raw, budget)
+        budget -= len(raw)
+        mounts.append((d, raw))
+
+    if not mounts:
+        return ""
+    blocks = "\n\n".join(f"--- {name} ---\n{raw}" for name, raw in mounts)
+    return "\n\n【挂载技能（每轮实验自动生效，按技能原文执行）】\n" + blocks
 
 
 def ws_dir(exp_id: int) -> Path:
@@ -89,6 +147,7 @@ def _snapshot(root: Path) -> dict[str, float]:
 
 class AgentIn(ChatPrefsIn):
     message: str
+    skill_refs: list[dict] | None = None  # 本轮额外挂载的技能 chip（前端开关；缺省回退默认）
 
 
 @router.get("/experiments/{exp_id}/agent/messages")
@@ -254,6 +313,33 @@ def _register_run(exp_id: int, command: str, status: str, wall_ms: int,
 
 @router.post("/experiments/{exp_id}/agent")
 async def agent_turn(exp_id: int, body: AgentIn):
+    """非流式端点（保留给旧调用方）；前端已改用 /agent/stream。"""
+    return await _agent_turn_core(exp_id, body, emit=None)
+
+
+def _stage(key: str, label: str, detail: str = "") -> dict:
+    """一条阶段事件（与 /research 的 stage 事件同构，前端共用渲染逻辑）。"""
+    return {"type": "stage", "key": key, "label": label, "detail": detail}
+
+
+async def _paced(coro, emit, key: str, label: str):
+    """长调用（LLM / 子进程）期间按真实耗时推心跳，详情里明写是耗时估算。"""
+    if not emit:
+        return await coro
+    task = asyncio.create_task(coro)
+    t0 = time.monotonic()
+    while not task.done():
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=2.0)
+            break
+        except asyncio.TimeoutError:
+            sec = int(time.monotonic() - t0)
+            emit(_stage(key, label, f"{label}中 · 已用 {sec}s（按耗时估算）"))
+    return await task
+
+
+async def _agent_turn_core(exp_id: int, body: AgentIn, emit=None) -> dict:
+    """一轮 Agent 的完整执行。emit=None 时无事件（JSON 端点）；传回调则逐阶段推送。"""
     exp = row_or_404("experiments", exp_id)
     msg = (body.message or "").strip()
     if not msg:
@@ -268,15 +354,24 @@ async def agent_turn(exp_id: int, body: AgentIn):
     history.reverse()
     files_before = list_ws_files(exp_id)
     context = _build_context(exp, history, files_before) + chat_prefs.system_from(body)
+    # 默认挂载实验技能：每轮自动把相关本地 skill 原文注入，让 Agent 按技能规程干活
+    skill_block = _agent_skill_block(body)
+    if skill_block:
+        context = context + skill_block
 
     ts_dir = time.strftime("run-%Y%m%d-%H%M%S")
     prompt = _AGENT_PROMPT.format(
         context=context, message=msg, ts_dir=ts_dir,
         max_files=MAX_FILES, timeout_s=RUN_TIMEOUT_S,
     )
-    data, env = await llm.complete_json_result(
-        prompt, mode="fast", task="exp-agent", max_tokens=8192,
-        model_override=chat_prefs.model_override(body),
+    if emit:
+        emit(_stage("plan", "生成实验方案", "读取实验上下文与工作区，让 AI 规划本轮动作"))
+    data, env = await _paced(
+        llm.complete_json_result(
+            prompt, mode="fast", task="exp-agent", max_tokens=8192,
+            model_override=chat_prefs.model_override(body),
+        ),
+        emit, "plan", "生成实验方案",
     )
     if not env["ok"]:
         return {"ok": False, "error": env["error"]}
@@ -286,6 +381,8 @@ async def agent_turn(exp_id: int, body: AgentIn):
     root.mkdir(parents=True, exist_ok=True)
 
     # 1) 写产物文件（同名覆盖=迭代工作区，符合 Open Science「文件即产物」）
+    if emit and files:
+        emit(_stage("files", "写入产物文件", f"共 {len(files)} 个文件"))
     written: list[str] = []
     for f in files:
         p = root / f["name"]
@@ -296,6 +393,8 @@ async def agent_turn(exp_id: int, body: AgentIn):
     # 2) 执行：快照前后 diff 定位产出文件；输出固定落 runs/<新时间戳>/
     run_info = None
     if command:
+        if emit:
+            emit(_stage("run", "执行命令", f"{command[:80]}"))
         (root / ts_dir).mkdir(exist_ok=True)
         pre = _snapshot(root)
         t0 = time.monotonic()
@@ -307,7 +406,7 @@ async def agent_turn(exp_id: int, body: AgentIn):
             )
 
         try:
-            proc = await asyncio.to_thread(_run)
+            proc = await _paced(asyncio.to_thread(_run), emit, "run", "执行命令")
             wall_ms = int((time.monotonic() - t0) * 1000)
             exit_code, status = proc.returncode, ("ok" if proc.returncode == 0 else "failed")
             tail = ((proc.stdout or "") + (("\n[stderr]\n" + proc.stderr) if proc.stderr else ""))[-MAX_OUTPUT_CHARS:]
@@ -332,6 +431,8 @@ async def agent_turn(exp_id: int, body: AgentIn):
 
     # 3) 结果落账（只有命令真实跑完才可能给出；run 失败时机械降级为示意口径，
     #    防「假数字以实测身份进结论」——口径契约不由模型自觉保证）
+    if emit and record:
+        emit(_stage("record", "结果落账", f"{record['case_name']}（{record['provenance']}）"))
     recorded = None
     if record:
         note_suffix = ""
@@ -366,3 +467,57 @@ async def agent_turn(exp_id: int, body: AgentIn):
         "provider": env["provider"], "model": env["model"],
         "tokens_in": env["tokens_in"], "tokens_out": env["tokens_out"],
     }
+
+
+@router.post("/experiments/{exp_id}/agent/stream")
+async def agent_turn_stream(exp_id: int, body: AgentIn):
+    """SSE 流式端点：阶段事件（生成方案 → 写文件 → 执行命令 → 落账）+ done / error。
+
+    Agent 的产出是结构化 JSON（reply/files/command），不能逐 token 流式正文，
+    这里流的是真实执行阶段——用户在等待期间能看到 AI 正在干什么。
+    与 /research 同一约定：不要带 Idempotency-Key（幂等中间件会缓冲整条流）。
+    """
+    import json as _json
+
+    q: asyncio.Queue[dict | None] = asyncio.Queue()
+
+    def emit(ev: dict) -> None:
+        q.put_nowait(ev)
+
+    async def run() -> None:
+        try:
+            payload = await _agent_turn_core(exp_id, body, emit=emit)
+            emit({"type": "done", **payload})
+        except HTTPException as exc:
+            emit({"type": "error", "message": str(exc.detail)})
+        except Exception as exc:  # noqa: BLE001 —— 流里不能抛裸异常
+            emit({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+        finally:
+            q.put_nowait(None)
+
+    async def gen():
+        task = asyncio.create_task(run())
+        try:
+            while True:
+                ev = await q.get()
+                if ev is None:
+                    break
+                yield "data: " + _json.dumps(ev, ensure_ascii=False) + "\n\n"
+                if ev.get("type") in ("done", "error"):
+                    break
+        finally:
+            if not task.done():
+                try:
+                    await asyncio.wait_for(asyncio.shield(task), timeout=0.2)
+                except Exception:
+                    task.cancel()
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )

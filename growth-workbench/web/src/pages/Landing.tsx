@@ -66,8 +66,8 @@ export default function Landing() {
         <div className="flex items-center gap-2.5">
           <Mark />
           <div className="leading-tight">
-            <div className="text-[13px] font-semibold text-[color:var(--wb-text)]">科研工作台</div>
-            <div className="text-[10.5px] text-[color:var(--wb-muted)]">Research Workbench</div>
+            <div className="text-[13px] font-semibold text-[color:var(--wb-text)]">研流</div>
+            <div className="text-[10.5px] text-[color:var(--wb-muted)]">科研一站式工作台</div>
           </div>
         </div>
         <Btn variant="ghost" size="sm" onClick={() => nav('/today')}>

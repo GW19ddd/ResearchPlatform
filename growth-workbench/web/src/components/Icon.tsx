@@ -80,6 +80,7 @@ export type IconName =
   | 'notebook'
   | 'inbox'
   | 'play'
+  | 'code'
   | 'sigma'
   | 'bookOpen'
   | 'lightbulb'
@@ -95,6 +96,7 @@ export type IconName =
   | 'hand'
   | 'bolt'
   | 'cpu'
+  | 'crown'
 
 const P: Record<IconName, ReactElement> = {
   home: (
@@ -433,6 +435,12 @@ const P: Record<IconName, ReactElement> = {
     </>
   ),
   play: <path d="M8.5 6.2v11.6c0 .8.9 1.3 1.6.9l9.2-5.8c.6-.4.6-1.4 0-1.8l-9.2-5.8c-.7-.4-1.6.1-1.6.9z" />,
+  code: (
+    <>
+      <path d="M8.5 8.5L4 12l4.5 3.5M15.5 8.5L20 12l-4.5 3.5" />
+      <path d="M13.5 5.5l-3 13" />
+    </>
+  ),
   sigma: <path d="M17.5 5H8l5.2 7L8 19h9.5" />,
   bookOpen: (
     <>
@@ -543,6 +551,12 @@ const P: Record<IconName, ReactElement> = {
       <rect x="6" y="6" width="12" height="12" rx="2" />
       <rect x="9.2" y="9.2" width="5.6" height="5.6" rx="1" />
       <path d="M9 2.5v3.5M15 2.5v3.5M9 18v3.5M15 18v3.5M2.5 9H6M2.5 15H6M18 9h3.5M18 15h3.5" />
+    </>
+  ),
+  crown: (
+    <>
+      <path d="M3 7.5l3.6 3L12 5l5.4 5.5L21 7.5l-1.4 9.5H4.4z" />
+      <path d="M6 21h12" />
     </>
   ),
 }

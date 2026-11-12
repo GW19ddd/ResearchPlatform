@@ -127,6 +127,25 @@ def list_documents():
     return {"documents": docs}
 
 
+@router.patch("/messages/{mid}")
+def edit_report_message(mid: int, body: dict):
+    """直接编辑报告文档正文（文档 = kind=report 的消息沉淀）。
+
+    只放行 report：聊天消息的编辑走各模块自己的通道，这里不兜底。
+    文档标题取正文首个一级标题，保存后左栏文档列表会随刷新自动更新。
+    """
+    content = (body.get("content") or "").strip()
+    if not content:
+        raise HTTPException(400, "内容不能为空")
+    row = query("SELECT kind FROM rchat_messages WHERE id=?", (mid,))
+    if not row:
+        raise HTTPException(404, "文档不存在")
+    if row[0]["kind"] != "report":
+        raise HTTPException(400, "只支持编辑报告文档")
+    execute("UPDATE rchat_messages SET content=? WHERE id=?", (content, mid))
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------- 深度检索 / 对话 / 报告
 
 
@@ -140,6 +159,8 @@ class ChatIn(ChatPrefsIn):
     max_papers: int | None = None
     # review 模式：用户在文献检索栏勾选的 literature.id 列表，只对这些写综述
     lit_ids: list[int] | None = None
+    # 深度检索叠加 Consensus.app 共识检索（作为调研方法，把同行评审文献并回引用）
+    use_consensus: bool = False
 
 
 RESEARCH_SYSTEM = (
@@ -291,8 +312,162 @@ async def _paced(coro, emit, key: str, label: str, start: int, cap: int):
     return await task
 
 
+async def _gen_text(
+    prompt: str, *, system: str, task: str, max_tokens: int, prefs: dict | None, emit,
+    delta_event: str = "delta",
+) -> dict:
+    """正文生成统一入口：SSE 端点传 emit 时走 token 级流式（逐段推 delta 事件），
+    JSON 端点 emit=None 时整段调用（行为与旧版完全一致）。
+
+    delta_event 决定流式时推的事件名：正文用 "delta"，思考过程用 "thinking_delta"
+    （让「正在思考」也逐字流出，而不是等整段生成完才弹出来）。
+
+    返回与 complete_with_meta 同构的信封：ok / content / provider / model / tokens。
+    流式失败同样抛 HTTPException(502)，与旧版失败路径一致。
+    """
+    if emit is None:
+        return await llm.complete_with_meta(
+            prompt, system=system, mode="fast", task=task, max_tokens=max_tokens,
+            model_override=chat_prefs.model_override(prefs),
+        )
+    text_parts: list[str] = []
+    meta_ev: dict | None = None
+    err: dict | None = None
+    async for ev in llm.stream_chat_events(
+        [{"role": "user", "content": prompt}],
+        system=system, mode="fast", task=task, max_tokens=max_tokens,
+        model_override=chat_prefs.model_override(prefs),
+    ):
+        if ev["type"] == "delta":
+            text_parts.append(ev["text"])
+            emit({"type": delta_event, "text": ev["text"]})
+        elif ev["type"] == "meta":
+            meta_ev = ev
+        else:
+            err = ev.get("error") or {}
+    if err:
+        raise HTTPException(502, f"AI 生成失败：{err.get('label') or ''} {err.get('message') or ''}")
+    if meta_ev is None:
+        raise HTTPException(502, "AI 生成失败：流已结束但没有结果")
+    return {
+        "ok": True,
+        "content": meta_ev.get("content") or "".join(text_parts),
+        "provider": meta_ev.get("provider") or "",
+        "model": meta_ev.get("model") or "",
+        "tokens_in": int(meta_ev.get("tokens_in") or 0),
+        "tokens_out": int(meta_ev.get("tokens_out") or 0),
+        "error": None,
+    }
+
+
+async def _gen_think(
+    instr: str, hist_text: str, prefs: dict | None, emit
+) -> tuple[str, bool, list[str]]:
+    """思考步骤（agentic 的「显式推理 + 工具决策」）：
+
+    1) 轻量 JSON 决策：这个问题要不要查 OpenAlex 文献来支撑（避免闲聊/观点题也去检索）；
+    2) 流式输出推理过程（thinking_delta），让前端看到「正在思考」逐字展开，
+       而不是等整段答完才弹思考块。
+
+    返回 (thinking 文本, 是否检索, 建议检索式)。emit=None 时仍返回 thinking 供落库。
+    决策失败优雅降级：thinking 给一句占位，search 默认 False（少检索比误检索安全）。
+    """
+    def stage(key, label, pct, detail="", count=None, unit=""):
+        if emit:
+            emit(_stage(key, label, pct, detail, count, unit))
+
+    stage("think", "理解问题并规划", 8, "判断是否需要检索文献，并梳理回答思路")
+
+    # ① 决策：是否需要检索（轻量 JSON，先出，便于后面决定是否调用检索工具）
+    decide_prompt = (
+        f"研究问题：{instr}\n\n最近对话：\n{hist_text or '（无）'}\n\n"
+        '只需输出 JSON：{"search": true/false, "queries": ["英文检索式，最多 3 条，仅 search=true 时填"]}。'
+        "search=true 当且仅当回答需要外部文献支撑；纯对话续写/观点/闲聊填 false。"
+    )
+    search, queries = False, []
+    try:
+        data, _e = await llm.complete_json_result(
+            decide_prompt, system="你是严谨的研究副驾。只输出 JSON，不要解释。", mode="fast",
+            task="rchat:think-decide", max_tokens=300,
+            model_override=chat_prefs.model_override(prefs),
+        )
+        if isinstance(data, dict):
+            search = bool(data.get("search"))
+            queries = [str(q).strip() for q in (data.get("queries") or []) if str(q).strip()][:3]
+    except Exception:
+        # 决策失败不致命：默认不检索，思考块仍会给出一句占位
+        search, queries = False, []
+
+    # ② 流式输出思考过程（thinking_delta）
+    stage("think", "梳理回答思路", 12, "正在生成推理过程…")
+    think_env = await _gen_text(
+        f"研究问题：{instr}\n\n最近对话：\n{hist_text or '（无）'}\n\n"
+        "请输出你的推理过程（中文，2-5 句，简明，不要寒暄、不要列点）：\n"
+        "核心问题是什么、打算从哪些角度回答、"
+        + ("将检索文献来支撑论点" if search else "可基于已有对话直接回答，无需检索")
+        + "。",
+        system=_research_system(prefs),
+        task="rchat:think", max_tokens=500, prefs=prefs, emit=emit, delta_event="thinking_delta",
+    )
+    thinking = (think_env.get("content") or "").strip()
+    if not thinking:
+        thinking = "已分析问题并规划回答方向。"
+    stage("think", "梳理回答思路", 16, thinking[:120])
+    return thinking, search, queries
+
+
+async def _retrieve_auto(
+    queries: list[str], mp: int, emit, stage,
+) -> tuple[list[dict], list[dict], int]:
+    """auto 模式的轻量真实检索：与 deep 同款 OpenAlex 链路，规模更小（默认 8 篇）。
+
+    返回 (citations, papers, raw_hits)。emit=None 时仍返回数据用于落库。
+    papers 与 citations 同构（文献检索卡行 = 引用行），前端从引用回填时各列才有值。
+    """
+    mp = max(4, min(12, mp))
+    n_queries = max(1, len(queries))
+    per_page = max(5, min(12, -(-(mp * 16) // n_queries)))  # ceil(mp*1.6/n_queries)
+
+    stage("search", "检索 OpenAlex", 28, f"{n_queries} 条检索式并发检索（每式最多 {per_page} 条）")
+    seen: set[str] = set()
+    works: list[dict] = []
+    raw_hits = 0
+    async with httpx.AsyncClient(timeout=30) as client:
+        results = await asyncio.gather(
+            *(_oa_search(client, q, per_page=per_page) for q in queries), return_exceptions=True
+        )
+        for res in results:
+            if isinstance(res, Exception):
+                continue
+            raw_hits += len(res)
+            for w in res:
+                pm = _parse_oa_work(w)
+                key = pm.get("openalex_id") or _norm_title(pm.get("title", ""))
+                if key and key not in seen:
+                    seen.add(key)
+                    works.append(w)
+    works.sort(key=lambda w: w.get("cited_by_count") or 0, reverse=True)
+    works = works[:mp]
+    stage("dedupe", "去重并写入文献库", 44, f"按 OpenAlex ID / 归一化标题去重，保留 {len(works)} 篇")
+    citations: list[dict] = []
+    papers: list[dict] = []
+    for i, w in enumerate(works, 1):
+        meta = _parse_oa_work(w)
+        lit_id, _created = _find_or_create_lit(meta)  # 命中即入文献库（去重）
+        hit = _paper_hit(w, i, lit_id, queries)
+        citations.append(hit)
+        papers.append(hit)
+    if emit:
+        emit({"type": "papers", "papers": papers, "total": len(papers),
+              "query_count": len(queries), "raw_hits": raw_hits})
+    stage("dedupe", "去重并写入文献库", 56,
+          f"已入库 {len(citations)} 篇 · 生成文献检索卡", len(citations), "篇")
+    return citations, papers, raw_hits
+
+
 async def _deep_search(
-    instr: str, emit=None, prefs: dict | None = None, max_papers: int | None = None
+    instr: str, emit=None, prefs: dict | None = None, max_papers: int | None = None,
+    use_consensus: bool = False,
 ) -> tuple[str, list[dict], list[str], list[dict], list[dict]]:
     """返回 (综述文本, citations, queries, suggests, 文献检索卡行)。
 
@@ -301,6 +476,7 @@ async def _deep_search(
 
     max_papers：想保留的文献篇数上限（仅影响 deep 模式）。默认 15，合法区间 4–40。
     检索式数量与每条 per_page 都按目标篇数自适应放大，保证去重后仍有足够候选。
+    use_consensus：叠加 Consensus.app 共识检索，把同行评审文献并回引用（调研方法）。
     """
     # 篇数预算：限制区间，避免一次拉几百上千条把 OpenAlex 与 LLM 提示词撑爆
     mp = 15
@@ -313,7 +489,18 @@ async def _deep_search(
         if emit:
             emit(_stage(key, label, pct, detail, count, unit))
 
-    stage("queries", "生成检索式", 8, "把研究问题翻成 OpenAlex 英文检索式")
+    # 思考步骤：先让模型梳理检索方向（流式 thinking_delta 推到前端，显示「正在思考」）
+    stage("think", "梳理检索方向", 4, "分析研究问题，规划检索角度")
+    think_env = await _gen_text(
+        f"研究问题：{instr}\n\n请输出你的检索思路（中文，2-4 句，简明，不要寒暄）："
+        "这个方向的核心是什么、打算从哪些角度检索文献、预期能回答什么。",
+        system=_research_system(prefs),
+        task="rchat:think", max_tokens=400, prefs=prefs, emit=emit, delta_event="thinking_delta",
+    )
+    thinking = (think_env.get("content") or "").strip()
+    stage("think", "梳理检索方向", 8, (thinking[:120] if thinking else "规划检索角度"))
+
+    stage("queries", "生成检索式", 12, "把研究问题翻成 OpenAlex 英文检索式")
     queries = await _gen_queries(instr, max_q=n_queries)
     if not queries:
         queries = [instr]
@@ -350,22 +537,61 @@ async def _deep_search(
     for i, w in enumerate(works, 1):
         meta = _parse_oa_work(w)
         lit_id, _created = _find_or_create_lit(meta)  # 命中即入文献库（去重）
-        meta["lit_id"] = lit_id
-        meta["n"] = i
-        citations.append(meta)
-        papers.append(_paper_hit(w, i, lit_id, queries))
+        # 引用 = 文献检索卡同一份全字段行（match/language/cit_per_year/pdf_url 等），
+        # 报告/综述继承它，前端从引用回填文献栏时各列才有值
+        hit = _paper_hit(w, i, lit_id, queries)
+        citations.append(hit)
+        papers.append(hit)
         src_lines.append(
             f"[{i}] {meta['title']} — {meta['authors'] or '佚名'} ({meta['year'] or 'n.d.'}) "
             f"| {meta['venue'] or ''} | 被引 {meta['cited_by_count']} | doi:{meta['doi'] or '无'}"
         )
-    stage("dedupe", "去重并写入文献库", 58,
+    # ---- 共识检索（Consensus.app）：作为可叠加的调研方法，把同行评审文献并回引用 ----
+    if use_consensus:
+        stage("consensus", "共识检索 Consensus", 52, "向 Consensus.app 检索同行评审文献与结论 takeaway")
+        try:
+            import consensus as cs
+            async with httpx.AsyncClient(timeout=30) as ccli:
+                cns = await cs.search(ccli, instr, page_size=10)
+            added = 0
+            for p in cns.get("results", []):
+                added += 1
+                i = len(citations) + 1
+                title = p.get("title") or "（无标题）"
+                authors = p.get("authors") or "佚名"
+                year = p.get("year") or "n.d."
+                venue = p.get("journal_name") or ""
+                cited = p.get("citation_count") or 0
+                tk = p.get("takeaway")
+                hit = {
+                    "n": i, "lit_id": 0, "openalex_id": None,
+                    "title": title, "authors": authors, "year": p.get("year"),
+                    "venue": venue, "doi": p.get("doi") or "", "url": p.get("url") or "",
+                    "cited_by_count": cited, "cit_per_year": None,
+                    "language": "—", "match": None, "pdf_url": "", "is_oa": False,
+                    "abstract": p.get("abstract") or "",
+                    "takeaway": tk or "", "source": "consensus",
+                }
+                citations.append(hit)
+                papers.append(hit)
+                tk_line = f" | 结论：{tk}" if tk else ""
+                src_lines.append(
+                    f"[{i}] {title} — {authors} ({year}) "
+                    f"| {venue} | 被引 {cited} | Consensus{tk_line}"
+                )
+            stage("consensus", "共识检索 Consensus", 58,
+                  f"并入 {added} 篇共识来源（Consensus.app）", added, "篇")
+        except Exception as e:  # 共识失败不影响 OpenAlex 主线
+            stage("consensus", "共识检索 Consensus", 58, f"跳过（{type(e).__name__}）")
+
+    stage("dedupe", "去重并写入文献库", 60,
           f"已入库 {len(citations)} 篇 · 生成文献检索卡", len(citations), "篇")
     if emit:
         emit({"type": "papers", "papers": papers, "total": len(papers),
               "query_count": len(queries), "raw_hits": raw_hits})
 
     stage("write", "撰写深度综述", 62, "只允许引用上面命中的真实来源，标注 [n]")
-    llm_call = llm.complete_with_meta(
+    env = await _gen_text(
         f"研究问题：{instr}\n\n"
         f"检索式：{'；'.join(queries)}\n\n"
         "检索命中的来源（只允许引用这些，标注 [n]）：\n" + "\n".join(src_lines) + "\n\n"
@@ -375,12 +601,10 @@ async def _deep_search(
         "如果来源不足以支撑某个判断，直接说「检索结果未覆盖」。"
         "结尾另起一行输出：\nSUGGESTS: 后续指令1 | 后续指令2",
         system=_research_system(prefs),
-        mode="fast",
         task="rchat:deep",
         max_tokens=min(4000, max(2200, 130 * mp)),
-        model_override=chat_prefs.model_override(prefs),
+        prefs=prefs, emit=emit,
     )
-    env = await _paced(llm_call, emit, "write", "撰写深度综述", 62, 92)
     if not env.get("ok"):
         e = env.get("error") or {}
         raise HTTPException(502, f"AI 综述失败：{e.get('label') or ''} {e.get('message') or ''}")
@@ -392,7 +616,7 @@ async def _deep_search(
         suggests = [s.strip() for s in m.group(1).split("|") if s.strip()][:2]
     stage("write", "撰写深度综述", 96,
           f"综述完成 · 引用 {len(citations)} 篇", len(citations), "篇")
-    return text, citations, queries, suggests, papers
+    return text, citations, queries, suggests, papers, thinking
 
 
 async def _write_report(
@@ -424,7 +648,7 @@ async def _write_report(
         for c in cits
     )
     stage("write", "撰写结构化报告", 45, "结论先行 · 证据范围 · 主要脉络 · 研究空白")
-    llm_call = llm.complete_with_meta(
+    env = await _gen_text(
         "以下是本会话的完整对话与检索到的参考文献。请写一份结构化中文 Markdown 报告：\n"
         "# 标题（根据主题起）\n"
         "## 结论先行（3-5 条要点）\n## 证据范围（基于哪些来源，[n] 引用）\n"
@@ -433,12 +657,10 @@ async def _write_report(
         "没有依据的地方明写「会话中未覆盖」；不要编造文献或数字。\n\n"
         "=== 对话记录 ===\n" + _hist_text(sid, limit=30) + "\n\n=== 参考文献 ===\n" + (refs or "（无）"),
         system=_research_system(prefs),
-        mode="fast",
         task="rchat:report",
         max_tokens=3000,
-        model_override=chat_prefs.model_override(prefs),
+        prefs=prefs, emit=emit,
     )
-    env = await _paced(llm_call, emit, "write", "撰写结构化报告", 45, 90)
     if not env.get("ok"):
         e = env.get("error") or {}
         raise HTTPException(502, f"报告生成失败：{e.get('label') or ''} {e.get('message') or ''}")
@@ -525,7 +747,7 @@ async def _review_selected(
           len(citations), "篇")
 
     stage("write", "撰写选中文献综述", 45, "只引用勾选的来源，标注 [n]")
-    llm_call = llm.complete_with_meta(
+    env = await _gen_text(
         f"用户指令：{instr}\n\n"
         "以下是用户从检索结果中**勾选**的文献（只允许引用这些，标注 [n]）：\n"
         + "\n".join(src_lines) + "\n\n"
@@ -538,12 +760,10 @@ async def _review_selected(
         "要求：每条主张都要有 [n] 引用或摘要依据；摘要里没写的不要脑补；"
         "证据不足的地方明写「所选文献未覆盖」；不要编造文献、venue 或数字。",
         system=_research_system(prefs),
-        mode="fast",
         task="rchat:review",
         max_tokens=min(4000, max(2200, 160 * len(citations))),
-        model_override=chat_prefs.model_override(prefs),
+        prefs=prefs, emit=emit,
     )
-    env = await _paced(llm_call, emit, "write", "撰写选中文献综述", 45, 90)
     if not env.get("ok"):
         e = env.get("error") or {}
         raise HTTPException(502, f"综述生成失败：{e.get('label') or ''} {e.get('message') or ''}")
@@ -597,16 +817,23 @@ def _store_assistant(sid: int, kind: str, content: str, meta: dict, env: dict, t
 
 async def _run_modes(sid: int, instr: str, mode: str, emit, t0: float, prefs: dict | None = None,
                      max_papers: int | None = None, lit_ids: list[int] | None = None):
-    """执行 auto / deep / report / review，返回 (env, kind, content, meta)。emit=None 时无阶段事件。"""
+    """执行 auto / deep / report / review，返回 (env, kind, content, meta)。emit=None 时无阶段事件。
+
+    auto / deep 现在是 agentic 流程：先显式「思考」（推理过程 + 是否检索的工具决策），
+    必要时调用真实检索工具（OpenAlex），最后结构化输出；思考过程通过 thinking_delta
+    流式推到前端，避免「直接吐一整串」的网页对话观感。
+    """
     env: dict = {}
     kind = "text"
     content = ""
     meta: dict = {}
     if mode == "deep":
         kind = "deep"
-        text, citations, queries, suggests, _papers = await _deep_search(instr, emit, prefs, max_papers)
+        use_cns = bool((prefs or {}).get("use_consensus"))
+        text, citations, queries, suggests, _papers, thinking = await _deep_search(
+            instr, emit, prefs, max_papers, use_consensus=use_cns)
         content = text
-        meta = {"citations": citations, "queries": queries, "suggests": suggests}
+        meta = {"citations": citations, "queries": queries, "suggests": suggests, "thinking": thinking}
     elif mode == "review":
         kind = "report"  # 复用报告的消息形态：左栏文档 + ReportPane 渲染 + 引用 chips
         md, citations, suggests = await _review_selected(sid, instr, lit_ids, emit, prefs)
@@ -618,19 +845,46 @@ async def _run_modes(sid: int, instr: str, mode: str, emit, t0: float, prefs: di
         content = md
         meta = {"citations": citations, "suggests": suggests}
     else:
-        if emit:
-            emit(_stage("context", "整理会话上下文", 20, "读取最近对话"))
-        llm_call = llm.complete_with_meta(
-            f"最近对话：\n{_hist_text(sid) or '（无）'}\n\n用户的新消息：{instr}\n\n"
-            "直接回答（结论先行，不寒暄）。结尾另起一行输出：\n"
-            "SUGGESTS: 后续指令1 | 后续指令2（用户可能追问的、可整句直接发送）",
-            system=_research_system(prefs),
-            mode="fast",
-            task="rchat:auto",
-            max_tokens=1600,
-            model_override=chat_prefs.model_override(prefs),
+        # auto：思考 →（按需）真实检索 → 结构化回答
+        def st(key, label, pct, detail="", count=None, unit=""):
+            if emit:
+                emit(_stage(key, label, pct, detail, count, unit))
+
+        hist = _hist_text(sid)
+        thinking, search, auto_queries = await _gen_think(instr, hist, prefs, emit)
+        applied: list[str] = []
+        citations: list[dict] = []
+        queries: list[str] = []
+        if search:
+            if not auto_queries:
+                auto_queries = await _gen_queries(instr, max_q=3)
+            queries = auto_queries or [instr]
+            cits, _papers, raw_hits = await _retrieve_auto(queries, max_papers or 8, emit, st)
+            citations = cits
+            applied.append(f"检索 OpenAlex：原始命中 {raw_hits} 条，入库 {len(citations)} 篇")
+        else:
+            st("skip", "无需检索", 22, "基于已有对话直接回答")
+            applied.append("基于对话上下文回答（未调用检索）")
+
+        # 结构化回答：结论先行 + 分点；引用了文献则标 [n]
+        src_lines = "\n".join(
+            f"[{c['n']}] {c.get('title')} — {c.get('authors') or '佚名'} ({c.get('year') or 'n.d.'})"
+            for c in citations
+        ) if citations else ""
+        answer_prompt = (
+            f"最近对话：\n{hist or '（无）'}\n\n用户的新消息：{instr}\n\n"
+            + (f"本轮检索命中的来源（只允许引用这些，标注 [n]）：\n{src_lines}\n\n" if citations else "")
+            + "请按以下结构回答（结论先行，不寒暄）：\n"
+            "第一段：一句话核心结论。\n"
+            "第二段起：分 2-4 点展开，每点用小标题（**加粗**）开头，每点 1-3 句。\n"
+            + ("每个论点后标 [n] 引用检索来源；证据不足明写「检索结果未覆盖」。\n" if citations else "")
+            + "结尾另起一行输出：\nSUGGESTS: 后续指令1 | 后续指令2（用户可能追问的、可整句直接发送）"
         )
-        env = await _paced(llm_call, emit, "answer", "生成回答", 24, 88)
+        st("answer", "生成结构化回答", 70 if search else 40, "结论先行 · 分点展开")
+        env = await _gen_text(
+            answer_prompt, system=_research_system(prefs), task="rchat:auto",
+            max_tokens=1600, prefs=prefs, emit=emit,
+        )
         if not env.get("ok"):
             e = env.get("error") or {}
             raise HTTPException(502, f"AI 回复失败：{e.get('label') or ''} {e.get('message') or ''}")
@@ -641,9 +895,11 @@ async def _run_modes(sid: int, instr: str, mode: str, emit, t0: float, prefs: di
             text = text[: m.start()].strip()
             suggests = [x.strip() for x in m.group(1).split("|") if x.strip()][:2]
         content = text
-        meta = {"suggests": suggests}
-        if emit:
-            emit(_stage("answer", "生成回答", 92, "结论先行 · 附后续建议"))
+        meta = {
+            "thinking": thinking, "suggests": suggests,
+            "queries": queries, "citations": citations, "applied": applied,
+        }
+        st("answer", "生成结构化回答", 96, "结论先行 · 附后续建议")
     return env, kind, content, meta
 
 

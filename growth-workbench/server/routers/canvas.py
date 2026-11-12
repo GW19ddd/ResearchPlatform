@@ -19,6 +19,7 @@ from typing import Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import llm
@@ -1052,11 +1053,83 @@ class ChatIn(ChatPrefsIn):
 
 @router.post("/{canvas_id}/chat")
 async def api_canvas_chat(canvas_id: int, body: ChatIn):
-    """对话操作画布：自然语言指令 → LLM 解析成节点操作 → 落库 → 回话。
+    """非流式端点（保留兼容）；前端已改用 /{canvas_id}/chat/stream。"""
+    return await _canvas_chat_core(canvas_id, body, emit=None)
 
-    对齐 Undermind 的「对话即操作」体验：用户用中文描述想要什么，AI 把指令翻译成
-    对节点图的最小改动集合（add/connect/rename/config/delete），落库后前端实时刷新画布。
+
+@router.post("/{canvas_id}/chat/stream")
+async def api_canvas_chat_stream(canvas_id: int, body: ChatIn):
+    """SSE 流式版对话操作画布：阶段事件（解析画布 → AI 生成操作 → 应用改动）+ done / error。
+
+    回复本身是结构化 JSON（reply/ops/plan/suggests），不能逐 token 流正文；
+    流的是真实阶段。同 /research 约定：不要带 Idempotency-Key。
     """
+    q: asyncio.Queue[dict | None] = asyncio.Queue()
+
+    def emit(ev: dict) -> None:
+        q.put_nowait(ev)
+
+    async def run() -> None:
+        try:
+            payload = await _canvas_chat_core(canvas_id, body, emit=emit)
+            emit({"type": "done", **payload})
+        except HTTPException as exc:
+            emit({"type": "error", "message": str(exc.detail)})
+        except Exception as exc:  # noqa: BLE001 —— 流里不能抛裸异常
+            emit({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+        finally:
+            q.put_nowait(None)
+
+    async def gen():
+        task = asyncio.create_task(run())
+        try:
+            while True:
+                ev = await q.get()
+                if ev is None:
+                    break
+                yield "data: " + json.dumps(ev, ensure_ascii=False) + "\n\n"
+                if ev.get("type") in ("done", "error"):
+                    break
+        finally:
+            if not task.done():
+                try:
+                    await asyncio.wait_for(asyncio.shield(task), timeout=0.2)
+                except Exception:
+                    task.cancel()
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+def _chat_stage(key: str, label: str, detail: str = "") -> dict:
+    return {"type": "stage", "key": key, "label": label, "detail": detail}
+
+
+async def _paced(coro, emit, key: str, label: str):
+    """LLM 长调用期间按真实耗时推心跳（与 rchat 同款，避免跨 router 私有导入）。"""
+    if not emit:
+        return await coro
+    task = asyncio.create_task(coro)
+    t0 = time.monotonic()
+    while not task.done():
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=2.0)
+            break
+        except asyncio.TimeoutError:
+            sec = int(time.monotonic() - t0)
+            emit(_chat_stage(key, label, f"{label}中 · 已用 {sec}s（按耗时估算）"))
+    return await task
+
+
+async def _canvas_chat_core(canvas_id: int, body: ChatIn, emit=None) -> dict:
+    """对话操作画布的核心逻辑：emit=None 走整段 JSON；传回调则逐阶段推事件。"""
     _canvas_or_404(canvas_id)
     instr = (body.instruction or "").strip()
     if not instr:
@@ -1065,6 +1138,8 @@ async def api_canvas_chat(canvas_id: int, body: ChatIn):
     edges = _edges(canvas_id)
     menu = _skill_menu()
     state = _canvas_state(nodes, edges)
+    if emit:
+        emit(_chat_stage("parse", "解析画布状态", f"{len(nodes)} 个节点 · {len(edges)} 条连线"))
     hist = ""
     for m in (body.history or [])[-6:]:
         role = m.get("role")
@@ -1073,13 +1148,18 @@ async def api_canvas_chat(canvas_id: int, body: ChatIn):
             hist += f"{'用户' if role == 'user' else '助手'}：{text}\n"
     prompt = _chat_prompt(instr, menu, state, hist)
     t0 = time.monotonic()
-    env = await llm.complete_with_meta(
-        prompt,
-        system=CHAT_SYSTEM + chat_prefs.system_from(body),
-        mode="fast",
-        task="canvas:chat",
-        max_tokens=1800,
-        model_override=chat_prefs.model_override(body),
+    if emit:
+        emit(_chat_stage("plan", "AI 生成操作", "把指令翻译成节点图的最小改动集合"))
+    env = await _paced(
+        llm.complete_with_meta(
+            prompt,
+            system=CHAT_SYSTEM + chat_prefs.system_from(body),
+            mode="fast",
+            task="canvas:chat",
+            max_tokens=1800,
+            model_override=chat_prefs.model_override(body),
+        ),
+        emit, "plan", "AI 生成操作",
     )
     reply = "（AI 暂时没回话）"
     ops: list = []
@@ -1106,6 +1186,8 @@ async def api_canvas_chat(canvas_id: int, body: ChatIn):
     else:
         e = env.get("error") or {}
         reply = f"（操作失败：{e.get('label') or 'AI 返回错误'}：{e.get('message') or ''}）"
+    if emit:
+        emit(_chat_stage("apply", "应用改动", f"{len(ops) if isinstance(ops, list) else 0} 个操作待应用"))
     applied = _apply_ops(canvas_id, nodes, edges, ops)
     if not applied["applied"] and not ops:
         applied["applied"] = ["（没有可执行的改动）"]

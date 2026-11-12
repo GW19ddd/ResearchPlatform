@@ -268,7 +268,9 @@ async def _call_responses(p: dict, model: str, messages: list, max_tokens: int):
                     chunks.append(c["text"])
         text = "\n".join(chunks)
     usage = data.get("usage", {}) or {}
-    return text or "", usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+    if not (text or "").strip():
+        raise LLMError("empty_output", "模型未输出任何内容", "responses api 返回空 output_text")
+    return text, usage.get("input_tokens", 0), usage.get("output_tokens", 0)
 
 
 async def _call_ollama(p: dict, model: str, messages: list, max_tokens: int, temperature: float):
@@ -283,6 +285,8 @@ async def _call_ollama(p: dict, model: str, messages: list, max_tokens: int, tem
         r.raise_for_status()
         data = r.json()
     content = ((data.get("message") or {}).get("content")) or ""
+    if not content.strip():
+        raise LLMError("empty_output", "模型未输出任何内容", "ollama 返回空 message.content")
     return (
         content,
         data.get("prompt_eval_count", 0) or 0,

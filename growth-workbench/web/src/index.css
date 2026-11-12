@@ -35,6 +35,12 @@
   --wb-info: #14618f;
   --wb-info-soft: #e9f4fa;
 
+  /* 会员 Pro 金色：在靛蓝主色之外单独一支暖金，专门标注 Pro 档位 / 专享功能，
+     与语义色（成功/警告/危险）互不冲突，色弱用户靠图标 + 文案区分。 */
+  --wb-pro: #b07d12;
+  --wb-pro-soft: #f8f0d9;
+  --wb-pro-strong: #7c5a05;
+
   --wb-radius-sm: 8px;
   --wb-radius: 12px;
   --wb-radius-lg: 16px;
@@ -48,6 +54,33 @@
 
   --wb-ring: 0 0 0 3px rgba(81, 69, 224, 0.14);
   --wb-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* ============================================================
+   文献模块配色归一（2026-11-12）
+   用户要求：文献页（文献库 / 检索 / 对比矩阵 / 抽屉 / PDF）的色调与风格
+   一律按「关联图」那套走 —— 皇家蓝 #2563eb + 深板岩 #333d4b，白底方角卡。
+
+   关联图是按 Litmaps 复刻的局部例外，色值写在 features/literature/litTheme.ts。
+   这里把「组件原语（ui.tsx 的 Btn / Input / Pill / Progress…）」的靛蓝引用
+   重定向到那一族蓝，避免组件里逐处改色又不影响画布 / 实验 / 社区。
+   只覆盖蓝色系：成功 / 警告 / 危险等语义色保持全站一致。
+   ============================================================ */
+.wb-lit,
+.lit-scope {
+  --wb-accent: #2563eb;
+  --wb-accent-strong: #1d4ed8;
+  --wb-accent-soft: #eff4ff;
+  --wb-ring: 0 0 0 3px rgba(37, 99, 235, 0.16);
+  --wb-border: #e7eaf0;
+  --wb-border-strong: #cfd6e0;
+  --wb-text: #16213a;
+  --wb-text-soft: #3c4657;
+  --wb-muted: #8a94a6;
+  --wb-surface: #ffffff;
+  --wb-surface-alt: #fbfcfd;
+  --wb-bg: #f6f8fb;
+  --wb-bg-subtle: #eef1f6;
 }
 
 html,
@@ -101,6 +134,14 @@ p {
   outline: 2px solid var(--wb-accent);
   outline-offset: 1px;
   border-radius: var(--wb-radius-sm);
+}
+
+/* 输入类控件例外：点击只留光标，不做任何高亮（用户明确要求）。
+   文本输入框在 Chrome/Edge 里点击也会命中 :focus-visible，必须显式关掉。 */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
 }
 
 /* 拖拽分隔条：拖动期间统一锁光标、禁文本选中。
@@ -546,6 +587,79 @@ pre.markdown-block {
 }
 
 /* ============================================================
+   新手引导 · 高级感升级（2026-11-12）
+   方向：编辑式克制 —— 顶帽渐变条 + 纸面高光，遮罩磨砂让高亮区「退后」，
+   章节分段进度、示例做成「输入 → 节点 → 输出」的管道。不改既有交互逻辑，
+   不引入背景插画（工作台素底那条红线不动）。
+   ============================================================ */
+
+/* 卡片壳：在 --wb-shadow-lg 之上叠一层纸面顶高光，去掉「平贴」的廉价感 */
+.wb-tour-card {
+  box-shadow: var(--wb-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+/* 顶帽：极细的渐变强调条，替代粗重色块头 —— 这是整张卡的高级感签名 */
+.wb-tour-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2.5px;
+  background: linear-gradient(90deg, var(--wb-accent), var(--wb-accent-strong));
+  border-radius: 16px 16px 0 0;
+}
+
+/* 暗化遮罩：用纯半透明覆盖制造聚光，不再用 backdrop-filter 模糊。
+   原因：大块 backdrop-filter 会在「卡片滑动」「卡内滚动」时逐帧重采样
+   背景，核显上明显掉帧（用户反馈的「滑动卡卡的」根因）。去掉模糊后，
+   聚光的高级感改由卡片顶帽 + 纸面高光 + 高亮框光晕这些零成本元素承担。
+   这里只加一层静态渐变做纵深（不触发重绘），比模糊便宜得多。 */
+.wb-tour-dim {
+  background: rgba(16, 17, 20, 0.5);
+  background-image: radial-gradient(
+    120% 120% at 50% 38%,
+    rgba(0, 0, 0, 0) 52%,
+    rgba(0, 0, 0, 0.14) 100%
+  );
+}
+
+/* 章节进度：六段轨道，段宽按该章节步数，当前章节内按比例填充。
+   比一条细线多了「走到第几章」的信息密度，也更像精装书的进度签。 */
+.wb-tour-prog {
+  display: flex;
+  gap: 3px;
+}
+.wb-tour-prog-seg {
+  flex: 1 1 0;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--wb-bg-subtle);
+  overflow: hidden;
+}
+.wb-tour-prog-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--wb-accent), var(--wb-accent-strong));
+  transition: width 0.3s var(--wb-ease);
+}
+
+/* 示例管道：输入卡 → 连接节点 → 输出卡 的竖向流向，替代原来并排两栏 */
+.wb-tour-pipe {
+  position: relative;
+}
+/* 连接节点：小圆点带向下箭头，落在输入与输出之间，像流水线的一个工位 */
+.wb-tour-node {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--wb-surface);
+  border: 1.5px solid var(--wb-accent);
+  color: var(--wb-accent);
+  box-shadow: var(--wb-shadow-xs);
+}
+
+/* ============================================================
    全站交互反馈：点击有按压、页面 / 视图不硬切、浮层有进出。
 
    两条硬约束：
@@ -575,6 +689,20 @@ pre.markdown-block {
   animation: wb-page-in 0.22s var(--wb-ease) backwards;
 }
 
+/* 文献模块的「视图作用域」：只做分区容器 + 变量归一，绝不加 transform / filter /
+   clip-path —— 抽屉与 Modal 都不是 fixed 定位，留在内部才能吃到这套变量；
+   一旦变成 containing block，它们就会相对面板而不是视口定位。
+   圆角统一收到 10px、白底：关联图本身就是方角白卡，不做胶囊化。
+   注意：这对选择器和上面的 .wb-view-enter 同权重 0,1,0，写在后面所以 animation
+   以本条为准 —— 里面补上同一条入场动画，别让它被覆盖掉。 */
+.lit-scope {
+  border-radius: 10px;
+  background: var(--wb-surface);
+  animation: wb-page-in 0.22s var(--wb-ease) backwards;
+}
+.lit-scope .wb-input-w {
+  border-radius: 8px;
+}
 /* 浮层进出：遮罩只淡，面板 / 抽屉带位移（它们内部没有 fixed 后代） */
 @keyframes wb-overlay-in {
   from {

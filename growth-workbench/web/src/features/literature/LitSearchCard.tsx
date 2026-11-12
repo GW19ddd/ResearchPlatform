@@ -5,6 +5,7 @@
 import { useMemo, useState, type KeyboardEvent } from 'react'
 import { Btn, Card, Empty, Pagination, Pill, SearchInput } from '../../components/ui'
 import { get, post } from '../../lib/api'
+import { LM_BLUE, LM_BORDER, LM_FAINT, LM_TITLE } from './litColors'
 
 type Hit = {
   title: string
@@ -102,7 +103,7 @@ export default function LitSearchCard({
       className={flat ? '!rounded-none !border-0 !shadow-none' : ''}
       title="在线检索"
       extra={
-        <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+        <span className={`text-[11.5px] text-${LM_FAINT}`}>
           数据源 OpenAlex（覆盖 arXiv / PubMed / 主流出版社）
         </span>
       }
@@ -128,7 +129,7 @@ export default function LitSearchCard({
 
       {hits && hits.length > 0 && (
         <>
-          <p className="mt-2 text-[11.5px] text-[color:var(--wb-muted)]">
+          <p className={`mt-2 text-[11.5px] text-${LM_FAINT}`}>
             已拉回 {hits.length} 条{total != null ? `（OpenAlex 共约 ${total} 条）` : ''}
             {spCount > 1 ? ` · 第 ${spCur} / ${spCount} 页` : ''}
           </p>
@@ -138,18 +139,18 @@ export default function LitSearchCard({
               return (
                 <div
                   key={h.title + (h.year ?? '')}
-                  className="flex items-start gap-2.5 rounded-[10px] border border-[color:var(--wb-border)] px-3 py-2"
+                  className={`flex items-start gap-2.5 rounded-[10px] border border-${LM_BORDER} px-3 py-2`}
                 >
                   <div className="min-w-0 flex-1">
                     <a
                       href={h.url || undefined}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[13px] font-medium leading-snug text-[color:var(--wb-text)] underline-offset-2 hover:text-[color:var(--wb-accent)] hover:underline"
+                      className={`text-[13px] font-medium leading-snug text-${LM_TITLE} underline-offset-2 hover:text-${LM_BLUE} hover:underline`}
                     >
                       {h.title}
                     </a>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11.5px] text-[color:var(--wb-muted)]">
+                    <div className={`mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11.5px] text-${LM_FAINT}`}>
                       <span className="max-w-[24rem] truncate">{h.authors || '作者未知'}</span>
                       {h.year && <span>· {h.year}</span>}
                       {h.venue && <span className="max-w-[16rem] truncate">· {h.venue}</span>}
@@ -163,7 +164,7 @@ export default function LitSearchCard({
                         href={h.pdf_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[11.5px] text-[color:var(--wb-accent)] underline underline-offset-2"
+                        className={`text-[11.5px] text-${LM_BLUE} underline underline-offset-2`}
                       >
                         开放 PDF
                       </a>
@@ -185,7 +186,7 @@ export default function LitSearchCard({
               )
             })}
           </div>
-          <div className="mt-3 border-t border-[color:var(--wb-border)] pt-2.5">
+          <div className={`mt-3 border-t border-${LM_BORDER} pt-2.5`}>
             <Pagination
               total={hits.length}
               page={spCur}

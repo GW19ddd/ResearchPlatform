@@ -1,0 +1,40 @@
+{
+  "seed": 20261112,
+  "n_modules": 486,
+  "methods": {
+    "codamosa": {
+      "cov_med": 68.61,
+      "cov_lo": 67.07,
+      "cov_hi": 69.63,
+      "valid_med": 0.812,
+      "calls_med": 9.625,
+      "time_med": 40.8,
+      "loc_med": null
+    },
+    "coverup": {
+      "cov_med": 71.34,
+      "cov_lo": 70.26,
+      "cov_hi": 72.47,
+      "valid_med": 0.8334999999999999,
+      "calls_med": 10.83,
+      "time_med": 52.2,
+      "loc_med": null
+    },
+    "DMF-Jev": {
+      "cov_med": 75.34,
+      "cov_lo": 74.1,
+      "cov_hi": 76.25,
+      "valid_med": 0.879,
+      "calls_med": 5.67,
+      "time_med": 44.5,
+      "loc_med": 0.786
+    }
+  },
+  "diff": {
+    "cov_pp": 6.73,
+    "calls_pct": -41.1,
+    "p_cov": 0.0,
+    "p_calls": 0.0,
+    "cliffs_delta": 0.383
+  }
+}

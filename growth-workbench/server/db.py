@@ -358,7 +358,12 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   avatar_hue INTEGER DEFAULT 240,
   created_at TEXT,
-  last_login_at TEXT
+  last_login_at TEXT,
+  -- 会员：free / pro。老库通过 MIGRATIONS 补列，默认值 free，不影响已有数据。
+  plan TEXT DEFAULT 'free',
+  plan_expires_at TEXT,
+  plan_provider TEXT,
+  plan_order_id TEXT
 );
 
 -- 会话：登录后发一个随机 token 写进 HttpOnly Cookie，服务端只存哈希
@@ -366,6 +371,23 @@ CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL,
   created_at TEXT,
+  expires_at TEXT
+);
+
+-- 会员订单：下单 → 支付 → 升级。provider=manual 为本地演示支付（无需密钥即可跑通链路），
+-- stripe / wechat / alipay 为真实支付网关的占位，接好密钥与 webhook 即可上线。
+CREATE TABLE IF NOT EXISTS billing_orders (
+  order_id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  plan TEXT NOT NULL DEFAULT 'pro',
+  cycle TEXT NOT NULL DEFAULT 'monthly',
+  amount REAL NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'CNY',
+  provider TEXT NOT NULL DEFAULT 'manual',
+  status TEXT NOT NULL DEFAULT 'pending',
+  pay_url TEXT,
+  created_at TEXT,
+  paid_at TEXT,
   expires_at TEXT
 );
 
@@ -459,6 +481,27 @@ CREATE TABLE IF NOT EXISTS paperfeed_notes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_paperfeed_notes_paper ON paperfeed_notes(paper_id);
+
+-- 通用工作区运行记录：论文编译 / 绘图 / 分析 / 代码共用一张表，
+-- 底部「全局任务带」只读聚合这张表 + canvas_runs + exp_runs，不改既有表结构。
+CREATE TABLE IF NOT EXISTS workspace_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT,
+  kind TEXT NOT NULL DEFAULT 'tex',
+  owner_id TEXT NOT NULL DEFAULT 'default',
+  label TEXT,
+  command TEXT,
+  status TEXT DEFAULT 'running',
+  exit_code INTEGER,
+  wall_ms INTEGER DEFAULT 0,
+  stdout_tail TEXT,
+  outputs_json TEXT,
+  error TEXT,
+  created_at TEXT,
+  finished_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_runs_created ON workspace_runs(created_at);
 """
 
 
@@ -535,6 +578,14 @@ def seed(conn: sqlite3.Connection):
 # 任何一步都不会删表、不会改已有列的类型。
 MIGRATIONS = [
     ("ideas", "category", "TEXT"),
+    ("users", "plan", "TEXT DEFAULT 'free'"),
+    ("users", "plan_expires_at", "TEXT"),
+    ("users", "plan_provider", "TEXT"),
+    ("users", "plan_order_id", "TEXT"),
+    # 云端账户关联：WorkBuddy 云服务登录（短信/邮箱/微信）映射到本机用户
+    ("users", "cloud_uid", "TEXT"),
+    ("users", "cloud_email", "TEXT"),
+    ("users", "cloud_phone", "TEXT"),
     ("literature", "collections", "TEXT"),
     ("literature", "doi", "TEXT"),
     ("literature", "source_key", "TEXT"),

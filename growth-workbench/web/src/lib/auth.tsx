@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import { get, patch, post } from './api'
+import { cloud } from './cloudAuth'
 
 export type User = {
   id: number
@@ -17,7 +18,18 @@ export type User = {
   avatar_hue: number
   created_at?: string
   last_login_at?: string
+  cloud_linked?: boolean
 }
+
+/** 云端账户还没关到本机账户时后端回的结果：交给登录页让用户选「关联」还是「新建」 */
+export type CloudPending = {
+  needs_binding: true
+  cloud_email?: string | null
+  cloud_phone?: string | null
+  linkable: boolean
+}
+
+type CloudExchangeResult = { user: User } | CloudPending
 
 type AuthValue = {
   loading: boolean
@@ -28,6 +40,12 @@ type AuthValue = {
   setup: (username: string, password: string, displayName: string) => Promise<void>
   logout: () => Promise<void>
   updateProfile: (body: { display_name?: string; avatar_hue?: number }) => Promise<void>
+  /** 把云端 SDK 拿到的 access token 换成会话；返回 needs_binding 表示还要用户选绑定策略 */
+  cloudExchange: (
+    accessToken: string,
+    mode?: 'auto' | 'link' | 'create',
+    linkUserId?: number,
+  ) => Promise<CloudPending | null>
 }
 
 const Ctx = createContext<AuthValue | null>(null)
@@ -45,6 +63,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
+      // 扫码回跳优先兑换：code 单次有效，晚一步就被门卫撕掉页面了
+      if (/[?&]code=/.test(location.search)) {
+        try {
+          const { data: session } = await cloud.auth.handleWechatWebCallback()
+          // getAccessToken 直接回字符串，不走 {data,error} 信封
+          const token = session ? String((await cloud.auth.getAccessToken()) || '') : ''
+          // code/state 是单次的，成功失败都要从地址栏抹掉，否则刷新就报登录失败
+          history.replaceState(null, '', location.pathname)
+          if (token) {
+            const need = await post(
+              '/auth/cloud/exchange',
+              { access_token: token, mode: 'auto' },
+              { silent: true },
+            )
+            if ((need as any)?.needs_binding) {
+              sessionStorage.setItem(
+                'wb:cloud-pending',
+                JSON.stringify({ token, ...(need as object) }),
+              )
+            }
+          }
+        } catch {
+          history.replaceState(null, '', location.pathname)
+        }
+      }
       const r: any = await get('/auth/state')
       setHasUser(!!r?.has_user)
       setUser(r?.user || null)
@@ -101,9 +144,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(r.user)
   }, [])
 
+  const cloudExchange = useCallback(
+    async (accessToken: string, mode: 'auto' | 'link' | 'create' = 'auto', linkUserId?: number) => {
+      const r = (await post(
+        '/auth/cloud/exchange',
+        { access_token: accessToken, mode, link_user_id: linkUserId ?? null },
+        { silent: true },
+      )) as CloudExchangeResult
+      if ((r as CloudPending)?.needs_binding) return r as CloudPending
+      setUser((r as { user: User }).user)
+      setHasUser(true)
+      return null
+    },
+    [],
+  )
+
   const value = useMemo<AuthValue>(
-    () => ({ loading, hasUser, user, refresh, login, setup, logout, updateProfile }),
-    [loading, hasUser, user, refresh, login, setup, logout, updateProfile],
+    () => ({
+      loading,
+      hasUser,
+      user,
+      refresh,
+      login,
+      setup,
+      logout,
+      updateProfile,
+      cloudExchange,
+    }),
+    [
+      loading,
+      hasUser,
+      user,
+      refresh,
+      login,
+      setup,
+      logout,
+      updateProfile,
+      cloudExchange,
+    ],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

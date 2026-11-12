@@ -34,3 +34,44 @@ export function parseSse(buffer: string): { events: SseEvent[]; rest: string } {
   }
   return { events, rest }
 }
+
+/**
+ * POST 一条 SSE 流式请求并逐事件回调（实验 Agent / 画布对话的流式端点共用）。
+ * 事件按后端真实顺序到达；流结束（或读到 done/error 后被后端关闭）时 resolve。
+ * 与 rchatStream 同一纪律：绝不能带 Idempotency-Key（幂等中间件会缓冲整条流）。
+ */
+export async function postSse(
+  url: string,
+  body: unknown,
+  onEvent: (ev: SseEvent) => void,
+): Promise<void> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    if (res.status === 401) window.dispatchEvent(new Event('wb:unauthorized'))
+    const t = await res.text().catch(() => '')
+    let msg = (t || '').trim()
+    try {
+      const j = JSON.parse(msg)
+      if (j && typeof j.detail === 'string') msg = j.detail
+    } catch {
+      /* 纯文本直接用 */
+    }
+    throw new Error(msg || `请求失败（HTTP ${res.status}）`)
+  }
+  if (!res.body) throw new Error('后端未返回流式响应')
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buf = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buf += decoder.decode(value, { stream: true })
+    const { events, rest } = parseSse(buf)
+    buf = rest
+    for (const ev of events) onEvent(ev)
+  }
+}

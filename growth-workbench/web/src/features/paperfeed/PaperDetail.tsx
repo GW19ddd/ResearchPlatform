@@ -35,8 +35,8 @@ export default function PaperDetail({
         ? { title_zh: paper.title_zh || '', abstract_zh: paper.abstract_zh || '' }
         : null,
     )
-    // 懒补图：让后端标记封面来源（arXiv 正文图 → PDF 首页兜底），展示走代理端点
-    if (!paper.figure_url && !paper.figure_kind && paper.arxiv_id) {
+    // 懒补图：四层兜底（img / object svg / 内嵌 svg / PDF 首页），展示走代理端点
+    if (!paper.figure_url && paper.arxiv_id) {
       let alive = true
       post<{ ok: boolean; figure_url?: string; msg?: string }>(
         `/paperfeed/papers/${paper.id}/figure`,

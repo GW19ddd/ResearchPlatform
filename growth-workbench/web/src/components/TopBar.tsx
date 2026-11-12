@@ -9,44 +9,59 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Icon, IconName } from './Icon'
-import { Avatar, IconBtn } from './ui'
+import { Avatar, Btn, IconBtn } from './ui'
 import { displayNameOf } from '../lib/auth'
 import { useApi } from '../lib/hooks'
+import { usePlan } from '../lib/plan'
+import { ProBadge } from './ProBadge'
 
-/** pathname → [分组, 页面名]；?tab= 子视图只补一层小字，不另起大标题 */
+/**
+ * pathname → [分组, 页面名]。分组名必须与侧栏的 WORKSPACES / NAV_GROUPS 对得上，
+ * 否则用户照着面包屑去侧栏找会扑空（侧栏 IA 收紧后尤其容易留这种孤儿分组）。
+ *  - 「站点快搜 / 设置」只从顶栏进入、侧栏已无对应项，归到「全局」，不假挂在「更多」下；
+ *  - ?tab= 子视图只并进页面名，且默认视图不再叠一层，避免「文献 / 文献库」这类重复。
+ */
+const DEFAULT_TAB: Record<string, string> = { '/literature': 'library', '/canvas': 'build' }
 function crumbs(pathname: string, search: string): [string, string] {
   const tab = new URLSearchParams(search).get('tab')
   const MAIN: Record<string, [string, string]> = {
-    '/today': ['工作台', '今日'],
-    '/ideas': ['研究资产', '创新点'],
-    '/literature': ['研究资产', '文献'],
-    '/experiments': ['研究资产', '实验'],
-    '/paper': ['研究资产', '论文'],
-    '/community': ['社区', '科研社区'],
-    '/paperfeed': ['速递', '论文速递'],
+    // 今日已提到侧栏最顶（品牌区正下方），不属于「工作台」组，面包屑归「今日」本身
+    '/today': ['今日', '待办 · 打卡 · 概览'],
+    '/ideas': ['研究', '创新点'],
+    '/literature': ['研究', '文献库'],
+    '/experiments': ['研究', '实验'],
+    '/consensus': ['工作台', '共识'],
+    '/paper': ['研究', '论文'],
+    '/community': ['更多', '科研社区'],
+    '/paperfeed': ['研究', '论文速递'],
     '/plan': ['节奏', '计划复盘'],
     '/advisor': ['节奏', '导师'],
     '/points': ['节奏', '激励规则'],
-    '/stats': ['工具', '概览指标'],
-    '/navigator': ['工具', '站点快搜'],
-    '/search': ['工具', '文献检索'],
-    '/settings': ['工具', '设置'],
+    '/navigator': ['全局', '站点快搜'],
+    '/search': ['研究', '文献库 · 检索'],
+    '/settings': ['全局', '设置'],
+    '/tutorial/llmutg': ['更多', '案例教程'],
     '/chat': ['工作台', '课题 Quest'],
     '/canvas': ['工作台', '编排画布'],
-    '/research': ['工作台', '调研 Research'],
+    '/research': ['工作台', '对话 · 调研'],
+    '/studio/paper': ['工具', '论文工作室'],
+    '/studio/figure': ['工具', '绘图工作室'],
+    '/studio/analysis': ['工具', '数据分析'],
+    '/studio/code': ['工具', '代码工作室'],
   }
-  if (pathname === '/') return ['工作台', '编排']
-  const base = MAIN[pathname] || ['科研工作台', '工作台']
+  if (pathname === '/') return ['研流', '工作台']
+  const base = MAIN[pathname] || ['研流', '工作台']
   const SUB: Record<string, string> = {
     library: '文献库',
     matrix: '对比矩阵',
-    search: '文献检索',
+    search: '检索',
     build: '编排',
     access: '访问点',
     logs: '日志',
     monitor: '监测',
   }
-  return tab && SUB[tab] ? [base[1], SUB[tab]] : base
+  if (!tab || tab === DEFAULT_TAB[pathname] || !SUB[tab]) return base
+  return [base[0], `${base[1]} · ${SUB[tab]}`]
 }
 
 function useClock() {
@@ -185,10 +200,11 @@ export function TopBar({ onProfile, onTour, user }: { onProfile: () => void; onT
   const clock = useClock()
   const [group, page] = crumbs(pathname, search)
   const name = displayNameOf(user)
+  const { isPro, openPricing } = usePlan()
 
   return (
     <header className="wb-app-topbar flex h-10 shrink-0 items-center gap-3 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-3">
-      {/* 左：返回主页（主页 = 编排选择页，即「发布的应用」小卡片）+ 定位面包屑。
+      {/* 左：返回主页（主页 = 统一工作台启动面：对话 / 调研 / 实验）+ 定位面包屑。
           整条面包屑都可点回主页，避免「只有小箭头能点、面包屑文字点了没反应」的错觉 */}
       <button
         type="button"
@@ -198,7 +214,7 @@ export function TopBar({ onProfile, onTour, user }: { onProfile: () => void; onT
       >
         <Icon name="chevronLeft" size={12} />
         <span className="hidden sm:inline">{group}</span>
-        <span className="hidden text-[11.5px] text-[color:var(--wb-border-strong)] sm:inline">/</span>
+        {group && <span className="hidden text-[11.5px] text-[color:var(--wb-border-strong)] sm:inline">/</span>}
         <span className="hidden text-[12px] font-medium text-[color:var(--wb-text)] sm:inline">{page}</span>
       </button>
 
@@ -214,6 +230,23 @@ export function TopBar({ onProfile, onTour, user }: { onProfile: () => void; onT
         <IconBtn icon="search" size="md" ariaLabel="站点快搜" title="站点快搜" onClick={() => nav('/navigator')} />
         <IconBtn icon="info" size="md" ariaLabel="新手引导" title="新手引导" onClick={onTour} />
         <NotificationBell />
+        {/* 会员入口：免费用户显示金色「升级 Pro」；Pro 用户显示 Pro 徽章 */}
+        {!isPro ? (
+          <Btn
+            variant="primary"
+            size="sm"
+            onClick={() => openPricing()}
+            className="ml-1 hidden sm:inline-flex"
+            title="升级到 Pro，解锁无限 AI 额度与高级模型"
+          >
+            <Icon name="crown" size={13} />
+            升级 Pro
+          </Btn>
+        ) : (
+          <span className="ml-1 hidden sm:inline-flex" title="你已是 Pro 会员">
+            <ProBadge size="sm" />
+          </span>
+        )}
         <button
           type="button"
           onClick={onProfile}

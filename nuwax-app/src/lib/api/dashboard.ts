@@ -294,7 +294,7 @@ function byId(rows: Row[]): Row[] {
 
 route('GET', '/export/all', () => {
   const out: string[] = []
-  out.push(`# 科研工作台导出 · ${today()}`)
+  out.push(`# 研流导出 · ${today()}`)
 
   out.push('')
   out.push('## 创新点')

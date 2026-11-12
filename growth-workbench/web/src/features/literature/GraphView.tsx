@@ -17,8 +17,9 @@
  *   边 = 浅灰弧线 + 箭头指向被引文献（图例：连线表示引用关系；箭头指向被引文献）。
  *   缩放/平移只作用于 SVG 内部 <g transform>，容器不加 transform/filter/clip-path。
  *
- * 调色例外：本视图按用户要求照抄 Litmaps 配色（皇家蓝 #2563eb / 深板岩 #333d4b），
- * 不走全站靛蓝令牌 —— 与 canvas TYPE_STYLE 同级的局部例外，别扩散到其它页面。
+ * 调色：本视图的配色（皇家蓝 #2563eb / 深板岩 #333d4b）原先是局部例外，
+ * 2026-11-12 起用户要求整个文献模块与它同调，已升格为 ./litColors 的共享色板，
+ * 文献库 / 检索 / 对比矩阵 / 抽屉 / PDF 都从这里取色。别扩散到其它页面。
  * 数据层：GET /literature/graph（lit_edges），POST /literature/{id}/expand（OpenAlex 引用/被引）。
  */
 import {
@@ -39,7 +40,8 @@ import { downloadText, stamp, toBibtex } from '../../components/BulkBar'
 const W = 1000
 const H = 680
 
-/* Litmaps 调色（本文件局部例外，hex 字面量） */
+/* Litmaps 调色 —— 2026-11-12 起升格为整个文献模块的统一色板（./litColors）。
+   本文件是这套配色的溯源：其它文献视图都从这里那组常量取色，别再各写各的 hex。 */
 const LM_BLUE = '#2563eb'
 const LM_BLUE_DEEP = '#1d4ed8'
 const LM_NODE_STROKE = '#4285f4'
@@ -143,7 +145,8 @@ const toArt = (p: any, inLib: boolean): Art => ({
 
 /**
  * Litmaps 式时间轴布局：x = 年份线性、y = 被引 log 刻度；
- * 同格重合的节点横向排开 + id 确定性微抖动，同一份数据每次渲染坐标一致。
+ * 同一格重合的节点沿纵向排开（不是横着铺一条线，避免压成面条）+ id 确定性微抖动，
+ * 同一份数据每次渲染坐标一致。
  */
 function timelineLayout(nodes: any[]): Pos[] {
   if (!nodes.length) return []
@@ -164,6 +167,10 @@ function timelineLayout(nodes: any[]): Pos[] {
   const yMin = Math.min(...validYears, medYear)
   const yMax = Math.max(...validYears, medYear)
   const yearSpan = Math.max(1, yMax - yMin)
+  // 一格约 34px（节点+标签的行高）。年份跨度小时按年分格，避免整张图只剩两三列
+  const CELL_X = Math.min(10, Math.max(3, yearSpan / 6))
+  const CELL_Y = 7
+  const STEP = 34
 
   const logs = nodes.map((p) => Math.log10(Number(p.cited_by_count || 0) + 1))
   const maxLog = Math.max(...logs)
@@ -173,7 +180,7 @@ function timelineLayout(nodes: any[]): Pos[] {
     const yr = validYears.length && Number(p.year) > 1400 ? Number(p.year) : medYear
     const lg = Math.log10(Number(p.cited_by_count || 0) + 1)
     const xr = maxLog > 0 ? lg / maxLog : 0.5
-    const key = `${Math.round(((yr - yMin) / yearSpan) * 48)}|${Math.round(xr * 48)}`
+    const key = `${Math.round(((yr - yMin) / yearSpan) * CELL_X)}|${Math.round(xr * CELL_Y)}`
     const arr = cells.get(key) || []
     arr.push(p)
     cells.set(key, arr)
@@ -181,20 +188,33 @@ function timelineLayout(nodes: any[]): Pos[] {
 
   const out: Pos[] = []
   for (const arr of cells.values()) {
-    arr.sort((a, b) => a.id - b.id)
+    // 被引高的在上面：同格内按被引降序纵排，整体以原始 y 为中心向上/向下撑开，
+    // 视觉上仍守住 y = 被引，只是不让几个节点连标签糊在一处。
+    arr.sort((a, b) => Number(b.cited_by_count || 0) - Number(a.cited_by_count || 0))
+    const k = arr.length
+    const half = ((k - 1) / 2) * STEP
     arr.forEach((p, i) => {
       const yr = Number(p.year) > 1400 ? Number(p.year) : medYear
       const lg = Math.log10(Number(p.cited_by_count || 0) + 1)
       const xg = (yr - yMin) / yearSpan
       const yg = maxLog > 0 ? lg / maxLog : 0.5
-      const spread =
-        arr.length > 1
-          ? Math.max(-42, Math.min(42, (i - (arr.length - 1) / 2) * 30))
-          : 0
+      const baseX = PAD_L + xg * plotW
+      const baseY = PAD_T + (1 - yg) * plotH
+      // 一格塞太多时（> 5 个）分列，避免纵向冲出画面
+      const perCol = 5
+      const col = Math.floor(i / perCol)
+      const row = i % perCol
+      const colHalf = ((Math.ceil(k / perCol) - 1) / 2) * 34
       out.push({
         id: Number(p.id),
-        x: PAD_L + xg * plotW + spread + (hash01(p.id) - 0.5) * 8,
-        y: PAD_T + (1 - yg) * plotH + (hash01(p.id * 3) - 0.5) * 10,
+        x: Math.max(
+          PAD_L - 20,
+          Math.min(PAD_L + plotW + 20, baseX + col * 34 - colHalf + (hash01(p.id) - 0.5) * 5),
+        ),
+        y: Math.max(
+          PAD_T - 10,
+          Math.min(PAD_T + plotH + 10, baseY - half + row * STEP + (hash01(p.id * 3) - 0.5) * 5),
+        ),
       })
     })
   }
@@ -209,9 +229,9 @@ const FunnelIcon = () => (
   </svg>
 )
 
-/** Litmaps 加载态的旋转弧线 */
+/** Litmaps 加载态的同心弧线（静态，不带旋转） */
 const SwirlSpinner = () => (
-  <svg width="76" height="76" viewBox="0 0 76 76" className="animate-spin" style={{ animationDuration: '1.8s' }} aria-hidden="true">
+  <svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true">
     <g fill="none" stroke={LM_TITLE} strokeWidth="2.6" strokeLinecap="round">
       <circle cx="38" cy="38" r="27" strokeDasharray="70 100" opacity="0.9" />
       <circle cx="38" cy="38" r="19" strokeDasharray="46 74" opacity="0.55" transform="rotate(120 38 38)" />
@@ -222,7 +242,7 @@ const SwirlSpinner = () => (
 
 const TinySpinner = () => (
   <span
-    className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#d3dae6]"
+    className="inline-block h-3.5 w-3.5 rounded-full border-2 border-[#d3dae6]"
     style={{ borderTopColor: LM_BLUE }}
     aria-hidden="true"
   />
@@ -500,7 +520,8 @@ export default function GraphView({
       }
       setSeedId(id)
       onSelect(id) // 种子节点 = 深色实心
-      await post(`/literature/${id}/expand`, undefined, { silent: true })
+      // 点图片就是「换一个起点重新探索」：本次只留这一篇的引用关系，别叠上次的
+      await post(`/literature/${id}/expand?mode=clean`, undefined, { silent: true })
       await loadGraph()
       setProgress(100)
       await onMutated()
@@ -707,7 +728,7 @@ export default function GraphView({
               if (e.key === 'Enter') runSearch()
             }}
             placeholder="搜索文献…"
-            className="h-10 w-full rounded-[8px] border px-3 pr-8 text-[13px] text-[#1f2b45] outline-none transition placeholder:text-[#9aa3b2] focus:border-[#2563eb]"
+            className="h-10 w-full rounded-[8px] border px-3 pr-8 text-[13px] text-[#1f2b45] outline-none transition placeholder:text-[#9aa3b2]"
             style={{ borderColor: '#cfd6e0' }}
           />
           {q && (

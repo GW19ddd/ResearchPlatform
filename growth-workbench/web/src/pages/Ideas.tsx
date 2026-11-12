@@ -514,21 +514,28 @@ export default function Ideas() {
         desc="捕获 → 质疑 → 选定：想法先过三关，再进实验"
       />
 
-      {/* 文献 → 痛点 → 创新点：把待转化痛点直接喂到想法池 */}
-      <Card title={`来自文献的痛点（待转化 ${pps.length}）`}>
+      {/* 文献 → 痛点 → 创新点：非卡片形式，扁平铺满整个右侧，行间紧凑 */}
+      <section>
+        <div className="flex items-center justify-between gap-3 border-b border-[color:var(--wb-border)] pb-1.5">
+          <div className="text-[13px] font-semibold text-[color:var(--wb-text)]">
+            来自文献的痛点（待转化 {pps.length}）
+          </div>
+          {ppsErr && (
+            <button onClick={reloadPps} className="text-[11.5px] text-[color:var(--wb-muted)] hover:text-[color:var(--wb-text)]">
+              重试
+            </button>
+          )}
+        </div>
         {ppsBusy ? (
-          <div className="text-[12px] text-[color:var(--wb-muted)]">加载中…</div>
+          <div className="py-2 text-[12px] text-[color:var(--wb-muted)]">加载中…</div>
         ) : ppsErr ? (
           <AiError error={ppsErr} title="痛点加载失败" onRetry={reloadPps} retrying={ppsBusy} />
         ) : pps.length === 0 ? (
           <Empty text="没有待转化的文献痛点。去文献页给某篇点「提炼痛点」，就会在这里出现" />
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="divide-y divide-[color:var(--wb-border)]">
             {pps.map((p: any) => (
-              <div
-                key={p.id}
-                className="rounded-lg border border-[color:var(--wb-border)] p-3"
-              >
+              <div key={p.id} className="flex items-start gap-3 py-2">
                 <div className="min-w-0 flex-1">
                   <div className="text-[13px] font-medium text-[color:var(--wb-text)]">{p.content}</div>
                   {p.evidence && (
@@ -537,11 +544,11 @@ export default function Ideas() {
                   {p.direction && (
                     <div className="mt-0.5 text-[11.5px] text-[color:var(--wb-muted)]">方向：{p.direction}</div>
                   )}
-                  <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">
+                  <div className="mt-0.5 text-[11.5px] text-[color:var(--wb-muted)]">
                     出处：{p.lit_title || `#${p.literature_id}`}
                   </div>
                 </div>
-                <div className="mt-2 flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1 pt-0.5">
                   <Btn variant="primary" onClick={() => ppToIdea(p.id)}>
                     转为创新点
                   </Btn>
@@ -553,11 +560,11 @@ export default function Ideas() {
             ))}
           </div>
         )}
-      </Card>
+      </section>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card title="捕获新想法" className="md:col-span-1" tourId="tour-idea-form">
-          <div className="flex flex-col gap-2">
+        <Card title="捕获新想法" className="md:col-span-1">
+          <div className="flex flex-col gap-2" data-tour="tour-idea-form">
             <Input
               placeholder="标题（必填）"
               value={form.title}

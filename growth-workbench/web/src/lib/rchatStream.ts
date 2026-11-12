@@ -68,7 +68,19 @@ export type RchatServerMsg = {
 
 export type DoneEv = { type: 'done'; message: RchatServerMsg }
 export type ErrorEv = { type: 'error'; message: string }
-export type ChatStreamEvent = StageEv | PapersEv | DoneEv | ErrorEv
+/** token 级增量文本：后端撰写正文时逐段推送，前端拼进流式草稿 */
+export type DeltaEv = { type: 'delta'; text: string }
+/** token 级增量思考：后端「思考步骤」流式推理时逐段推送，前端拼进思考过程块 */
+export type ThinkingDeltaEv = { type: 'thinking_delta'; text: string }
+export type ChatStreamEvent = StageEv | PapersEv | DeltaEv | ThinkingDeltaEv | DoneEv | ErrorEv
+
+/**
+ * 流式草稿里剥掉结尾的 SUGGESTS 行：后端约定正文最后跟「SUGGESTS: …」，
+ * 落库前会被后端裁掉；流式期间显示草稿时要同样隐藏，免得用户看到协议残留。
+ */
+export function stripSuggests(text: string): string {
+  return text.replace(/\n*SUGGESTS:[\s\S]*$/i, '')
+}
 
 function errText(raw: string, status: number): string {
   let msg = (raw || '').trim()

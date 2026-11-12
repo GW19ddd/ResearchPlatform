@@ -1,0 +1,28 @@
+{
+  "schema": "ppt-master.source_to_md.profile.v1",
+  "converter": "ppt_to_md.py",
+  "conversion_type": "pptx",
+  "source": {
+    "path": "D:/03-Codes/2026-09-20-01-46-40/growth-workbench/projects/workbench-tutorial-enhanced_native_enhance_20261112/exports/workbench-tutorial_enhanced.pptx",
+    "name": "workbench-tutorial_enhanced.pptx",
+    "suffix": ".pptx",
+    "kind": "file",
+    "exists": true,
+    "size_bytes": 89670
+  },
+  "outputs": {
+    "markdown": "readback.md",
+    "asset_dir": "",
+    "image_manifest": "",
+    "image_count": 0
+  },
+  "markdown": {
+    "line_count": 498,
+    "char_count": 6189,
+    "heading_count": 29,
+    "table_count": 0,
+    "image_ref_count": 0,
+    "link_count": 0
+  },
+  "warnings": []
+}

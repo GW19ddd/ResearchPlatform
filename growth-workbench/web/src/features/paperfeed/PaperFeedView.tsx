@@ -26,6 +26,19 @@ const TABS: { value: View; label: string }[] = [
   { value: 'hidden', label: '不看' },
 ]
 
+function relTime(s: string | null): string {
+  if (!s) return ''
+  const t = new Date(String(s).replace(' ', 'T')).getTime()
+  if (Number.isNaN(t)) return ''
+  const diff = Date.now() - t
+  if (diff < 60000) return '刚刚'
+  const m = Math.floor(diff / 60000)
+  if (m < 60) return `${m} 分钟前`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} 小时前`
+  return `${Math.floor(h / 24)} 天前`
+}
+
 export default function PaperFeedView() {
   const [view, setView] = useState<View>('inbox')
   const [layout, setLayout] = useState<Layout>('hall')
@@ -44,10 +57,40 @@ export default function PaperFeedView() {
   const { data: feedCfg } = useApi<any>('/paperfeed/settings')
   const defaultLang: Lang =
     feedCfg?.language === 'zh' || feedCfg?.language === 'en' ? feedCfg.language : 'both'
-  const { busy: fetching, run: runFetch } = useAction()
+  const [fetching, setFetching] = useState(false)
+  const [lastFetchAt, setLastFetchAt] = useState<string | null>(null)
   const { busy: polling, run: runPoll } = useAction()
   const [ingestText, setIngestText] = useState('')
   const { busy: ingesting, run: runIngest } = useAction()
+
+  /** 拉取 arXiv 最新论文（只在点「拉取最新」时触发，平时打开页面不自动拉）。
+   * 拉完立即开一轮补图批处理 + 渐进轮询，让新卡片的封面陆续亮出。 */
+  const [batchActive, setBatchActive] = useState(false)
+  const refresh = useCallback(
+    async (silent: boolean) => {
+      setFetching(true)
+      try {
+        const r = await post<{ added: number; last_fetch_at: string }>(
+          '/paperfeed/fetch',
+          {},
+        )
+        setLastFetchAt(r?.last_fetch_at || null)
+        await reload()
+        if (!silent && (r?.added ?? 0) > 0) toast(`已更新 ${r!.added} 篇新论文`, 'ok')
+        // 触发一轮补图：后台批量 + 前端轮询，缺图的卡陆续亮出（见下方 effect）
+        backfillTried.current = 0
+        figPolls.current = 0
+        setBatchActive(true)
+        return r
+      } catch (e: any) {
+        if (!silent) toast(e?.message || '拉取失败', 'error')
+        return null
+      } finally {
+        setFetching(false)
+      }
+    },
+    [reload],
+  )
 
   const goto = useCallback(
     (i: number) => {
@@ -89,26 +132,42 @@ export default function PaperFeedView() {
     return () => window.removeEventListener('keydown', onKey)
   }, [idx, goto, layout])
 
-  // 自动补图：列表里还有缺图的 arXiv 论文时，后台补抓正文封面（最多试 2 轮防打转）
+  // 补图：只在「拉取最新」后进行（batchActive）。批处理跑的时候每 4 秒轮询刷新，
+  // 让新抓到的封面陆续亮出；全部有图后自动停。平时打开页面不拉任何东西。
   const backfillTried = useRef(0)
+  const figPolls = useRef(0)
   useEffect(() => {
     backfillTried.current = 0
+    figPolls.current = 0
   }, [view])
   useEffect(() => {
-    if (loading || !papers.length) return
-    const missing = papers.filter((p) => !p.figure_url && p.arxiv_id).length
-    if (!missing || backfillTried.current >= 2) return
-    backfillTried.current += 1
-    post('/paperfeed/figures?limit=24', {}, { silent: true })
-      .then(() => reload())
-      .catch(() => {})
-  }, [papers, loading, reload])
+    if (!batchActive || loading || !papers.length) return
+    // 'none'=已确认全空（img/svg/PDF 四层都试过）——不算缺图，避免反复空跑补图
+    const missing = papers.filter(
+      (p) => !p.figure_url && p.arxiv_id && p.figure_kind !== 'none',
+    ).length
+    if (!missing) {
+      figPolls.current = 0
+      setBatchActive(false)
+      return
+    }
+    if (backfillTried.current < 3) {
+      backfillTried.current += 1
+      post('/paperfeed/figures?limit=120', {}, { silent: true }).catch(() => {})
+    }
+    // 补图进行中：最多轮询 30 次（~2 分钟），图一到就逐张亮出
+    if (figPolls.current >= 30) {
+      setBatchActive(false)
+      return
+    }
+    const t = setTimeout(() => {
+      figPolls.current += 1
+      reload()
+    }, 4000)
+    return () => clearTimeout(t)
+  }, [batchActive, papers, loading, reload])
 
-  const doFetch = () =>
-    runFetch(
-      () => post('/paperfeed/fetch', {}),
-      { ok: '', after: reload },
-    )
+  const doFetch = () => refresh(false)
 
   const doPoll = () =>
     runPoll(
@@ -161,6 +220,11 @@ export default function PaperFeedView() {
           ]}
         />
         <div className="ml-auto flex items-center gap-1.5">
+          {lastFetchAt && (
+            <span className="mr-1 hidden text-[10.5px] text-[color:var(--wb-muted)] sm:inline">
+              更新于 {relTime(lastFetchAt)}
+            </span>
+          )}
           <Btn size="xs" onClick={() => ingest.show()}>
             <Icon name="paperclip" size={13} />
             粘贴投喂
@@ -179,6 +243,13 @@ export default function PaperFeedView() {
           </Btn>
         </div>
       </div>
+
+      {/* 实时拉取提示条：自动刷新或手动「拉取最新」时显示 */}
+      {fetching && (
+        <div className="shrink-0 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-4 py-1.5 text-center text-[11px] text-[color:var(--wb-muted)]">
+          正在从 arXiv 实时拉取最新论文…
+        </div>
+      )}
 
       {/* 卡片流 / 大厅 */}
       <div className="min-h-0 flex-1 bg-[color:var(--wb-bg)]">

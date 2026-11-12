@@ -38,8 +38,12 @@ export type ChatMsg = {
   role: 'user' | 'assistant'
   content: string
   kind?: 'text' | 'deep' | 'report'
+  /** 后端消息 id（rchat 等模块落库后带回），用于原地编辑写回 */
+  id?: number
   applied?: string[]
   plan?: string[]
+  /** 思考过程（agentic 的显式推理轨迹，由后端 thinking_delta 流式推来），渲染在「Thinking ›」折叠块 */
+  thinking?: string
   suggests?: string[]
   citations?: Citation[]
   queries?: string[]
@@ -66,6 +70,8 @@ type Props = {
   title: string
   messages: ChatMsg[]
   busy: boolean
+  /** 忙碌态的实时说明（SSE 阶段事件文本），替代默认的 Thinking；不传则显示 Thinking */
+  busyNote?: string
   input: string
   onInput: (v: string) => void
   onSend: (text?: string, tag?: string) => void
@@ -196,6 +202,15 @@ export function citeLabel(c: Citation): string {
   return `[${c.n}] ${first} ${c.year ?? ''}`.trim()
 }
 
+/** Undermind 式引用码：一作姓氏前 3 字母 + 年份后两位（如 Sch23），中文取前 3 字。 */
+export function citeCode(c: Citation): string {
+  const first = (c.authors || '').split(',')[0]?.trim() || ''
+  const surname = (first.split(/\s+/).pop() || '').replace(/[^A-Za-z\u4e00-\u9fff]/g, '')
+  const yr = /^\d{4}$/.test(String(c.year ?? '')) ? String(c.year).slice(-2) : ''
+  if (surname) return `${surname.slice(0, 3)}${yr}`
+  return `[${c.n}]`
+}
+
 function citeUrl(c: Citation): string {
   if (c.doi) return `https://doi.org/${c.doi}`
   return c.url || ''
@@ -219,14 +234,18 @@ function exportMd(name: string, msgs: ChatMsg[]) {
   URL.revokeObjectURL(a.href)
 }
 
-/** 引用小签行：/research 传 onCite 时显示文献标题、点开对应详情；其它入口保持点开 DOI */
+/** 引用小签行：对标 Undermind 的 Papers mentioned 小号引用码 chip（Sch23 / Gu26 …），
+ *  悬停显完整标题，点击开文献详情（onCite）或 DOI。 */
 function CiteChips({ cits, onCite }: { cits: Citation[]; onCite?: (c: Citation) => void }) {
   if (!cits.length) return null
+  const tip = (c: Citation) =>
+    `${citeLabel(c)}${c.title ? ` · ${c.title}` : ''}${c.venue ? ` · ${c.venue}` : ''}`
   const cls =
-    'flex max-w-[20rem] items-center gap-1 rounded-full border border-[color:var(--wb-accent)]/25 ' +
-    'bg-[color:var(--wb-accent-soft)] px-2 py-[2px] text-[10.5px] text-[color:var(--wb-accent-strong)] transition hover:brightness-[0.96]'
+    'flex max-w-[12rem] items-center rounded-[6px] border border-[color:var(--wb-accent)]/30 ' +
+    'bg-[color:var(--wb-accent-soft)] px-1.5 py-[1px] text-[10px] leading-[16px] text-[color:var(--wb-accent-strong)] ' +
+    'transition hover:brightness-[0.95]'
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-1">
       {cits.map((c, k) => {
         const url = citeUrl(c)
         if (onCite) {
@@ -235,23 +254,20 @@ function CiteChips({ cits, onCite }: { cits: Citation[]; onCite?: (c: Citation) 
               key={k}
               type="button"
               onClick={() => onCite(c)}
-              title={`查看文献：${c.title || ''}${c.venue ? ` · ${c.venue}` : ''}`}
+              title={`查看文献：${tip(c)}`}
               className={cls}
             >
-              <span className="shrink-0">[{c.n}]</span>
-              <span className="truncate">{c.title || citeLabel(c)}</span>
-              <Icon name="chevronRight" size={10} className="shrink-0 opacity-60" />
+              <span className="truncate">{citeCode(c)}</span>
             </button>
           )
         }
         return url ? (
-          <a key={k} href={url} target="_blank" rel="noreferrer"
-            title={`${c.title || ''}${c.venue ? ` · ${c.venue}` : ''}`} className={cls}>
-            <span className="truncate">{citeLabel(c)}</span>
+          <a key={k} href={url} target="_blank" rel="noreferrer" title={tip(c)} className={cls}>
+            <span className="truncate">{citeCode(c)}</span>
           </a>
         ) : (
-          <span key={k} title={c.title || ''} className={cls}>
-            <span className="truncate">{citeLabel(c)}</span>
+          <span key={k} title={tip(c)} className={cls}>
+            <span className="truncate">{citeCode(c)}</span>
           </span>
         )
       })}
@@ -272,7 +288,7 @@ function AssistantMsg({
   onCite?: (c: Citation) => void
 }) {
   const [stepsOpen, setStepsOpen] = useState(false)
-  const [thinkOpen, setThinkOpen] = useState(false)
+  const [thinkOpen, setThinkOpen] = useState(true)
   const isReport = m.kind === 'report'
   const cits = m.citations || []
   return (
@@ -308,25 +324,30 @@ function AssistantMsg({
         </div>
       )}
 
-      {/* Thinking › —— 折叠的执行思路 */}
-      {(m.plan || []).length > 0 && (
+      {/* Thinking › —— 显式推理轨迹（agentic 的核心：让用户看到「为什么这么答」） */}
+      {((m.plan || []).length > 0 || m.thinking) && (
         <>
           <button
             onClick={() => setThinkOpen(!thinkOpen)}
             className="flex items-center gap-1.5 text-[11.5px] text-[color:var(--wb-muted)] transition hover:text-[color:var(--wb-text-soft)]"
           >
-            <Icon name="lightbulb" size={12} />
+            <Icon name="lightbulb" size={12} className="text-[color:var(--wb-accent-strong)]" />
             Thinking
             <Icon name={thinkOpen ? 'chevronDown' : 'chevronRight'} size={12} />
           </button>
           {thinkOpen && (
-            <ol className="ml-1 flex flex-col gap-1 border-l-2 border-[color:var(--wb-border)] pl-3">
+            <div className="ml-1 flex flex-col gap-1 border-l-2 border-[color:var(--wb-border)] pl-3">
+              {m.thinking && (
+                <p className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-[color:var(--wb-text-soft)]">
+                  {m.thinking}
+                </p>
+              )}
               {(m.plan || []).map((p, k) => (
-                <li key={k} className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
+                <p key={k} className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
                   {p}
-                </li>
+                </p>
               ))}
-            </ol>
+            </div>
           )}
         </>
       )}
@@ -357,8 +378,8 @@ function AssistantMsg({
         </div>
       )}
 
-      {/* 引用小签 / 已执行小签 */}
-      {cits.length > 0 && <CiteChips cits={cits} onCite={onCite} />}
+      {/* 引用小签 / 已执行小签。报告卡不铺引用长列表：报告正文里的 [n] 与报告栏引用已够用 */}
+      {cits.length > 0 && m.kind !== 'report' && <CiteChips cits={cits} onCite={onCite} />}
       {!cits.length && (m.applied || []).length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {(m.applied || []).map((a, k) => (
@@ -399,6 +420,7 @@ export default function ChatPanel({
   title,
   messages,
   busy,
+  busyNote,
   input,
   onInput,
   onSend,
@@ -446,11 +468,12 @@ export default function ChatPanel({
     busyStart.current = 0
   }, [busy])
 
-  // 新消息自动滚到底
+  // 新消息自动滚到底；流式草稿逐 token 增长时也跟着滚（最后一条内容变长）
+  const lastLen = messages.length ? (messages[messages.length - 1].content || '').length : 0
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [messages.length, busy])
+  }, [messages.length, busy, lastLen])
 
   // 提问历史跳转：滚到对应消息并短暂高亮（nonce 变化才触发，同一条可重复点）
   useEffect(() => {
@@ -564,7 +587,7 @@ export default function ChatPanel({
                 </div>
                 <div className="flex items-center gap-1.5 text-[11.5px] text-[color:var(--wb-muted)]">
                   <Icon name="lightbulb" size={12} />
-                  Thinking
+                  {busyNote || 'Thinking'}
                   <span className="wb-anim-pulse">···</span>
                 </div>
               </div>
@@ -599,7 +622,7 @@ export default function ChatPanel({
 
           {proposal}
 
-          <div className="relative rounded-[20px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] transition focus-within:border-[color:var(--wb-accent)]/60">
+          <div className="relative rounded-[20px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] transition">
             {/* 技能选择器等调用方浮层：与输入框同一个 containing block，不另起弹窗 */}
             {composerOverlay}
             {/* + 菜单：示例指令 + 导入 / 添加技能入口（对标 Add papers / Import bibliography） */}
@@ -649,7 +672,7 @@ export default function ChatPanel({
               onKeyDown={(e: any) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
-                  if (overlayOpen) return
+                  if (busy || overlayOpen) return
                   onSend()
                   setPlusOpen(false)
                 }

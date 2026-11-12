@@ -1,0 +1,29 @@
+{
+  "schema": "native_pptx_enhancement_project.v1",
+  "kind": "native_pptx_enhancement",
+  "modules": [
+    "notes",
+    "audio",
+    "timings",
+    "transitions"
+  ],
+  "source_pptx": "sources/workbench-tutorial.pptx",
+  "source_markdown": "sources/workbench-tutorial.md",
+  "source_import": {
+    "mode": "copy",
+    "original_path": "D:\\03-Codes\\2026-09-20-01-46-40\\growth-workbench\\web\\public\\tutorial\\workbench-tutorial.pptx"
+  },
+  "slide_count": 14,
+  "notes_dir": "notes",
+  "audio_dir": "audio",
+  "exports_dir": "exports",
+  "transition": {
+    "effect": "fade",
+    "duration": 0.5
+  },
+  "audio": {
+    "provider": "",
+    "voice": "",
+    "rate": ""
+  }
+}

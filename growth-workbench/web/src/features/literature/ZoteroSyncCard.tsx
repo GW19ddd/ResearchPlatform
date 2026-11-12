@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { Btn, Card, Input, Select, TextArea } from '../../components/ui'
 import { get, post } from '../../lib/api'
 import { usePersist } from '../../lib/state'
+import { LM_BORDER, LM_FAINT, LM_TEXT } from './litColors'
 
 export default function ZoteroSyncCard({
   onImported,
@@ -71,7 +72,7 @@ export default function ZoteroSyncCard({
       title="从 Zotero 同步"
       extra={
         <div className="flex items-center gap-2">
-          <span className="hidden text-[11.5px] text-[color:var(--wb-muted)] sm:inline">
+          <span className={`hidden text-[11.5px] text-${LM_FAINT} sm:inline`}>
             按 DOI / 标题去重，已存在的条目自动跳过
           </span>
           <Btn size="sm" onClick={() => setOpen((v) => !v)}>
@@ -82,11 +83,11 @@ export default function ZoteroSyncCard({
       className="md:col-span-3"
     >
       {!open ? (
-        <div className="flex flex-wrap items-center gap-3 text-[12px] text-[color:var(--wb-text-soft)]">
+        <div className={`flex flex-wrap items-center gap-3 text-[12px] text-${LM_TEXT}`}>
           <span>
             {collections.length > 0 ? `已载入 ${collections.length} 个分类` : '本地 Zotero 桌面端 / Web API / 离线粘贴'}
           </span>
-          <span className="text-[color:var(--wb-muted)]">
+          <span className={`text-${LM_FAINT}`}>
             {zres?.ok ? `上次同步：导入 ${zres.imported} 条，跳过 ${zres.skipped} 条` : '点「展开」配置并同步'}
           </span>
         </div>
@@ -153,15 +154,15 @@ export default function ZoteroSyncCard({
           <Btn onClick={zLoadCollections} disabled={zbusy === 'coll'}>
             {zbusy === 'coll' ? '载入中…' : '载入分类'}
           </Btn>
-          <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+          <span className={`text-[11.5px] text-${LM_FAINT}`}>
             {collections.length > 0
               ? `已载入 ${collections.length} 个分类，可在上面「同步范围」里挑一个只同步它`
               : '本地模式需 Zotero 桌面端已启动，且开启「设置 → 高级 → 允许本机其他程序访问」'}
           </span>
         </div>
 
-        <details className="rounded-[10px] border border-[color:var(--wb-border)] px-3 py-2">
-          <summary className="cursor-pointer text-[12px] text-[color:var(--wb-text-soft)]">
+        <details className={`rounded-[10px] border border-${LM_BORDER} px-3 py-2`}>
+          <summary className={`cursor-pointer text-[12px] text-${LM_TEXT}`}>
             离线导入：粘贴 CSL JSON / BibTeX / RIS
           </summary>
           <div className="mt-2 flex flex-col gap-2">
@@ -204,6 +205,9 @@ export default function ZoteroSyncCard({
                       <li key={i}>{s}</li>
                     ))}
                   </ul>
+                )}
+                {zres.hint && (
+                  <p className="mt-1 text-[11.5px] leading-relaxed opacity-90">{zres.hint}</p>
                 )}
               </div>
             ) : (

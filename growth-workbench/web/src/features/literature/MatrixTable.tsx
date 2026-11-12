@@ -7,6 +7,7 @@
  */
 import { useMemo, useState } from 'react'
 import { Btn, Empty, IconBtn, Pagination, SearchInput, Select } from '../../components/ui'
+import { LM_BLUE, LM_BORDER, LM_BORDER_STRONG, LM_FAINT, LM_TITLE } from './litColors'
 
 const VIEW_OPTS = [
   { value: 'all', label: '全部文献' },
@@ -62,9 +63,9 @@ export default function MatrixTable({
 
   return (
     /* 满铺：与文献库同款，贴住顶栏/侧栏/状态栏边线，表格区域内部滚动 */
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[color:var(--wb-surface)]">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-4 py-2.5">
-        <h2 className="whitespace-nowrap text-[13px] font-semibold text-[color:var(--wb-text)]">
+    <div className="lit-scope flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
+      <div className={`flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-${LM_BORDER} bg-white px-4 py-2.5`}>
+        <h2 className={`whitespace-nowrap text-[13px] font-semibold text-${LM_TITLE}`}>
           相关工作对比矩阵
         </h2>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -89,20 +90,20 @@ export default function MatrixTable({
           <Empty text="没有命中的文献" hint="换个关键词，或切回「全部文献」" />
         ) : (
           <>
-            <div className="mb-2 text-[11.5px] text-[color:var(--wb-muted)]">
+            <div className={`mb-2 text-[11.5px] text-${LM_FAINT}`}>
               命中 {filtered.length} 篇 · 已填 {filledCount} / 共 {papers.length} 篇
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] border-collapse text-[12px]">
                 <thead>
                   <tr>
-                    <th className="border-b border-[color:var(--wb-border)] px-2 py-2 text-left font-medium text-[color:var(--wb-muted)]">
+                    <th className={`border-b border-${LM_BORDER} px-2 py-2 text-left font-medium text-${LM_FAINT}`}>
                       文献
                     </th>
                     {matrix.dimensions.map((d: string) => (
                       <th
                         key={d}
-                        className="border-b border-[color:var(--wb-border)] px-2 py-2 text-left font-medium text-[color:var(--wb-muted)]"
+                        className={`border-b border-${LM_BORDER} px-2 py-2 text-left font-medium text-${LM_FAINT}`}
                       >
                         <span className="flex items-center gap-1">
                           {d}
@@ -121,11 +122,11 @@ export default function MatrixTable({
                 </thead>
                 <tbody>
                   {paged.map((p: any) => (
-                    <tr key={p.id} className="hover:bg-[color:var(--wb-surface-alt)]">
-                      <td className="border-b border-[color:var(--wb-border)] px-2 py-1.5 align-top text-[color:var(--wb-text)]">
+                    <tr key={p.id} className="hover:bg-white">
+                      <td className={`border-b border-${LM_BORDER} px-2 py-1.5 align-top text-${LM_TITLE}`}>
                         <div>{p.title}</div>
                         {(p.venue || p.year) && (
-                          <div className="mt-0.5 text-[11px] text-[color:var(--wb-muted)]">
+                          <div className={`mt-0.5 text-[11px] text-${LM_FAINT}`}>
                             {[p.venue, p.year].filter(Boolean).join(' · ')}
                           </div>
                         )}
@@ -133,12 +134,12 @@ export default function MatrixTable({
                       {matrix.dimensions.map((d: string) => (
                         <td
                           key={d}
-                          className="border-b border-[color:var(--wb-border)] px-2 py-1.5 align-top"
+                          className={`border-b border-${LM_BORDER} px-2 py-1.5 align-top`}
                         >
                           <input
                             defaultValue={p.cells[d] || ''}
                             onBlur={(e) => onSaveCell(p.id, d, e.target.value)}
-                            className="w-full rounded-[6px] border border-transparent bg-transparent px-1 py-0.5 text-[12px] outline-none transition hover:border-[color:var(--wb-border-strong)] focus:border-[color:var(--wb-accent)] focus:bg-[color:var(--wb-surface)]"
+                            className={`w-full rounded-[6px] border border-transparent bg-transparent px-1 py-0.5 text-[12px] outline-none transition hover:border-${LM_BORDER_STRONG} focus:border-${LM_BLUE} focus:bg-white`}
                           />
                         </td>
                       ))}
@@ -147,7 +148,7 @@ export default function MatrixTable({
                 </tbody>
               </table>
             </div>
-            <div className="mt-3 border-t border-[color:var(--wb-border)] pt-2.5">
+            <div className={`mt-3 border-t border-${LM_BORDER} pt-2.5`}>
               <Pagination
                 total={filtered.length}
                 page={cur}
@@ -159,7 +160,7 @@ export default function MatrixTable({
             </div>
           </>
         )}
-        <p className="mt-2 text-[11.5px] text-[color:var(--wb-muted)]">
+        <p className={`mt-2 text-[11.5px] text-${LM_FAINT}`}>
           这张表填满后，Related Work 基本可以直接照着写。单元格失焦即保存。
         </p>
       </div>

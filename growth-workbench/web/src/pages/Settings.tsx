@@ -6,9 +6,11 @@ import { del, get, post, put } from '../lib/api'
 import BackupCard from '../features/settings/BackupCard'
 import SuspectsCard from '../features/settings/SuspectsCard'
 import AccountCard from '../features/settings/AccountCard'
+import BillingCard from '../features/settings/BillingCard'
 import ZoteroSyncCard from '../features/literature/ZoteroSyncCard'
 import PaperFeedCard from '../features/settings/PaperFeedCard'
 import OpenAlexCard from '../features/settings/OpenAlexCard'
+import ConsensusCard from '../features/settings/ConsensusCard'
 import CanvasAccess from '../features/canvas/CanvasAccess'
 import CanvasLogs from '../features/canvas/CanvasLogs'
 import CanvasMonitor from '../features/canvas/CanvasMonitor'
@@ -43,6 +45,7 @@ function UsageTip({ active, payload }: any) {
 export type SettingsSection =
   | 'all'
   | 'account'
+  | 'billing'
   | 'model'
   | 'dify'
   | 'canvas'
@@ -273,6 +276,7 @@ export default function Settings({
         />
       )}
       {show('account') && <AccountCard />}
+      {show('billing') && <BillingCard />}
       {/* ============ ① API 设置（模型供应商） ============ */}
       {show('model') && (
       <Card
@@ -617,6 +621,7 @@ export default function Settings({
       {show('canvas') && <CanvasManageCard />}
 
       {show('sources') && <OpenAlexCard />}
+      {show('sources') && <ConsensusCard />}
 
       {show('model') && (
       <Card

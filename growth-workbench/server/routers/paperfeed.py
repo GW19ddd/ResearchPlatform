@@ -8,15 +8,18 @@
 设计取舍：
 - arxiv_id 唯一，三个渠道都走 INSERT OR IGNORE，同一篇论文只落一次库；
 - 拉取与邮件轮询都是同步阻塞的 best-effort：网络失败只返回错误信息，不炸服务；
-- 图抓取尝试 arxiv.org/html 的第一张正文图（paperdance 式「摘要 + 图」卡片），
-  抓不到就不带图，绝不虚构。
+- 图抓取四层兜底（保证每张卡都有图）：arXiv HTML 正文 img → <object> 矢量图 →
+  figure 块内嵌 svg（本地保存）→ PDF 首页渲染（没有 HTML 版的论文，渲染的是
+  论文自己的第一页）。
 """
 from __future__ import annotations
 
 import email
 import imaplib
 import re
+import threading
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 import httpx
@@ -43,9 +46,16 @@ _FIG_BLOCKLIST = ("logo", "icon", "favicon", "banner", "spinner", "avatar", "bad
 _FIG_EXT_OK = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 
 
+_PROXY_CACHE: str | None = None  # None=还没读过注册表；""=无代理
+
+
 def _sys_proxy() -> str | None:
-    """读 Windows 系统代理（注册表）。服务器进程没有环境变量代理，
-    而 arXiv 直连基本被墙，必须走系统代理才有机会通。"""
+    """读 Windows 系统代理（注册表，结果缓存——补图并行时每次读注册表很浪费）。
+    服务器进程没有环境变量代理，而 arXiv 直连基本被墙，必须走系统代理才有机会通。"""
+    global _PROXY_CACHE
+    if _PROXY_CACHE is not None:
+        return _PROXY_CACHE or None
+    result: str | None = None
     try:
         import winreg
 
@@ -54,31 +64,49 @@ def _sys_proxy() -> str | None:
             r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
         )
         if not winreg.QueryValueEx(k, "ProxyEnable")[0]:
-            return None
-        server = str(winreg.QueryValueEx(k, "ProxyServer")[0])
-        if "=" in server:  # per-protocol 形式：http=...;https=...
-            picked = ""
-            for part in server.split(";"):
-                if part.startswith(("http=", "https=")):
-                    picked = part.split("=", 1)[1]
-                    break
-            server = picked
-        if not server:
-            return None
-        return server if server.startswith("http") else f"http://{server}"
+            result = None
+        else:
+            server = str(winreg.QueryValueEx(k, "ProxyServer")[0])
+            if "=" in server:  # per-protocol 形式：http=...;https=...
+                picked = ""
+                for part in server.split(";"):
+                    if part.startswith(("http=", "https=")):
+                        picked = part.split("=", 1)[1]
+                        break
+                server = picked
+            if server:
+                result = server if server.startswith("http") else f"http://{server}"
     except Exception:  # noqa: BLE001 —— 非 Windows / 读不到就当没代理
-        return None
+        result = None
+    _PROXY_CACHE = result or ""
+    return result
 
 
-def _fetch(url: str, timeout: float = 20.0) -> httpx.Response | None:
-    """直连 → 系统代理 双路请求，先成功者胜；都失败返回 None。"""
-    last_exc: Exception | None = None
-    for kw in ({}, {"proxy": _sys_proxy()}):
+# 记住最近一次成功的请求路径（"direct"/"proxy"），下次先走它——
+# arXiv 直连基本必败，每次先试直连会白白多等一个超时
+_ROUTE: list[str] = ["direct", "proxy"]
+_ROUTE_LOCK = threading.Lock()
+
+
+def _fetch(url: str, timeout: float = 20.0, headers: dict | None = None) -> httpx.Response | None:
+    """双路请求（直连 → 系统代理），按最近成功率动态排序：成功路径提前、
+    失败路径沉底——arXiv 直连必败的环境里，最多白等一次超时就永久代理优先。"""
+    with _ROUTE_LOCK:
+        order = list(_ROUTE)
+    for path in order:
+        kw: dict = {} if path == "direct" else {"proxy": _sys_proxy()}
         try:
-            return httpx.get(url, timeout=timeout, follow_redirects=True, **kw)
-        except Exception as e:  # noqa: BLE001 —— 换下一条路
-            last_exc = e
-    del last_exc
+            r = httpx.get(url, timeout=timeout, follow_redirects=True,
+                          headers=headers or None, **kw)
+            if _ROUTE and _ROUTE[0] != path:
+                with _ROUTE_LOCK:
+                    _ROUTE[:] = [path] + [p for p in _ROUTE if p != path]
+            return r
+        except Exception:  # noqa: BLE001 —— 失败路径沉底，下次先走另一条
+            with _ROUTE_LOCK:
+                if path in _ROUTE:
+                    _ROUTE[:] = [p for p in _ROUTE if p != path] + [path]
+            continue
     return None
 
 # 设置页可选的常用 arXiv 学科（够用就好，用户也可以手填）
@@ -133,6 +161,18 @@ LANGS = {"zh", "en", "both"}
 @router.get("/subjects")
 def subject_options():
     return {"options": SUBJECT_OPTIONS}
+
+
+@router.get("/status")
+def feed_status():
+    """给前端判断是否需要实时拉取：论文总数、上次 arXiv 拉取时间、是否已配学科/关键词。"""
+    cnt = query("SELECT COUNT(*) c FROM paperfeed_papers")
+    s = _get_settings_raw()
+    return {
+        "count": cnt[0]["c"] if cnt else 0,
+        "last_fetch_at": s.get("last_fetch_at") or None,
+        "has_query": bool((s.get("subjects") or []) or (s.get("keywords") or "").strip()),
+    }
 
 
 @router.get("/settings")
@@ -290,12 +330,22 @@ def _img_real_url(tag: str, base: str) -> str:
 
 
 def _extract_figure(html: str, base: str) -> str:
-    """从 HTML 里挑第一张正文图：优先 <figure> 块内的图（含懒加载属性），
-    再退回全部 img。绝不用 PDF 截图。"""
+    """从 HTML 里挑第一张正文图，三层找：
+    1) <figure> 块内的 <img>（含懒加载属性）；
+    2) <figure> 块内的 <object type="image/svg+xml" data="...">——LaTeXML（arXiv
+       新 HTML 版）把矢量图挂 object 标签上，不产生 <img>，漏掉它就漏掉一半论文；
+    3) 全页 img / 全页 object 退化兜底。
+    绝不用 PDF 截图。"""
     # 1) <figure> 块优先：HTML5 figure 内基本就是正文图
     for m in re.finditer(r"<figure[\s\S]*?</figure>", html, re.I):
         for im in re.finditer(r"<img\b[^>]*>", m.group(0), re.I):
             u = _img_real_url(im.group(0), base)
+            if u:
+                return u
+    # 1.5) figure 块内的 object svg（LaTeXML 矢量图）
+    for m in re.finditer(r"<figure[\s\S]*?</figure>", html, re.I):
+        for ob in re.finditer(r"<object\b[^>]*>", m.group(0), re.I):
+            u = _obj_svg_url(ob.group(0), base)
             if u:
                 return u
     # 2) 退化为全部 img（按出现顺序取第一张像样的）
@@ -304,25 +354,91 @@ def _extract_figure(html: str, base: str) -> str:
         u = _img_real_url(im.group(0), base)
         if u and u not in candidates:
             candidates.append(u)
-    return candidates[0] if candidates else ""
+    if candidates:
+        return candidates[0]
+    # 3) 全页 object svg 兜底
+    for ob in re.finditer(r"<object\b[^>]*>", html, re.I):
+        u = _obj_svg_url(ob.group(0), base)
+        if u:
+            return u
+    return ""
 
 
-def _grab_figure(arxiv_id: str) -> str:
-    """抓论文正文第一张图，作为卡片封面。先试 arXiv 官方 HTML 版，
-    404 再退 ar5iv。base 用重定向后的最终 URL，相对路径才能拼对。
-    best-effort：抓不到就空着，绝不虚构。"""
+def _obj_svg_url(tag: str, base: str) -> str:
+    """<object type="image/svg+xml" data="..."> 里的矢量图地址。
+    type 已声明是 image/svg+xml（在论文正文里），不再要求文件名含 figure 暗示词，
+    只挡 logo / 图标。"""
+    from urllib.parse import urljoin
+
+    m = re.search(r'data\s*=\s*"([^"]+)"', tag, re.I)
+    src = (m.group(1) if m else "").strip()
+    if not src or src.lower().startswith("data:"):
+        return ""
+    if any(k in src.lower() for k in _FIG_BLOCKLIST):
+        return ""
+    tm = re.search(r'type\s*=\s*"([^"]+)"', tag, re.I)
+    ctype = (tm.group(1) if tm else "").lower()
+    if "svg" not in ctype and not src.lower().endswith(".svg"):
+        return ""
+    try:
+        u = urljoin(base, src)
+    except Exception:  # noqa: BLE001
+        return ""
+    return u if u.startswith("http") else ""
+
+
+def _extract_inline_svg(html: str) -> str:
+    """提取第一个 <figure> 块里内嵌的 <svg>（LaTeXML 把 TikZ/pgfplots 矢量图
+    直接渲染成内联 svg 标签，没有独立图片 URL）。返回可直接保存成 .svg 文件
+    的标记，空串=没有。只认 <figure> 块内的 svg，避免抓到行内数学公式。"""
+    for m in re.finditer(r"<figure[\s\S]*?</figure>", html, re.I):
+        s = re.search(r"<svg\b[\s\S]*?</svg>", m.group(0), re.I)
+        if s:
+            svg = s.group(0)
+            if "xmlns" not in svg[:300]:
+                svg = svg.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"', 1)
+            return svg
+    return ""
+
+
+# 只要 HTML 开头 256KB：正文第一张图几乎总在摘要/引言附近（页面头部），
+# 完整 HTML 有 1~3MB，走代理整页下载是补图慢的主因——Range 截断后单页只要 ~1s
+_RANGE_HEADERS = {"Range": "bytes=0-262143"}
+
+
+def _grab_figure(arxiv_id: str) -> tuple[str, bool, str]:
+    """抓论文正文第一张图，作为卡片封面。三层：arXiv HTML img → object/内嵌 svg
+    （ar5iv 兜底）。截断页（Range 256KB）里没找到时再用完整页重试一次——
+    有些论文第一个 figure 在第 3 节之后，可能落在截断窗口外。
+    返回 (图URL, 是否拿到过页面, 内嵌svg标记)。saw_page 用于区分「确认没图」
+    与「网络失败」——只有前者才允许打 none 标记放弃。best-effort，绝不虚构。"""
+    saw_page = False
     for template in (ARXIV_HTML, AR5IV_HTML):
         base = template.format(arxiv_id)
         try:
-            r = _fetch(base, timeout=12)
-            if r is None or r.status_code != 200 or not r.text:
+            r = _fetch(base, timeout=8, headers=_RANGE_HEADERS)
+            if r is None or r.status_code not in (200, 206) or not r.text:
                 continue
+            saw_page = True
             fig = _extract_figure(r.text, str(r.url))
             if fig:
-                return fig
+                return fig, True, ""
+            svg = _extract_inline_svg(r.text)
+            if svg:
+                return "", True, svg
+            # 截断页一无所获 → 完整页再试一次（figure 可能在页面后半段）
+            if r.status_code == 206:
+                r2 = _fetch(base, timeout=15)
+                if r2 is not None and r2.status_code == 200 and r2.text:
+                    fig = _extract_figure(r2.text, str(r2.url))
+                    if fig:
+                        return fig, True, ""
+                    svg = _extract_inline_svg(r2.text)
+                    if svg:
+                        return "", True, svg
         except Exception:  # noqa: BLE001 —— 单源失败换下一个
             continue
-    return ""
+    return "", saw_page, ""
 
 
 def _build_query(subjects: list[str], keywords: str) -> str:
@@ -359,48 +475,158 @@ def fetch_arxiv():
         raise HTTPException(502, f"arXiv 拉取失败：{type(exc).__name__}: {exc}")
 
     added = 0
+    added_ids: list[str] = []
     for p in papers:
         if _upsert_paper(p, "arxiv"):
-            # 只给真正新入库的论文抓图，老论文不重复消耗请求
-            aid = p.get("arxiv_id")
-            if aid:
-                hit = query("SELECT id FROM paperfeed_papers WHERE arxiv_id=?", (aid,))
-                if hit:
-                    _fill_figure(hit[0]["id"], aid)
+            added_ids.append(p.get("arxiv_id") or "")
             added += 1
-    return {"ok": True, "added": added, "fetched": len(papers)}
+    # 记时间戳（先落，再后台预热封面，保证 fetch 永远秒回）
+    s = _get_settings_raw()
+    s["last_fetch_at"] = now()
+    _save_settings_raw(s)
+    # 后台并行预热新论文封面：不阻塞本次响应，用户刷到的卡片随后陆续有图
+    if added_ids:
+        threading.Thread(target=_warm_covers_bg, args=(added_ids,), daemon=True).start()
+    return {"ok": True, "added": added, "fetched": len(papers), "last_fetch_at": s["last_fetch_at"]}
+
+
+def _warm_covers_bg(arxiv_ids: list[str]) -> None:
+    """后台线程：给刚拉取入库的论文并行补抓正文首图（best-effort，失败静默）。"""
+    try:
+        rows = query(
+            """SELECT id, arxiv_id FROM paperfeed_papers
+               WHERE (figure_url IS NULL OR figure_url='')
+                 AND (figure_kind IS NULL OR figure_kind != 'none')"""
+        )
+        todo = [(r["id"], r["arxiv_id"]) for r in rows if r["arxiv_id"] in set(arxiv_ids)]
+        _BATCH_FIG_RUNNING.set()
+        try:
+            _parallel_fill(todo)
+        finally:
+            _BATCH_FIG_RUNNING.clear()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _parallel_fill(pairs: list[tuple[int, str]], workers: int = 16) -> int:
+    """并行给 (pid, arxiv_id) 列表补图。arXiv 能承受温和并发；配合 Range 只拉
+    页面开头 256KB，单页 ~1s，16 线程把 100 篇的补图压到 ~10 秒内。
+    写库用独立连接，避免跨线程共用。"""
+    if not pairs:
+        return 0
+    filled = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futs = {pool.submit(_fill_figure, pid, aid): pid for pid, aid in pairs}
+        for _ in as_completed(futs):
+            pass
+    # 统计实际有图的数量
+    ids = [pid for pid, _ in pairs]
+    marks = ",".join("?" * len(ids))
+    row = query(f"SELECT COUNT(*) AS n FROM paperfeed_papers WHERE id IN ({marks}) AND figure_url IS NOT NULL AND figure_url!=''", ids)  # noqa: S608
+    filled = row[0]["n"] if row else 0
+    return filled
 
 
 def _fill_figure(pid: int, arxiv_id: str) -> bool:
-    """给一篇论文确定封面：只抓 arXiv HTML 正文首图（论文自己的配图）。
-    抓不到不再兜底渲染 PDF 首页——绝不用论文截图当封面。"""
-    fig = _grab_figure(arxiv_id)
+    """给一篇论文确定封面，四层逐级兜底（保证每张卡都有图）：
+    ① arXiv HTML 正文 <img>；② <object> 引用的矢量图；③ figure 块内嵌 <svg>
+    （TikZ 图，保存为本地 svg 文件）；④ PDF 首页渲染（论文自己的第一页，
+    含标题/摘要/首图——没有 HTML 版的论文只有这条路）。
+    全部失败：页面确认拿到的才打 none 标记，网络失败留着重试。"""
+    fig, saw_page, svg = _grab_figure(arxiv_id)
     if fig:
         execute(
             "UPDATE paperfeed_papers SET figure_url=?, figure_kind='arxiv' WHERE id=?",
             (fig, pid),
         )
         return True
+    if svg:
+        # 内嵌矢量图：直接落本地缓存，figure_url 记标记（/fig 从缓存出）
+        try:
+            FIG_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            (FIG_CACHE_DIR / f"{pid}.img").write_text(svg, encoding="utf-8")
+            (FIG_CACHE_DIR / f"{pid}.ct").write_text("image/svg+xml", encoding="ascii")
+        except Exception:  # noqa: BLE001 —— 落盘失败就走 PDF 兜底
+            svg = ""
+        if svg:
+            execute(
+                "UPDATE paperfeed_papers SET figure_url=?, figure_kind='arxiv' WHERE id=?",
+                (f"inline-svg:{pid}", pid),
+            )
+            return True
+    # ④ PDF 首页渲染兜底（论文自己的第一页，不是外部截图）
+    status = _render_pdf_cover(pid, arxiv_id)
+    if status == "ok":
+        return True
+    if status == "bad":
+        # HTML 页面和 PDF 都到手过但确实一张图都拿不到才放弃；
+        # 'nofetch' 是网络失败，留着重试
+        execute(
+            "UPDATE paperfeed_papers SET figure_kind='none' WHERE id=? AND (figure_url IS NULL OR figure_url='')",
+            (pid,),
+        )
     return False
 
 
+def _render_pdf_cover(pid: int, arxiv_id: str) -> str:
+    """下载论文 PDF、渲染第一页为 PNG 封面（论文自己的首页）。
+    返回 'ok' 成功 / 'nofetch' 网络失败（留着重试）/ 'bad' 拿到了但渲染失败。"""
+    try:
+        r = _fetch(f"https://arxiv.org/pdf/{arxiv_id}", timeout=40)
+    except Exception:  # noqa: BLE001
+        return "nofetch"
+    if r is None or r.status_code != 200:
+        return "nofetch"
+    if not r.content:
+        return "bad"
+    try:
+        import io
+
+        import pypdfium2 as pdfium
+
+        doc = pdfium.PdfDocument(io.BytesIO(r.content))
+        if len(doc) == 0:
+            return "bad"
+        page = doc[0]
+        bitmap = page.render(scale=1.5)
+        img = bitmap.to_pil().convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        data = buf.getvalue()
+    except Exception:  # noqa: BLE001
+        return "bad"
+    try:
+        FIG_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        (FIG_CACHE_DIR / f"{pid}.img").write_bytes(data)
+        (FIG_CACHE_DIR / f"{pid}.ct").write_text("image/png", encoding="ascii")
+    except Exception:  # noqa: BLE001
+        return "bad"
+    execute(
+        "UPDATE paperfeed_papers SET figure_url=?, figure_kind='pdf' WHERE id=?",
+        (f"pdf-cover:{pid}", pid),
+    )
+    return "ok"
+
+
 @router.post("/figures")
-def backfill_figures(limit: int = 24):
+def backfill_figures(limit: int = 60):
     """给缺图的论文批量补抓封面（大厅/卡片流展示需要）。best-effort。
-    只补 arXiv 正文首图（论文自己的配图）；无正文图的论文按用户规则显示占位卡，绝不渲染 PDF 截图。"""
-    limit = max(1, min(int(limit), 60))
+    四层兜底（img → object svg → 内嵌 svg → PDF 首页），保证每篇都有图；
+    只有确认全空的 'none' 标记行跳过，不再每次打开页面都白跑。"""
+    limit = max(1, min(int(limit), 120))
     rows = query(
         """SELECT id, arxiv_id FROM paperfeed_papers
-           WHERE figure_url IS NULL OR figure_url=''
+           WHERE (figure_url IS NULL OR figure_url='')
+             AND (figure_kind IS NULL OR figure_kind != 'none')
            ORDER BY id DESC LIMIT ?""",
         (limit,),
     )
-    filled = 0
-    for r in rows:
-        if not r["arxiv_id"]:
-            continue
-        if _fill_figure(r["id"], r["arxiv_id"]):
-            filled += 1
+    pairs = [(r["id"], r["arxiv_id"]) for r in rows if r["arxiv_id"]]
+    _BATCH_FIG_RUNNING.set()
+    try:
+        filled = _parallel_fill(pairs)
+    finally:
+        _BATCH_FIG_RUNNING.clear()
     return {"ok": True, "filled": filled, "tried": len(rows)}
 
 
@@ -416,6 +642,11 @@ def fill_paper_figure(pid: int):
         return {"ok": True, "figure_url": r["figure_url"] or "", "cached": True}
     if not r["arxiv_id"]:
         return {"ok": False, "figure_url": "", "msg": "这篇不是 arXiv 论文，抓不到封面"}
+    # 'none' 是批量补图的放弃标记；用户主动打开详情时值得再试一次，先清标记
+    execute(
+        "UPDATE paperfeed_papers SET figure_kind='' WHERE id=? AND figure_kind='none'",
+        (pid,),
+    )
     ok = _fill_figure(pid, r["arxiv_id"])
     url = ""
     if ok:
@@ -424,11 +655,19 @@ def fill_paper_figure(pid: int):
     return {"ok": ok, "figure_url": url, "msg": "" if ok else "没抓到封面"}
 
 
+# 正在现场补抓的论文 id（防同卡多请求并发打爆）
+_FIG_BUSY: set[int] = set()
+_FIG_BUSY_LOCK = threading.Lock()
+# 批量补图进行中：/fig 的懒补图先歇着（批量很快会填上），避免卡片图请求挂着转圈
+_BATCH_FIG_RUNNING = threading.Event()
+
+
 @router.get("/fig/{pid}")
 def get_figure(pid: int):
-    """论文图代理：只回源论文自己的配图（arXiv HTML 正文首图），本地缓存后回源。
+    """论文图代理：正文图（img/object svg）、内嵌矢量图（本地缓存 svg）、
+    PDF 首页渲染（本地缓存 png）都从这里出；远程图由后端下载一次后从磁盘回源。
     前端 <img> 一律用这个端点，避免浏览器直连 arxiv.org 加载失败。
-    严禁用 PDF 首页截图当封面——figure_kind='pdf' 的行一律 404。"""
+    该论文还没解析到图时，顺手现场快抓一次（懒补图：谁看到的卡片谁触发）。"""
     rows = query(
         "SELECT id, figure_url, figure_kind, arxiv_id FROM paperfeed_papers WHERE id=?",
         (pid,),
@@ -436,39 +675,85 @@ def get_figure(pid: int):
     if not rows:
         raise HTTPException(404, "论文不存在")
     row = rows[0]
-    # 历史遗留的 PDF 截图封面：一律不再展示
-    if row["figure_kind"] == "pdf":
-        raise HTTPException(404, "图片暂不可用")
 
     FIG_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache = FIG_CACHE_DIR / f"{pid}.img"
     meta = FIG_CACHE_DIR / f"{pid}.ct"
-    if cache.exists() and cache.stat().st_size > 0 and row["figure_url"]:
-        ct = "image/png"
-        if meta.exists():
-            ct = meta.read_text(encoding="ascii").strip() or ct
-        return Response(
-            content=cache.read_bytes(),
-            media_type=ct,
-            headers={"Cache-Control": "public, max-age=604800"},
-        )
 
-    # 只回源 arXiv 正文首图（论文自己的配图）
-    if row["figure_url"]:
-        r = _fetch(row["figure_url"], timeout=25)
-        if r is not None and r.status_code == 200 and r.content:
-            ct = (r.headers.get("content-type") or "image/png").split(";")[0].strip().lower()
-            if ct.startswith("image/"):
-                cache.write_bytes(r.content)
-                try:
-                    meta.write_text(ct, encoding="ascii")
-                except Exception:  # noqa: BLE001
-                    pass
-                return Response(
-                    content=r.content,
-                    media_type=ct,
-                    headers={"Cache-Control": "public, max-age=604800"},
-                )
+    def _serve_cache() -> Response | None:
+        if cache.exists() and cache.stat().st_size > 0 and row["figure_url"]:
+            ct = "image/png"
+            if meta.exists():
+                ct = meta.read_text(encoding="ascii").strip() or ct
+            return Response(
+                content=cache.read_bytes(),
+                media_type=ct,
+                headers={"Cache-Control": "public, max-age=604800"},
+            )
+        return None
+
+    # 本地生成的封面（inline-svg / pdf-cover 标记）：缓存被清过就重新生成一次
+    if row["figure_url"] and str(row["figure_url"]).startswith(("inline-svg:", "pdf-cover:")):
+        resp = _serve_cache()
+        if resp is not None:
+            return resp
+        if row["arxiv_id"]:
+            _fill_figure(pid, row["arxiv_id"])
+        resp = _serve_cache()
+        if resp is not None:
+            return resp
+        raise HTTPException(404, "图片暂不可用")
+
+    # 还没图：现场快抓一次（'none' 是确认全空的标记，不重跑）。
+    # 批量补图进行中时跳过——批量很快会填上，这里同步抓会让图片请求挂着转圈
+    if (
+        not row["figure_url"]
+        and row["arxiv_id"]
+        and row["figure_kind"] != "none"
+        and not _BATCH_FIG_RUNNING.is_set()
+    ):
+        with _FIG_BUSY_LOCK:
+            busy = pid in _FIG_BUSY
+            if not busy:
+                _FIG_BUSY.add(pid)
+        if not busy:
+            try:
+                _fill_figure(pid, row["arxiv_id"])
+            finally:
+                with _FIG_BUSY_LOCK:
+                    _FIG_BUSY.discard(pid)
+            got = query("SELECT figure_url FROM paperfeed_papers WHERE id=?", (pid,))
+            if got and got[0]["figure_url"]:
+                row = {**row, "figure_url": got[0]["figure_url"]}
+                # 本地生成的封面直接从缓存出
+                if str(row["figure_url"]).startswith(("inline-svg:", "pdf-cover:")):
+                    resp = _serve_cache()
+                    if resp is not None:
+                        return resp
+
+    if not row["figure_url"]:
+        raise HTTPException(404, "图片暂不可用")
+
+    # 远程正文图：回源一次，落缓存
+    resp = _serve_cache()
+    if resp is not None:
+        return resp
+    r = _fetch(row["figure_url"], timeout=25)
+    if r is not None and r.status_code == 200 and r.content:
+        ct = (r.headers.get("content-type") or "image/png").split(";")[0].strip().lower()
+        if ct.startswith("image/") or ct == "text/plain" and row["figure_url"].endswith(".svg"):
+            if ct == "text/plain":
+                ct = "image/svg+xml"
+            cache.write_bytes(r.content)
+            try:
+                meta.write_text(ct, encoding="ascii")
+            except Exception:  # noqa: BLE001
+                pass
+            return Response(
+                content=r.content,
+                media_type=ct,
+                headers={"Cache-Control": "public, max-age=604800"},
+            )
 
     raise HTTPException(404, "图片暂不可用")
 

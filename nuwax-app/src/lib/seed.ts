@@ -198,7 +198,7 @@ function seedCanvas(key: string): void {
   }
 }
 
-/** 演示数据：一份完整可信的科研工作台快照。 */
+/** 演示数据：一份完整可信的研流快照。 */
 export function seedDemo(): void {
   // 以 ideas 是否已有数据当「已灌过」的哨兵：演示数据里 daily_checkins.date 唯一、
   // 各表还存在 id 交叉引用，重复灌会造出两份同名记录并打破唯一约束。

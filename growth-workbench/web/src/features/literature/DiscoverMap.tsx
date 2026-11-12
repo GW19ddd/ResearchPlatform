@@ -12,15 +12,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Btn, IconBtn } from '../../components/ui'
 import { compactCount, shortLabel, type DiscoverEdge, type DiscoverPaper } from './discoverApi'
+import { LM_BLUE, LM_BORDER, LM_FAINT, LM_TEXT, LM_TITLE } from './litColors'
 
-const C_SEED = '#5b6472'
-const C_SEED_HALO = '#e6e9fb'
-const C_NODE = '#7c8cf2'
-const C_ACCENT = '#5145e0'
-const C_EDGE = '#dfe5ee'
-const C_AXIS = '#c9cfda'
+const C_SEED = '#333d4b'
+const C_SEED_HALO = '#bcd2fa'
+const C_NODE = '#4285f4'
+const C_ACCENT = '#2563eb'
+const C_EDGE = '#d8dde5'
+const C_AXIS = '#c4cbd8'
 const C_MUTED = '#8a94a6'
-const C_TEXT = '#4b5160'
+const C_TEXT = '#3c4657'
 
 const PAD_L = 52
 const PAD_R = 62
@@ -82,6 +83,27 @@ export default function DiscoverMap({
   const [ref, { w, h }] = useSize()
   const [zoom, setZoom] = useState(1)
   const [hoverId, setHoverId] = useState<string | null>(null)
+
+  // 浏览器全屏：容器进 fullscreen 后 ResizeObserver 会自动拿到新尺寸，
+  // svg / 坐标全部按全屏尺寸重算，无需额外处理
+  const [isFs, setIsFs] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    const onFs = () => setIsFs(document.fullscreenElement === el)
+    document.addEventListener('fullscreenchange', onFs)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFs)
+      // 离开页面时若还挂着全屏，顺手退出，别把用户锁在全屏里
+      if (document.fullscreenElement === el) document.exitFullscreen().catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const toggleFs = () => {
+    const el = ref.current
+    if (!el) return
+    if (document.fullscreenElement === el) document.exitFullscreen().catch(() => {})
+    else el.requestFullscreen?.().catch(() => {})
+  }
 
   const paperMap = useMemo(() => new Map(papers.map((p) => [p.oa_id, p])), [papers])
 
@@ -170,18 +192,23 @@ export default function DiscoverMap({
     return out
   }, [papers, w, h, seedId, zoom])
 
-  // 选中时由左上详情卡承载信息，图上只保留 hover 标签，避免两处重复
+  // 选中时由右上详情栏承载信息，图上只保留 hover 标签，避免两处重复
   const labelId = hoverId
   const labelPaper = labelId ? paperMap.get(labelId) : null
   const labelPos = labelId ? posMap.get(labelId) : null
   const seed = paperMap.get(seedId)
   const seedPos = posMap.get(seedId)
-  const selected = selectedId ? paperMap.get(selectedId) : null
+  // 焦点 = 选中优先，否则悬停；悬停也点亮相连边并弹右侧详情预览
+  const focusId = selectedId ?? hoverId
+  const focusDetail = focusId ? paperMap.get(focusId) ?? null : null
+  const hoverOnly = !selectedId && !!hoverId
 
   return (
     <div
       ref={ref}
-      className="relative min-h-[420px] min-w-0 flex-1 overflow-hidden rounded-[12px] border border-[color:var(--wb-border)] bg-white"
+      className={`relative min-h-[420px] min-w-0 flex-1 overflow-hidden rounded-[12px] border border-${LM_BORDER} bg-white ${
+        isFs ? '!rounded-none !border-0' : ''
+      }`}
     >
       <svg width={w} height={h} className="absolute inset-0" role="img" aria-label="引文网络图">
         <defs>
@@ -209,7 +236,7 @@ export default function DiscoverMap({
           const len = Math.hypot(dx, dy) || 1
           const ux = dx / len
           const uy = dy / len
-          const active = !!selectedId && (e.source === selectedId || e.target === selectedId)
+          const active = !!focusId && (e.source === focusId || e.target === focusId)
           const x1 = s.x + ux * (s.r + 2)
           const y1 = s.y + uy * (s.r + 2)
           const x2 = t.x - ux * (t.r + 7)
@@ -223,7 +250,7 @@ export default function DiscoverMap({
               y2={y2}
               stroke={active ? C_ACCENT : C_EDGE}
               strokeWidth={active ? 1.8 : 1}
-              opacity={selectedId ? (active ? 1 : 0.12) : 0.5}
+              opacity={focusId ? (active ? 1 : 0.12) : 0.5}
               markerEnd={active ? 'url(#disc-arrow-active)' : 'url(#disc-arrow)'}
             />
           )
@@ -236,8 +263,8 @@ export default function DiscoverMap({
           const isSeed = p.oa_id === seedId
           const isSel = p.oa_id === selectedId
           const isHover = p.oa_id === hoverId
-          const dim = !!selectedId && !isSel && !edges.some(
-            (e) => (e.source === selectedId && e.target === p.oa_id) || (e.target === selectedId && e.source === p.oa_id),
+          const dim = !!focusId && !isSel && !isHover && !edges.some(
+            (e) => (e.source === focusId && e.target === p.oa_id) || (e.target === focusId && e.source === p.oa_id),
           )
           return (
             <g key={p.oa_id} opacity={dim ? 0.32 : 1}>
@@ -283,7 +310,7 @@ export default function DiscoverMap({
 
       {/* 过程态：种子点还在长网络，给一句话说明，避免右栏看起来是空的 */}
       {pending && (
-        <div className="pointer-events-none absolute left-1/2 top-[62%] z-10 -translate-x-1/2 text-center text-[11px] leading-relaxed text-[color:var(--wb-muted)]">
+        <div className={`pointer-events-none absolute left-1/2 top-[62%] z-10 -translate-x-1/2 text-center text-[11px] leading-relaxed text-${LM_FAINT}`}>
           正在等待关联节点…
           <div className="mt-0.5 whitespace-nowrap text-[10px] opacity-70">
             参考文献与施引文献会在检索完成后落到这张图上
@@ -304,7 +331,7 @@ export default function DiscoverMap({
       {/* 悬停标题标签：absolute 浮层，不影响布局高度；选中态交给左上详情卡 */}
       {labelPaper && labelPos && (
         <div
-          className="pointer-events-none absolute z-10 max-w-[300px] -translate-x-1/2 rounded-[7px] border border-[color:var(--wb-border)] bg-white/95 px-2 py-1 text-center text-[10.5px] leading-snug shadow-[var(--wb-shadow-sm)]"
+          className={`pointer-events-none absolute z-10 max-w-[300px] -translate-x-1/2 rounded-[7px] border border-${LM_BORDER} bg-white/95 px-2 py-1 text-center text-[10.5px] leading-snug shadow-[var(--wb-shadow-sm)]`}
           style={{ left: labelPos.x, top: labelPos.y + labelPos.r + 12 }}
         >
           <span className="font-semibold" style={{ color: C_TEXT }}>{shortLabel(labelPaper)}</span>
@@ -312,73 +339,89 @@ export default function DiscoverMap({
         </div>
       )}
 
-      {/* 选中详情卡：absolute 浮层 + 写死宽度，内容变化不撑动画布 */}
-      {selected && (
-        <div className="absolute left-3 top-3 z-20 w-[252px] rounded-[10px] border border-[color:var(--wb-border)] bg-white p-3 shadow-[var(--wb-shadow-md)]">
+      {/* 详情栏：悬停即预览（只读、不挡鼠标），点选后带操作按钮；absolute 浮层不撑动画布 */}
+      {focusDetail && (
+        <div
+          className={`absolute right-3 top-3 z-20 w-[272px] rounded-[10px] border border-${LM_BORDER} bg-white p-3 shadow-[var(--wb-shadow-md)] ${
+            hoverOnly ? 'pointer-events-none' : ''
+          }`}
+        >
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
-              选中文献
+            <span className={`text-[10px] font-semibold uppercase tracking-[0.16em] text-${LM_FAINT}`}>
+              {hoverOnly ? '悬停预览' : '选中文献'}
             </span>
-            <IconBtn icon="close" size="sm" title="取消选中" ariaLabel="取消选中" onClick={() => onSelect(null)} />
-          </div>
-          <div className="mt-1.5 text-[12.5px] font-medium leading-snug text-[color:var(--wb-text)]">
-            {selected.title}
-          </div>
-          {selected.authors && (
-            <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[color:var(--wb-text-soft)]">
-              {selected.authors}
-            </div>
-          )}
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[10.5px] text-[color:var(--wb-muted)]">
-            {selected.year && <span>{selected.year}</span>}
-            {selected.venue && <span className="max-w-[210px] truncate">{selected.venue}</span>}
-            {selected.oa && <span className="text-[color:var(--wb-ok)]">开放获取</span>}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10.5px] text-[color:var(--wb-text-soft)]">
-            <span>参考文献 <b>{compactCount(selected.references)}</b></span>
-            <span>被引 <b>{compactCount(selected.citations)}</b></span>
-            <span>
-              {selected.relation === 'seed' ? '种子' : selected.relation === 'reference' ? '参考文献' : '施引文献'}
-            </span>
-          </div>
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-            <Btn size="xs" variant="primary" onClick={() => onRefine(selected)}>
-              以此为种子
-            </Btn>
-            <Btn
-              size="xs"
-              onClick={() => onImport(selected)}
-              loading={busyImport === selected.oa_id}
-              disabled={imported.has(selected.oa_id)}
-            >
-              {imported.has(selected.oa_id) ? '已入库' : '加入文献库'}
-            </Btn>
-            {selected.url && (
-              <a
-                href={selected.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-[color:var(--wb-accent)] underline underline-offset-2"
-              >
-                原文
-              </a>
+            {!hoverOnly && (
+              <IconBtn icon="close" size="sm" title="取消选中" ariaLabel="取消选中" onClick={() => onSelect(null)} />
             )}
           </div>
+          <div className={`mt-1.5 text-[12.5px] font-medium leading-snug text-${LM_TITLE}`}>
+            {focusDetail.title}
+          </div>
+          {focusDetail.authors && (
+            <div className={`mt-1 line-clamp-2 text-[11px] leading-relaxed text-${LM_TEXT}`}>
+              {focusDetail.authors}
+            </div>
+          )}
+          <div className={`mt-1.5 flex flex-wrap items-center gap-x-2 text-[10.5px] text-${LM_FAINT}`}>
+            {focusDetail.year && <span>{focusDetail.year}</span>}
+            {focusDetail.venue && <span className="max-w-[210px] truncate">{focusDetail.venue}</span>}
+            {focusDetail.oa && <span className="text-[color:var(--wb-ok)]">开放获取</span>}
+          </div>
+          <div className={`mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10.5px] text-${LM_TEXT}`}>
+            <span>参考文献 <b>{compactCount(focusDetail.references)}</b></span>
+            <span>被引 <b>{compactCount(focusDetail.citations)}</b></span>
+            <span>
+              {focusDetail.relation === 'seed' ? '种子' : focusDetail.relation === 'reference' ? '参考文献' : '施引文献'}
+            </span>
+          </div>
+          {!hoverOnly && (
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              <Btn size="xs" variant="primary" onClick={() => onRefine(focusDetail)}>
+                以此为种子
+              </Btn>
+              <Btn
+                size="xs"
+                onClick={() => onImport(focusDetail)}
+                loading={busyImport === focusDetail.oa_id}
+                disabled={imported.has(focusDetail.oa_id)}
+              >
+                {imported.has(focusDetail.oa_id) ? '已入库' : '加入文献库'}
+              </Btn>
+              {focusDetail.url && (
+                <a
+                  href={focusDetail.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`text-[11px] text-${LM_BLUE} underline underline-offset-2`}
+                >
+                  原文
+                </a>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       {/* 图例：把坐标与边的口径写清楚（方向说明合并到这里，不再单独画轴标签） */}
-      <div className="pointer-events-none absolute bottom-9 left-3 z-10 max-w-[460px] text-[10px] leading-[1.6] text-[color:var(--wb-muted)]">
+      <div className={`pointer-events-none absolute bottom-9 left-3 z-10 max-w-[460px] text-[10px] leading-[1.6] text-${LM_FAINT}`}>
         连线 = 真实引用关系（高亮箭头指向被引文献）· 圆点大小 = 被引次数
         <br />
         横轴发表年份（越右越晚）· 纵轴被引（对数）· 实心圆 = 种子 · 坐标按结果集相对位置铺开
       </div>
 
       {/* 缩放控件 */}
-      <div className="absolute bottom-3 right-3 z-20 flex flex-col items-center gap-0.5 rounded-[9px] border border-[color:var(--wb-border)] bg-white p-1 shadow-[var(--wb-shadow-sm)]">
+      <div className={`absolute bottom-3 right-3 z-20 flex flex-col items-center gap-0.5 rounded-[9px] border border-${LM_BORDER} bg-white p-1 shadow-[var(--wb-shadow-sm)]`}>
         <IconBtn icon="plus" size="sm" title="放大" ariaLabel="放大" onClick={() => setZoom((z) => Math.min(1.8, +(z + 0.15).toFixed(2)))} />
         <IconBtn icon="minus" size="sm" title="缩小" ariaLabel="缩小" onClick={() => setZoom((z) => Math.max(0.7, +(z - 0.15).toFixed(2)))} />
         <IconBtn icon="target" size="sm" title="恢复 100%" ariaLabel="恢复 100%" onClick={() => setZoom(1)} />
+        <div className="h-px w-full" style={{ background: LM_BORDER }} />
+        <IconBtn
+          icon={isFs ? 'minimize' : 'scan'}
+          size="sm"
+          title={isFs ? '退出全屏（Esc）' : '全屏查看'}
+          ariaLabel={isFs ? '退出全屏' : '全屏查看'}
+          onClick={toggleFs}
+        />
       </div>
     </div>
   )

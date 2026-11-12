@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Icon } from '../../components/Icon'
+import { useEffect, useMemo, useState } from 'react'
+import { Icon, type IconName } from '../../components/Icon'
 import { Btn, IconBtn, Segmented, Select } from '../../components/ui'
 import type { PaperHit, StageEv } from '../../lib/rchatStream'
 
@@ -93,6 +93,7 @@ export function hydratePapers(sid: number, cits: any[]) {
   const papers: PaperHit[] = (cits || []).map((c) => ({
     n: Number(c.n),
     lit_id: c.lit_id,
+    openalex_id: c.openalex_id,
     title: c.title,
     authors: c.authors,
     year: c.year,
@@ -100,6 +101,11 @@ export function hydratePapers(sid: number, cits: any[]) {
     doi: c.doi,
     url: c.url,
     cited_by_count: Number(c.cited_by_count ?? c.cited_by ?? 0),
+    cit_per_year: c.cit_per_year,
+    language: c.language,
+    match: c.match,
+    pdf_url: c.pdf_url,
+    is_oa: c.is_oa,
     abstract: c.abstract || '',
   }))
   if (!papers.length) return
@@ -153,77 +159,79 @@ const COLS = '22px 28px 44px 40px 52px 40px 40px 36px minmax(0,1fr)'
 /** 选中行的稳定 key：优先 literature.id（发给后端的就是它），导入失败兜底用序号 */
 const rowKey = (p: PaperHit) => (p.lit_id != null ? `l${p.lit_id}` : `n${p.n}`)
 
-/** 对话栏内的进度框：目标值来自后端 SSE 真实阶段，显示值只做视觉平滑，不虚构阶段。
- *  旧版直接把 run.pct 绑到宽度：前几段几秒内冲到 84%，然后 LLM 撰写十几秒条子一动不动。
- *  现在后端在长调用期间按真实耗时推心跳（estimated），前端再把每次跳变插值成匀速前进。 */
+/** 对话栏内的进度框：对标 Undermind 的「Worked for 9s ⌄ + 步骤流」。
+ *  每一行 = 后端推来的一个真实阶段（SSE stage 事件），LLM 长调用期间是耗时心跳
+ *  （estimated=true，界面明写「思考中」口径），绝不是前端假动画。可点收起。 */
+function stageIcon(key: string): IconName {
+  if (key === 'queries') return 'lightbulb'
+  if (key === 'search') return 'search'
+  if (key === 'dedupe') return 'book'
+  if (key === 'collect' || key === 'context') return 'file'
+  if (key === 'write') return 'pencil'
+  if (key === 'answer') return 'lightbulb'
+  if (key === 'start') return 'bolt'
+  return 'clock'
+}
+
 function ProgressCard({ run }: { run: RunState }) {
+  const [open, setOpen] = useState(true)
   const [, tick] = useState(0)
-  const shownRef = useRef(run.active ? 0 : 100)
   useEffect(() => {
-    if (!run.active) {
-      shownRef.current = 100
-      return
-    }
-    const t = setInterval(() => {
-      shownRef.current = Math.min(
-        run.pct,
-        shownRef.current + Math.max(0.8, (run.pct - shownRef.current) * 0.18),
-      )
-      tick((x) => x + 1) // 同时刷新 Worked for Xs
-    }, 120)
+    const t = setInterval(() => tick((x) => x + 1), 500) // 刷新 Worked for Xs
     return () => clearInterval(t)
-  }, [run.active, run.pct])
+  }, [])
   const sec = Math.max(1, Math.round((Date.now() - run.startedAt) / 1000))
-  const last = run.stages[run.stages.length - 1]
-  const pct = run.active ? Math.round(shownRef.current) : 100
-  const label =
-    run.mode === 'deep' ? '深度检索进行中'
-    : run.mode === 'report' ? '报告撰写进行中'
-    : run.mode === 'review' ? '选中文献综述进行中'
-    : '正在回复'
+  // 同 key 去重：阶段会被后端推多次（如 queries 的生成→完成），只保留最后一次
+  const lastIdx = new Map<string, number>()
+  run.stages.forEach((s, i) => lastIdx.set(s.key, i))
+  const rows = run.stages
+    .map((s, i) => ({ s, i, active: i === run.stages.length - 1 && run.active }))
+    .filter((r) => lastIdx.get(r.s.key) === r.i)
   return (
-    <div className="mb-2 rounded-[14px] border border-[color:var(--wb-accent)]/30 bg-[color:var(--wb-accent-soft)] px-3.5 py-2.5">
-      <div className="flex items-center gap-2">
-        <Icon name="radar" size={13} className="shrink-0 text-[color:var(--wb-accent)]" />
-        <span className="whitespace-nowrap text-[12px] font-semibold text-[color:var(--wb-text)]">{label}</span>
-        <span className="whitespace-nowrap text-[10.5px] text-[color:var(--wb-muted)]">Worked for {sec}s</span>
-        {run.active && last?.estimated && (
-          <span className="whitespace-nowrap rounded-[4px] border border-[color:var(--wb-border)] px-1 text-[9.5px] text-[color:var(--wb-muted)]">
-            按耗时估算
-          </span>
-        )}
-        <span className="ml-auto whitespace-nowrap text-[11px] font-semibold text-[color:var(--wb-accent-strong)]">
-          {pct}%
-        </span>
-      </div>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[color:var(--wb-border)]">
-        <div
-          className="h-full rounded-full bg-[color:var(--wb-accent)] transition-[width] duration-150"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-        {run.stages.map((s, i) => {
-          const done = i < run.stages.length - 1
-          return (
-            <span key={s.key} className="flex items-center gap-1 whitespace-nowrap text-[10.5px] text-[color:var(--wb-text-soft)]">
-              <Icon name={done ? 'check' : 'clock'} size={10} className={done ? 'text-[color:var(--wb-ok)]' : 'text-[color:var(--wb-accent)]'} />
-              {s.label}
-            </span>
-          )
-        })}
-      </div>
-      {last?.detail && (
-        <div className="mt-1.5 truncate text-[10.5px] text-[color:var(--wb-muted)]" title={last.detail}>
-          {last.detail}
+    <div className="mb-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-[12.5px] text-[color:var(--wb-text-soft)] transition hover:text-[color:var(--wb-text)]"
+      >
+        <Icon name="radar" size={12} className={run.active ? 'animate-pulse text-[color:var(--wb-accent)]' : 'text-[color:var(--wb-muted)]'} />
+        Worked for {sec}s
+        <Icon name={open ? 'chevronUp' : 'chevronDown'} size={11} className="opacity-60" />
+      </button>
+      {open && (
+        <div className="ml-1.5 mt-2 flex flex-col gap-2 border-l border-[color:var(--wb-border)] pl-3.5">
+          {rows.map(({ s, active }) => (
+            <div key={s.key}>
+              <div className="flex items-center gap-1.5 text-[11.5px]">
+                <Icon
+                  name={stageIcon(s.key)}
+                  size={11}
+                  className={active ? `text-[color:var(--wb-accent)]${s.estimated ? ' animate-pulse' : ''}` : 'text-[color:var(--wb-muted)]'}
+                />
+                <span className={active ? 'font-medium text-[color:var(--wb-text)]' : 'text-[color:var(--wb-muted)]'}>
+                  {s.label}
+                </span>
+                {active && s.estimated && (
+                  <span className="rounded-[4px] border border-[color:var(--wb-border)] px-1 text-[9px] text-[color:var(--wb-muted)]">
+                    思考中 · 按耗时估算
+                  </span>
+                )}
+              </div>
+              {s.detail && (
+                <div className={`ml-[17px] mt-0.5 text-[10.5px] leading-relaxed ${active ? 'text-[color:var(--wb-text-soft)]' : 'text-[color:var(--wb-muted)]'}`}>
+                  {s.detail}
+                </div>
+              )}
+            </div>
+          ))}
+          {(run.rawHits > 0 || run.total > 0) && (
+            <div className="text-[10.5px] text-[color:var(--wb-text-soft)]">
+              原始命中 {run.rawHits} 条 · 去重入库 {run.total} 篇 · 检索式 {run.queryCount} 条
+            </div>
+          )}
+          {run.error && <div className="text-[10.5px] text-[color:var(--wb-danger)]">{run.error}</div>}
         </div>
       )}
-      {(run.rawHits > 0 || run.total > 0) && (
-        <div className="mt-1 text-[10.5px] text-[color:var(--wb-text-soft)]">
-          原始命中 {run.rawHits} 条 · 去重入库 {run.total} 篇 · 检索式 {run.queryCount} 条
-        </div>
-      )}
-      {run.error && <div className="mt-1 text-[10.5px] text-[color:var(--wb-danger)]">{run.error}</div>}
     </div>
   )
 }

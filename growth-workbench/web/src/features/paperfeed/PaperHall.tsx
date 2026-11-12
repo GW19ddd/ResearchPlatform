@@ -28,53 +28,56 @@ function hashStyle(p: Paper): Palette {
   return PALETTES[Math.abs(h) % PALETTES.length]
 }
 
-/** 卡片封面：正文图优先，抓不到图退回生成的纸感图卡 */
+/** 卡片封面：正文图优先，抓不到图退回生成的纸感图卡。
+ * 还没抓到图（可重试）的论文也请求 /fig/{pid}——后端现场懒补图，
+ * 纸感占位垫在底下，图加载完成自然盖上来，onError 才纯占位。 */
 function HallCover({ paper, tall = false }: { paper: Paper; tall?: boolean }) {
   const p = hashStyle(paper)
   const [failed, setFailed] = useState(false)
-  const hasFig = !!paper.figure_url
-  const showImg = hasFig && !failed
+  const src = figSrc(paper)
+  const showImg = !!src && !failed
   return (
     <div className="relative w-full overflow-hidden bg-white" style={{ height: tall ? 320 : 150 }}>
-      {showImg ? (
-        <img
-          src={figSrc(paper)}
-          alt=""
-          loading="lazy"
-          onError={() => setFailed(true)}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <div className="relative h-full w-full" style={{ background: p.bg }}>
-          <svg
-            className="absolute inset-0 h-full w-full"
-            viewBox="0 0 400 160"
-            preserveAspectRatio="xMidYMid slice"
-            aria-hidden
-          >
-            <rect x="268" y="18" width="104" height="126" rx="8" fill={p.soft} opacity=".55" />
-            {[0, 1, 2, 3, 4].map((i) => (
-              <rect
-                key={i}
-                x="282"
-                y={34 + i * 21}
-                width={i % 2 ? 58 : 76}
-                height="5"
-                rx="2.5"
-                fill={p.accent}
-                opacity=".22"
-              />
-            ))}
-            <circle cx="56" cy="126" r="26" fill={p.accent} opacity=".1" />
-            <rect x="22" y="22" width="80" height="4.5" rx="2.25" fill={p.accent} opacity=".3" />
-          </svg>
+      <div className="absolute inset-0" style={{ background: p.bg }}>
+        <svg
+          className="absolute inset-0 h-full w-full"
+          viewBox="0 0 400 160"
+          preserveAspectRatio="xMidYMid slice"
+          aria-hidden
+        >
+          <rect x="268" y="18" width="104" height="126" rx="8" fill={p.soft} opacity=".55" />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <rect
+              key={i}
+              x="282"
+              y={34 + i * 21}
+              width={i % 2 ? 58 : 76}
+              height="5"
+              rx="2.5"
+              fill={p.accent}
+              opacity=".22"
+            />
+          ))}
+          <circle cx="56" cy="126" r="26" fill={p.accent} opacity=".1" />
+          <rect x="22" y="22" width="80" height="4.5" rx="2.25" fill={p.accent} opacity=".3" />
+        </svg>
+        {!showImg && (
           <div className="absolute bottom-2 left-3 right-3 line-clamp-2 text-[11px] font-medium leading-snug" style={{ color: p.ink }}>
             {paper.title}
           </div>
-          <div className="absolute left-3 top-2 font-mono text-[9px] font-semibold uppercase tracking-wider" style={{ color: p.accent }}>
-            {paper.primary_cat || 'arXiv'}
-          </div>
+        )}
+        <div className="absolute left-3 top-2 font-mono text-[9px] font-semibold uppercase tracking-wider" style={{ color: p.accent }}>
+          {paper.primary_cat || 'arXiv'}
         </div>
+      </div>
+      {showImg && (
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          onError={() => setFailed(true)}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
       )}
     </div>
   )

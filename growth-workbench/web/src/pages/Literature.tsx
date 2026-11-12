@@ -186,13 +186,13 @@ export default function Literature() {
       )}
 
       {activeTab === 'search' && (
-        <div className="wb-view-enter min-h-0 flex-1 overflow-y-auto">
+        <div className="wb-view-enter lit-scope min-h-0 flex-1 overflow-y-auto">
           <Search embedded />
         </div>
       )}
 
       {activeTab === 'matrix' && (
-        <div className="wb-view-enter flex h-full min-h-0 flex-1 flex-col">
+        <div className="wb-view-enter lit-scope flex h-full min-h-0 flex-1 flex-col">
           <MatrixTable
             matrix={matrix}
             onAddDim={async () => {

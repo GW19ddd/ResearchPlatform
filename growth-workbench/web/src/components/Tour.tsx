@@ -1,166 +1,101 @@
 /**
- * 新手引导（Tour）
+ * 新手引导 v2（从零重做）
  *
- * 交互：点「下一步」沿科研主线逐站前进；每一步用「四块遮罩挖洞」把对应的
- * 真实 UI 区域框出来。中间留空，所以被框住的区域仍然可以真实点击操作，
- * 不是一张只能看的截图。
+ * 与 v1 的区别：
+ *  1. 内容不再是纯文字说教 —— 每个功能点都带一条「可照抄的示例」（输入 → 你会得到），
+ *     外加一张真实工作台界面截图，全部示例共用同一条研究线，来源只有一份：
+ *     features/tour/tourContent.json。这份 JSON 同时驱动引导 / 教学视频 / 配套 PPT / 讲稿，
+ *     保证四者严格对应。图片素材统一放在 /tutorial/ui/，由 tutorial/build/build_ui_assets.py 生成。
+ *  2. 按章节组织，目录可任意跳步，不必线性走完 28 屏。
+ *  3. 最后一步是教学视频页：内嵌播放器 + 章节跳转 + PPT / 讲稿 / 字幕下载。
+ *  4. 四块遮罩挖洞保留 —— 高亮区域仍然是真实可操作的 UI，不是截图。
  *
- * 跨页：步骤带 path，进入时自动 navigate；目标 DOM 可能要等接口返回/页面渲染，
- * 因此用 rAF 轮询等待（约 1.6s）。找不到就降级成全屏遮罩 + 居中卡片，
- * 绝不让引导卡死在某一步。
- *
- * 锚点约定：目标元素带 data-tour="<step.target>"。
- *   - Card 原语可直接传 tourId（渲染成 section[data-tour]）
- *   - 原生元素直接写 data-tour
- * 新增步骤时：往 TOUR_STEPS 加一项，并给对应区域打锚点即可。
+ * 锚点约定：目标元素带 data-tour="<name>"；也允许直接写 CSS 选择器
+ * （如 a[href="/ideas"]、main、header），没有锚点就降级为整屏遮罩 + 居中卡片。
+ * 带 ?tab= 的步骤会同时比较 pathname 与 tab，避免 navigate 死循环。
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Btn, IconBtn } from './ui'
-import { Icon } from './Icon'
+import { Icon, IconName } from './Icon'
+import CONTENT from '../features/tour/tourContent.json'
+
+/* ---------------------------------- 内容类型 ---------------------------------- */
+
+export type TourExample = {
+  label: string
+  inputLabel?: string
+  input: string
+  outputLabel?: string
+  output: string
+  note?: string
+  /** 真实工作台界面截图，位于 /tutorial/ui/；缺失时整块图区自动隐藏 */
+  image?: string
+  imageCaption?: string
+}
 
 export type TourStep = {
   key: string
+  chapter: string
   title: string
+  goal: string
   body: string
-  tip?: string
-  /** 进入这一步要跳到的路由；不填就留在当前页 */
   path?: string
-  /** 要高亮的 data-tour 锚点名；不填则整屏遮罩 + 居中卡片 */
   target?: string
-  /** 备用锚点：主锚点不存在时依次尝试（页面有空态 / 加载态 / 两种形态时用） */
   targets?: string[]
+  example: TourExample
+  tip?: string
 }
 
-/** 顺序即科研主线：欢迎 → 课题 Quest → 认路 → 总览 → 输入 → 执行 → 复盘 → 激励 → 配置 → 进阶。锚点名保持不变。 */
-export const TOUR_STEPS: TourStep[] = [
-  {
-    key: 'welcome',
-    title: '欢迎来到科研工作台',
-    body: '这里不是待办清单，是一条贴着科研主线走的流水线：找创新点 → 查文献 → 做实验 → 写论文 → 汇报复盘 → 积分激励。落地页的主路径是「课题 Quest」；另外两个工作台「编排画布」和「调研」各自独立，研究资产与节奏工具围着它们转。',
-    tip: '花一分钟，我带你把每个环节走一遍。随时可以跳过。',
-  },
-  {
-    key: 'workflow',
-    title: '课题 Quest：从开题到成文',
-    body: '这是主路径。点「新建课题」先把目标 / Baseline / 成功标准 / 硬约束写清楚，AI 按「调研 → 计划 → 实验 → 成文」逐阶段推进，每道门禁都停下来等你确认；关键结论点「沉淀为发现」，之后每轮对话自动带上。',
-    path: '/chat',
-    target: 'tour-chat-launch',
-    tip: '顶部切换条可以在「课题 Quest / 编排画布 / 调研 Research」三个工作台之间切换；它们各自独立，URL 就是唯一真源。',
-  },
-  {
-    key: 'sidebar',
-    title: '先认路：侧边栏',
-    body: '导航分三层：最上面的「工作台」三卡是做科研的地方（课题 Quest / 编排画布 / 调研 Research），中间「研究资产」放创新点、文献、实验、论文，下面「节奏」与默认折叠的「工具」是辅助入口。最上面的「今日」是每天的总览。',
-    target: 'tour-sidebar',
-    tip: '按 [ 可以收起侧边栏；窄屏下它会变成左下角的抽屉按钮。',
-  },
-  {
-    key: 'today',
-    title: '每天从「今日」开始',
-    body: '这一页是活跃热力图与趋势曲线：论文阻塞、逾期承诺会直接顶到页首。全站的汇总数字（文献 / 创新 / 实验 / 论文 / 积分）收在侧栏「工具 → 概览指标」。',
-    path: '/today',
-    target: 'tour-dash-stats',
-    tip: '看到红色数字（逾期承诺、进度落后）就优先处理那一块。',
-  },
-  {
-    key: 'ideas',
-    title: '第 1 步：捕获创新点',
-    body: '左边这张卡随手记下想法：一句话说清「要解决什么」，再选分类、打分。右边可以让 AI 顺着这个方向做头脑风暴，产出的候选能直接入库。',
-    path: '/ideas',
-    target: 'tour-idea-form',
-    tip: '想法不要求成熟，先落库；之后用「AI 质疑」从不同审稿视角逐轮打磨。',
-  },
-  {
-    key: 'literature',
-    title: '第 2 步：把文献收进来',
-    body: '这张「文献库」是文献模块的主操作区：上面搜标题 / 作者、按状态与分类筛选。导入（Zotero / 粘贴 BibTeX·RIS·CSL / PDF）与在线检索各有独立入口，点开任意一篇可在抽屉里写精读笔记、读 PDF，还能看对比矩阵与关联图。',
-    path: '/literature',
-    target: 'tour-lit-library',
-    tip: '点开任意一篇可以在抽屉里写精读笔记、读 PDF，还能做横向对比矩阵。',
-  },
-  {
-    key: 'experiments',
-    title: '第 3 步：记录实验',
-    body: '先在这里写清假设与配置，跑完之后把结果逐条录进去，附上指标数值和结论。卡住的实验明确标注阻塞，别让它悄悄消失。',
-    path: '/experiments',
-    target: 'tour-exp-form',
-    tip: '结果攒够了可以用页面里的「AI 分析」做一轮归因，写论文时直接引用。',
-  },
-  {
-    key: 'paper',
-    title: '第 4 步：推进论文',
-    body: '一篇论文拆成 7 个阶段，逐个标记 doing / blocked / done。某个阶段阻塞超过 3 天会亮红色告警，字数与目标进度会自动汇总到「今日」。',
-    path: '/paper',
-    target: 'tour-paper-stages',
-    tip: '别追求一次写完整篇，先把当前阶段推到 done。',
-  },
-  {
-    key: 'plan',
-    title: '第 5 步：周计划与复盘',
-    body: '周初写本周成果和支撑任务，周末做周复盘。你的组会是两周一次，系统会在组会周自动生成双周汇报材料，不用临时拼。',
-    path: '/plan',
-    target: 'tour-plan-week',
-    tip: '「导师」页用来记承诺、写沟通话术，MVP 先做好这两件就够。',
-  },
-  {
-    key: 'points',
-    title: '第 6 步：积分闭环',
-    body: '这三张卡看余额、本周净分和保护下限。完成动作加分、拖延扣分，积分出口是你自己维护的奖励清单；还有押注对赌可以玩。',
-    path: '/points',
-    target: 'tour-points-stats',
-    tip: '周净扣分有下限，连续几天没状态也不会把分扣穿——规则在本页可以改。',
-  },
-  {
-    key: 'settings',
-    title: '用 AI 之前：先配模型',
-    body: '点左下角的账户头像，在菜单里选「设置」就能打开设置面板。在「模型供应商」里增删改 DeepSeek / OpenAI-Codex / Ollama / 本机 Qwen / 任意中转站，可以测试连接、拉取模型。当前全站统一使用快模型。',
-    path: '/settings',
-    target: 'tour-settings-provider',
-    /** 设置页加载失败时，退回高亮左下角的设置齿轮 */
-    targets: ['tour-settings-entry'],
-    tip: '配好并测试连通之后，画布和对话里的 AI 功能才会真正出结果。',
-  },
-  {
-    key: 'canvas',
-    title: '进阶：编排画布 Canvas',
-    body: '现在是独立页面 /canvas，不再藏在课题的第二个页签里。工具条里搭图、存模板、运行整图：把 input / prompt / skill / tool / output 连成流水线，同层节点并行跑，产出可一键存进创新点、文献或论文，也能立项成 Quest。',
-    path: '/canvas',
-    target: 'tour-canvas-toolbar',
-    tip: '每个节点的运行记录都会记下模型、token 与耗时，方便复盘。',
-  },
-  {
-    key: 'research',
-    title: '调研 Research：找文献最短路径',
-    body: '第三个工作台 /research 是独立的调研对话：深度检索自动生成检索式 → 查 OpenAlex 真数据 → 去重入文献库 → 产出带 [n] 引用的综述；左栏管理会话与历次报告。',
-    path: '/research',
-    target: 'tour-research-dock',
-    tip: '检索到的文献会直接出现在文献库，不用手动搬运。',
-  },
-  {
-    key: 'chat',
-    title: '回到课题 Quest 工作区',
-    body: '在下面的输入框里推进一个课题：按「调研 → 计划 → 实验 → 成文」切换阶段，把关键结论「沉淀为发现」，之后的每一轮对话都会自动带上这些记忆。',
-    path: '/chat',
-    targets: ['tour-chat-composer', 'tour-chat-launch'],
-    tip: '上方的「技能」面板里有现成的科研提示词卡片，点一下就装进输入框。',
-  },
-  {
-    key: 'done',
-    title: '可以开始了',
-    body: '推荐的第一条路径：先到设置里配好模型并测试连通 → 回首页点「新建课题」进入课题 Quest，把今天要做的事写成一份研究契约。之后顺着侧边栏「研究资产」往下走就行。',
-    path: '/',
-    tip: '想重看这份引导，点侧边栏底部的「新手引导」即可。',
-  },
-]
+type Chapter = { id: string; no: string; title: string; subtitle: string; desc: string }
+type Slide = { no: number; kicker: string; title: string }
+type TourContent = {
+  meta: {
+    title: string
+    topic: string
+    disclaimer: string
+    assets: {
+      video: string
+      ppt: string
+      slides: string
+      script: string
+      srt: string
+      /** 科普速览片（90s 白板动效）与它的可编辑源码包，与逐页讲解版并列 */
+      popular: string
+      popularSource: string
+    }
+  }
+  chapters: Chapter[]
+  steps: TourStep[]
+  slides: Slide[]
+}
+
+const DATA = CONTENT as unknown as TourContent
+export const TOUR_STEPS = DATA.steps
+export const TOUR_CHAPTERS = DATA.chapters
+
+/** 视频每页固定 8 秒（生成脚本严格按此切，章节跳转才能用 (no-1)*8 定位） */
+const SLIDE_SEC = 8
+
+const CHAPTER_ICON: Record<string, IconName> = {
+  start: 'compass',
+  workspaces: 'layers',
+  assets: 'library',
+  rhythm: 'clock',
+  tools: 'gear',
+  video: 'slides',
+}
+
+/* ---------------------------------- 布局工具 ---------------------------------- */
 
 type Box = { t: number; l: number; r: number; b: number }
 
-const PAD = 6 // 高亮框比目标元素外扩一点
-const GAP = 16 // 卡片与高亮框的间距
-const EDGE = 12 // 距视口边缘的最小留白
-const CARD_W = 348
-const EST_H = 250 // 卡片高度初值，挂载后量真实值再校正
+const PAD = 6
+const GAP = 16
+const EDGE = 12
+const CARD_W = 432
+const VIDEO_W = 760
+const EST_H = 420
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, Math.max(lo, hi)))
 
@@ -183,27 +118,429 @@ function placeCard(box: Box | null, cw: number, ch: number) {
   }
 }
 
+/** 名字 → 选择器：纯字母当标签名，含 [ # 或以 . 开头当 CSS，其余当 data-tour 锚点 */
+function selectorFor(a: string) {
+  const isCss = a.includes('[') || a.includes('#') || a.startsWith('.') || /^[a-z]+$/i.test(a)
+  return isCss ? a : `[data-tour="${a}"]`
+}
+
+/** React 受控输入框必须用原型上的 native setter 写入，否则 onChange 不触发 */
+function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
+  const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+  const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
+  if (setter) setter.call(el, value)
+  else el.value = value
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+  el.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try {
+      document.execCommand('copy')
+    } catch {
+      /* 剪贴板不可用时静默降级，示例文本仍完整显示在卡片里 */
+    }
+    document.body.removeChild(ta)
+  }
+}
+
+/* ---------------------------------- 子组件 ---------------------------------- */
+
+/** 示例卡：引导里每个功能点的核心，真实界面截图 + 输入 / 产出两栏 + 一键复制或填入 */
+function ExampleBlock({
+  example,
+  onCopy,
+  onFill,
+  canFill,
+  state,
+}: {
+  example: TourExample
+  onCopy: () => void
+  onFill: () => void
+  canFill: boolean
+  state: '' | 'copied' | 'filled'
+}) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-[14px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-xs)]">
+      <div className="flex items-center gap-1.5 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2 text-[11px] font-semibold text-[color:var(--wb-text-soft)]">
+        <Icon name="sparkle" size={13} className="text-[color:var(--wb-accent)]" />
+        配套示例 · {example.label}
+      </div>
+
+      {example.image && (
+        <div
+          data-tour-shot
+          className="border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 pb-2 pt-2.5"
+        >
+          <div className="overflow-hidden rounded-[9px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]">
+            <img
+              src={example.image}
+              alt={example.imageCaption || '功能界面截图'}
+              loading="lazy"
+              onError={(e) => {
+                const box = e.currentTarget.closest('[data-tour-shot]') as HTMLElement | null
+                if (box) box.style.display = 'none'
+              }}
+              className="block h-[124px] w-full object-cover object-top"
+            />
+          </div>
+          {example.imageCaption && (
+            <p className="mt-1.5 text-[10px] leading-snug text-[color:var(--wb-muted)]">
+              {example.imageCaption}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="wb-tour-pipe px-3 py-3">
+        <div>
+          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium tracking-[0.06em] text-[color:var(--wb-muted)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--wb-accent)]" />
+            {example.inputLabel || '你可以这样填'}
+          </div>
+          <pre className="wb-tour-code max-h-[120px] overflow-auto whitespace-pre-wrap break-words rounded-[9px] bg-[color:var(--wb-surface-alt)] px-2.5 py-2 text-[11px] leading-[1.65] text-[color:var(--wb-text)]">
+            {example.input}
+          </pre>
+        </div>
+
+        <div className="my-2 flex justify-center">
+          <span className="wb-tour-node">
+            <Icon name="chevronDown" size={13} strokeWidth={2.2} />
+          </span>
+        </div>
+
+        <div>
+          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium tracking-[0.06em] text-[color:var(--wb-accent)]">
+            <Icon name="arrowRight" size={11} strokeWidth={2.2} />
+            {example.outputLabel || '你会得到'}
+          </div>
+          <div className="rounded-[9px] border border-[color:var(--wb-accent)]/30 bg-[color:var(--wb-accent-soft)] px-2.5 py-2 text-[11.5px] leading-[1.7] text-[color:var(--wb-text-soft)]">
+            {example.output}
+          </div>
+        </div>
+
+        {example.note && (
+          <p className="mt-2 border-l-2 border-[color:var(--wb-border-strong)] pl-2 text-[10.5px] leading-relaxed text-[color:var(--wb-muted)]">
+            {example.note}
+          </p>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5 border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2.5 py-2">
+        <Btn size="xs" variant="ghost" onClick={onCopy}>
+          <Icon name="copy" size={12} />
+          复制示例
+        </Btn>
+        {canFill && (
+          <Btn size="xs" variant="ghost" onClick={onFill}>
+            <Icon name="arrowRight" size={12} />
+            填入输入框
+          </Btn>
+        )}
+        <span className="ml-auto text-[10.5px] text-[color:var(--wb-accent)]">
+          {state === 'filled' ? '已填入，可直接运行' : state === 'copied' ? '已复制到剪贴板' : ''}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/** 章节进度签：六段轨道，段宽按该章步数，当前章内按比例填充；右侧是 02 / 28 这种精装页码感 */
+function TourProgress({ stepIndex }: { stepIndex: number }) {
+  const chapterOrder = DATA.chapters.map((c) => c.id)
+  const counts = chapterOrder.map((cid) => DATA.steps.filter((s) => s.chapter === cid).length)
+  const starts: number[] = []
+  counts.reduce((acc, n) => {
+    starts.push(acc)
+    return acc + n
+  }, 0)
+  const curChap = chapterOrder.indexOf(DATA.steps[stepIndex].chapter)
+  const within = stepIndex - starts[curChap] + 1
+  const total = DATA.steps.length
+  return (
+    <div className="flex items-center gap-2 px-5 pt-2.5">
+      <div className="wb-tour-prog flex-1">
+        {counts.map((n, j) => {
+          const frac = j < curChap ? 1 : j === curChap ? Math.max(0, Math.min(1, within / n)) : 0
+          return (
+            <div key={j} className="wb-tour-prog-seg" style={{ flexGrow: n }}>
+              <div className="wb-tour-prog-fill" style={{ width: `${frac * 100}%` }} />
+            </div>
+          )
+        })}
+      </div>
+      <span className="shrink-0 text-[10.5px] font-medium tabular-nums text-[color:var(--wb-muted)]">
+        {String(stepIndex + 1).padStart(2, '0')}
+        <span className="opacity-45"> / </span>
+        {String(total).padStart(2, '0')}
+      </span>
+    </div>
+  )
+}
+
+/** 欢迎首屏：把六章落成一张小地图，让第一步像「精装书的目录页」，而不是一堵文字墙 */
+function WelcomeHero() {
+  return (
+    <div className="mb-3 grid grid-cols-2 gap-2">
+      {DATA.chapters.map((c) => (
+        <div
+          key={c.id}
+          className="flex items-start gap-2 rounded-[11px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2.5 py-2"
+        >
+          <span className="mt-[1px] flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[color:var(--wb-accent-soft)] text-[10.5px] font-semibold text-[color:var(--wb-accent)]">
+            {c.no}
+          </span>
+          <div className="min-w-0">
+            <div className="truncate text-[11.5px] font-semibold leading-tight text-[color:var(--wb-text)]">
+              {c.title}
+            </div>
+            <div className="truncate text-[10px] text-[color:var(--wb-muted)]">{c.subtitle}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** 章节目录：28 屏不必线性走完，随时跳到任意功能点 */
+function Toc({ active, onJump }: { active: number; onJump: (i: number) => void }) {
+  return (
+    <div className="max-h-[300px] shrink-0 overflow-y-auto border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2 py-2">
+      {DATA.chapters.map((c) => {
+        const idx = DATA.steps.map((s, j) => ({ s, j })).filter(({ s }) => s.chapter === c.id)
+        return (
+          <div key={c.id} className="mb-1.5">
+            <div className="flex items-center gap-1.5 px-1.5 py-1 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--wb-muted)]">
+              <Icon name={CHAPTER_ICON[c.id] || 'sparkle'} size={11} className="text-[color:var(--wb-accent)]" />
+              <span className="rounded-[5px] bg-[color:var(--wb-accent-soft)] px-1 py-[1px] text-[color:var(--wb-accent)]">
+                {c.no}
+              </span>
+              {c.title}
+              <span className="font-normal">— {c.subtitle}</span>
+            </div>
+            {idx.map(({ s, j }) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => onJump(j)}
+                className={`flex w-full items-center gap-1.5 rounded-[7px] px-2 py-[5px] text-left text-[11.5px] transition-colors ${
+                  j === active
+                    ? 'bg-[color:var(--wb-accent-soft)] font-medium text-[color:var(--wb-accent)]'
+                    : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
+                }`}
+              >
+                <span className="w-4 shrink-0 text-right text-[10px] text-[color:var(--wb-muted)]">{j + 1}</span>
+                <span className="min-w-0 flex-1 truncate">{s.title}</span>
+                {j === active && <Icon name="check" size={11} />}
+              </button>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** 引导末页：教学视频 + 与视频逐页对应的 PPT / 讲稿 / 字幕 */
+function VideoPanel({ onRestart }: { onRestart: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [broken, setBroken] = useState(false)
+  // 两支片并列：逐页讲解版沿用 8s/页的章节跳转；科普速览版是 90s 白板动效，没有分页。
+  const [mode, setMode] = useState<'slides' | 'popular'>('slides')
+  const a = DATA.meta.assets
+
+  const marks = DATA.chapters.map((c) => ({
+    ...c,
+    slideNo: DATA.slides.find((s) => s.kicker.startsWith(c.no))?.no ?? 1,
+  }))
+
+  const seek = (no: number) => {
+    const v = videoRef.current
+    if (!v) return
+    try {
+      v.currentTime = Math.max(0, (no - 1) * SLIDE_SEC)
+      void v.play()
+    } catch {
+      /* 视频尚未加载完成时忽略 */
+    }
+  }
+
+  return (
+    <div className="pb-1">
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[10.5px] text-[color:var(--wb-muted)]">版本</span>
+        {([
+          { id: 'slides' as const, label: '逐页讲解 · 1:52' },
+          { id: 'popular' as const, label: '科普速览 · 1:30' },
+        ]).map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => { setMode(m.id); setBroken(false) }}
+            className={`rounded-[7px] border px-2 py-1 text-[10.5px] transition-colors ${
+              mode === m.id
+                ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-surface-alt)] font-semibold text-[color:var(--wb-accent)]'
+                : 'border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] text-[color:var(--wb-text-soft)] hover:border-[color:var(--wb-accent)] hover:text-[color:var(--wb-accent)]'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-hidden rounded-[12px] border border-[color:var(--wb-border)] bg-[color:var(--wb-text)]">
+        {broken ? (
+          <div className="flex aspect-video flex-col items-center justify-center gap-2 text-center text-[12px] text-white/80">
+            <Icon name="slides" size={26} />
+            视频文件尚未就绪
+            <a href={a.slides} target="_blank" rel="noreferrer" className="text-[11.5px] underline underline-offset-2">
+              先看网页版逐页幻灯片
+            </a>
+          </div>
+        ) : (
+          <video
+            key={mode}
+            ref={videoRef}
+            src={mode === 'popular' ? a.popular : a.video}
+            controls
+            playsInline
+            preload="metadata"
+            onError={() => setBroken(true)}
+            className="block aspect-video w-full bg-black"
+          />
+        )}
+      </div>
+
+      {mode === 'slides' ? (
+        <>
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[10.5px] text-[color:var(--wb-muted)]">跳到章节</span>
+            {marks.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => seek(m.slideNo)}
+                className="rounded-[7px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2 py-1 text-[10.5px] text-[color:var(--wb-text-soft)] transition-colors hover:border-[color:var(--wb-accent)] hover:text-[color:var(--wb-accent)]"
+              >
+                {m.no} {m.title}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { href: a.ppt, label: '配套 PPT', icon: 'slides' as IconName },
+              { href: a.script, label: '讲稿', icon: 'file' as IconName },
+              { href: a.srt, label: '字幕 SRT', icon: 'quote' as IconName },
+              { href: a.slides, label: '网页幻灯片', icon: 'layers' as IconName },
+            ].map((x) => (
+              <a
+                key={x.label}
+                href={x.href}
+                download={x.href !== a.slides}
+                target={x.href === a.slides ? '_blank' : undefined}
+                rel="noreferrer"
+                className="flex items-center justify-center gap-1.5 rounded-[9px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2 py-2 text-[11px] text-[color:var(--wb-text-soft)] transition-colors hover:border-[color:var(--wb-accent)] hover:text-[color:var(--wb-accent)]"
+              >
+                <Icon name={x.icon} size={13} />
+                {x.label}
+              </a>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="mt-2.5 text-[10.5px] leading-relaxed text-[color:var(--wb-muted)]">
+            科普速览用白板图解讲「一条研究线怎么流动」，90 秒、离线中文口播；口播逐字摘自本教学包，画面不含任何实测数值。
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {[
+              { href: a.popular, label: '下载科普版 MP4', icon: 'slides' as IconName },
+              { href: a.popularSource, label: '可编辑源码 ZIP', icon: 'file' as IconName },
+            ].map((x) => (
+              <a
+                key={x.label}
+                href={x.href}
+                download
+                rel="noreferrer"
+                className="flex items-center justify-center gap-1.5 rounded-[9px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2 py-2 text-[11px] text-[color:var(--wb-text-soft)] transition-colors hover:border-[color:var(--wb-accent)] hover:text-[color:var(--wb-accent)]"
+              >
+                <Icon name={x.icon} size={13} />
+                {x.label}
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="mt-3 flex items-start gap-2 rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2.5 py-2">
+        <Icon name="info" size={13} className="mt-[2px] shrink-0 text-[color:var(--wb-warn)]" />
+        <p className="text-[10.5px] leading-relaxed text-[color:var(--wb-muted)]">{DATA.meta.disclaimer}</p>
+      </div>
+
+      <button
+        type="button"
+        onClick={onRestart}
+        className="mt-2.5 text-[11px] text-[color:var(--wb-accent)] underline underline-offset-2"
+      >
+        从第一步重新看引导
+      </button>
+    </div>
+  )
+}
+
+/* ---------------------------------- 主组件 ---------------------------------- */
+
 export default function Tour({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const here = location.pathname + location.search
+
   const [i, setI] = useState(0)
   const [box, setBox] = useState<Box | null>(null)
   const [cardH, setCardH] = useState(EST_H)
+  const [tocOpen, setTocOpen] = useState(false)
+  const [copyState, setCopyState] = useState<'' | 'copied' | 'filled'>('')
   const cardRef = useRef<HTMLDivElement>(null)
+  const copyTimer = useRef<number>(0)
+  // 卡片定位记忆：跨页跳转（box 短暂为 null）时停在上一目标位置，
+  // 避免「先滑到屏幕中央、再滑到目标」的中间帧把空白区扫进视野。
+  const lastGoodPos = useRef<{ left: number; top: number }>({ left: 0, top: 0 })
+  if (lastGoodPos.current.left === 0 && lastGoodPos.current.top === 0) {
+    lastGoodPos.current = { left: Math.max(EDGE, (window.innerWidth - CARD_W) / 2), top: EDGE }
+  }
 
-  const step = TOUR_STEPS[i]
-  const total = TOUR_STEPS.length
-  const cw = Math.min(CARD_W, window.innerWidth - 24)
+  const step = DATA.steps[i]
+  const total = DATA.steps.length
+  const isVideo = step.key === 'video'
+  const chapter = DATA.chapters.find((c) => c.id === step.chapter)
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const cw = Math.min(isVideo ? VIDEO_W : CARD_W, vw - 24)
+  const maxH = Math.max(280, vh - 2 * EDGE)
 
-  // 主锚点 → 备用锚点，按声明顺序找第一个真实存在的元素
   const anchors = useMemo(
     () => (step.targets?.length ? step.targets : step.target ? [step.target] : []),
     [step.targets, step.target],
   )
-  const findEl = useCallback(() => {
+
+  const findEl = useCallback((): HTMLElement | null => {
     for (const a of anchors) {
-      const el = document.querySelector(`[data-tour="${a}"]`)
-      if (el) return el
+      try {
+        const el = document.querySelector(selectorFor(a))
+        if (el) return el as HTMLElement
+      } catch {
+        /* 非法选择器忽略，继续试下一个锚点 */
+      }
     }
     return null
   }, [anchors])
@@ -215,22 +552,46 @@ export default function Tour({ open, onClose }: { open: boolean; onClose: () => 
     return { t: r.top - PAD, l: r.left - PAD, r: r.right + PAD, b: r.bottom + PAD }
   }, [findEl])
 
+  /** 只在目标区域里确实能定位到唯一输入框时，才提供「填入输入框」 */
+  const findEditable = useCallback((): HTMLInputElement | HTMLTextAreaElement | null => {
+    const el = findEl()
+    if (!el) return null
+    if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) return el
+    const list = Array.from(
+      el.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+        'textarea, input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"])',
+      ),
+    ).filter((x) => !x.disabled && !x.readOnly)
+    if (list.length === 1) return list[0]
+    const firstTa = list.find((x) => x instanceof HTMLTextAreaElement)
+    return list.length <= 3 && firstTa ? firstTa : null
+  }, [findEl])
+
   // 每次打开都从第一步开始
   useEffect(() => {
     if (!open) return
     setI(0)
     setBox(null)
+    setTocOpen(false)
+    setCopyState('')
   }, [open])
 
-  // 进入步骤：必要时跳页 → 等目标渲染 → 滚动到可见 → 量位置
+  // 进入步骤：必要时跳页（含 ?tab=）→ 等目标渲染 → 滚动到可见 → 量位置
   useEffect(() => {
     if (!open) return
     setBox(null)
+    setCopyState('')
 
-    if (step.path && location.pathname !== step.path) {
-      navigate(step.path)
-      return // pathname 变化会再次触发本 effect
+    if (step.path) {
+      const [p, q] = step.path.split('?')
+      const samePath = location.pathname === p
+      const sameTab = !q || new URLSearchParams(location.search).get('tab') === new URLSearchParams(q).get('tab')
+      if (!samePath || !sameTab) {
+        navigate(step.path)
+        return // here 变化会再次触发本 effect
+      }
     }
+    if (isVideo) return // 视频页居中大卡，不做挖洞
 
     let alive = true
     let tries = 0
@@ -259,11 +620,11 @@ export default function Tour({ open, onClose }: { open: boolean; onClose: () => 
       alive = false
       cancelAnimationFrame(raf)
     }
-  }, [open, i, step.path, location.pathname, navigate, anchors, findEl, readBox])
+  }, [open, i, here, isVideo, step.path, location.pathname, location.search, navigate, anchors, findEl, readBox])
 
   // 窗口变化 / 内部容器滚动 / 高亮区内 DOM 变化时跟随，不让框漂移
   useEffect(() => {
-    if (!open) return
+    if (!open || isVideo) return
     const sync = () => setBox(readBox())
     window.addEventListener('resize', sync)
     window.addEventListener('scroll', sync, true)
@@ -273,39 +634,41 @@ export default function Tour({ open, onClose }: { open: boolean; onClose: () => 
       window.removeEventListener('scroll', sync, true)
       window.clearInterval(timer)
     }
-  }, [open, readBox])
+  }, [open, isVideo, readBox])
 
   // 卡片高度随文案变化，量真实值后才好算「放上面还是放下面」
   useLayoutEffect(() => {
     if (!open || !cardRef.current) return
     const h = cardRef.current.offsetHeight
     if (h && h !== cardH) setCardH(h)
-  }, [open, i, cardH])
+  }, [open, i, tocOpen, cardH])
+
+  const goto = useCallback((n: number) => {
+    setBox(null)
+    setI(n)
+    setTocOpen(false)
+  }, [])
 
   const next = useCallback(() => {
     if (i >= total - 1) onClose()
-    else {
-      setBox(null)
-      setI((v) => v + 1)
-    }
-  }, [i, total, onClose])
+    else goto(i + 1)
+  }, [i, total, onClose, goto])
 
   const prev = useCallback(() => {
-    if (i > 0) {
-      setBox(null)
-      setI((v) => v - 1)
-    }
-  }, [i])
+    if (i > 0) goto(i - 1)
+  }, [i, goto])
 
-  // 键盘：← → 切换，Esc 退出；在输入框里打字时不抢键
+  // 键盘：← → 切换，Esc 退出；输入框与视频播放器里不抢键
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        onClose()
+        if (tocOpen) setTocOpen(false)
+        else onClose()
         return
       }
+      if (isVideo) return
       const el = e.target as HTMLElement | null
       const tag = el?.tagName?.toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || el?.isContentEditable) return
@@ -319,99 +682,179 @@ export default function Tour({ open, onClose }: { open: boolean; onClose: () => 
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, next, prev, onClose])
+  }, [open, isVideo, tocOpen, next, prev, onClose])
 
-  const pos = useMemo(() => placeCard(box, cw, cardH), [box, cw, cardH])
+  useEffect(() => () => window.clearTimeout(copyTimer.current), [])
+
+  const flash = (s: '' | 'copied' | 'filled') => {
+    setCopyState(s)
+    window.clearTimeout(copyTimer.current)
+    copyTimer.current = window.setTimeout(() => setCopyState(''), 2400)
+  }
+
+  const onCopy = () => {
+    void copyText(step.example.input).then(() => flash('copied'))
+  }
+
+  const onFill = () => {
+    const el = findEditable()
+    if (!el) {
+      void copyText(step.example.input).then(() => flash('copied'))
+      return
+    }
+    setNativeValue(el, step.example.input)
+    el.focus()
+    flash('filled')
+  }
+
+  const pos = useMemo(() => {
+    if (isVideo) {
+      const p = { left: Math.max(EDGE, (vw - cw) / 2), top: Math.max(EDGE, (vh - Math.min(cardH, maxH)) / 2) }
+      lastGoodPos.current = p
+      return p
+    }
+    if (!box) return lastGoodPos.current
+    const p = placeCard(box, cw, Math.min(cardH, maxH))
+    lastGoodPos.current = p
+    return p
+  }, [isVideo, box, cw, cardH, maxH, vw, vh])
 
   if (!open) return null
 
-  const maskCls = 'fixed z-[80] bg-[rgba(16,17,20,0.52)]'
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  const spotW = box ? Math.max(0, box.r - box.l) : 0
-  const spotH = box ? Math.max(0, box.b - box.t) : 0
+  const maskCls = 'fixed z-[80] wb-tour-dim'
+  const showSpot = !!box && !isVideo
+  const spotW = showSpot ? Math.max(0, box!.r - box!.l) : 0
+  const spotH = showSpot ? Math.max(0, box!.b - box!.t) : 0
 
   return (
     <>
       {/* 四块遮罩围出高亮区；中间留空 → 被框选的区域仍可真实操作 */}
-      {box ? (
+      {showSpot ? (
         <>
-          <div className={maskCls} style={{ left: 0, top: 0, width: vw, height: Math.max(0, box.t) }} />
-          <div className={maskCls} style={{ left: 0, top: box.b, width: vw, height: Math.max(0, vh - box.b) }} />
-          <div className={maskCls} style={{ left: 0, top: box.t, width: Math.max(0, box.l), height: spotH }} />
-          <div className={maskCls} style={{ left: box.r, top: box.t, width: Math.max(0, vw - box.r), height: spotH }} />
+          <div className={maskCls} style={{ left: 0, top: 0, width: vw, height: Math.max(0, box!.t) }} />
+          <div className={maskCls} style={{ left: 0, top: box!.b, width: vw, height: Math.max(0, vh - box!.b) }} />
+          <div className={maskCls} style={{ left: 0, top: box!.t, width: Math.max(0, box!.l), height: spotH }} />
+          <div className={maskCls} style={{ left: box!.r, top: box!.t, width: Math.max(0, vw - box!.r), height: spotH }} />
         </>
       ) : (
         <div className={`${maskCls} inset-0`} />
       )}
 
-      {box && (
+      {showSpot && (
         <div
           aria-hidden
-          className="wb-tour-spot pointer-events-none fixed z-[81] rounded-[14px] border-2 border-[color:var(--wb-accent)] transition-all duration-200"
-          style={{ left: box.l, top: box.t, width: spotW, height: spotH }}
+          className="wb-tour-spot pointer-events-none fixed z-[81] rounded-[14px] border-2 border-[color:var(--wb-accent)] transition-[transform,width,height] duration-200 will-change-transform"
+          style={{ left: 0, top: 0, transform: `translate(${box!.l}px, ${box!.t}px)`, width: spotW, height: spotH }}
         />
       )}
 
+      {/* 外层只负责定位与滑动（transform，走合成层不触发重排）；
+          内层卡片保留 wb-anim-pop 的入场缩放，两者互不打架。 */}
+      <div
+        className="fixed z-[82] will-change-transform transition-transform duration-200"
+        style={{ left: 0, top: 0, transform: `translate(${pos.left}px, ${pos.top}px)` }}
+      >
       <div
         ref={cardRef}
         role="dialog"
         aria-modal="true"
         aria-label="新手引导"
-        className="wb-anim-pop fixed z-[82] overflow-hidden rounded-[16px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)] transition-[left,top] duration-200"
-        style={{ left: pos.left, top: pos.top, width: cw }}
+        className="wb-anim-pop wb-tour-card flex flex-col overflow-hidden rounded-[16px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)]"
+        style={{ width: cw, maxHeight: maxH }}
       >
-        <div className="flex items-start gap-2.5 px-4 pb-2.5 pt-3.5">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
-            <Icon name="sparkle" size={15} />
+        <div className="relative flex shrink-0 items-start gap-3 px-5 pb-3 pt-4">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-gradient-to-br from-[color:var(--wb-accent)] to-[color:var(--wb-accent-strong)] text-white shadow-[0_2px_8px_-2px_rgba(64,52,196,0.5)]">
+            <Icon name={isVideo ? 'slides' : CHAPTER_ICON[step.chapter] || 'sparkle'} size={17} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-[10.5px] font-medium tracking-[0.08em] text-[color:var(--wb-muted)]">
-              新手引导 · {i + 1} / {total}
+            <div className="flex items-center gap-1.5 text-[10.5px] font-medium tracking-[0.08em] text-[color:var(--wb-muted)]">
+              新手引导
+              {chapter && (
+                <>
+                  <span className="opacity-40">·</span>
+                  <span className="text-[color:var(--wb-accent)]">
+                    {chapter.no} {chapter.title}
+                  </span>
+                </>
+              )}
             </div>
-            <h2 className="mt-0.5 text-[14px] font-semibold leading-snug text-[color:var(--wb-text)]">
+            <h2 className="mt-0.5 text-[15px] font-semibold leading-snug tracking-[-0.01em] text-[color:var(--wb-text)]">
               {step.title}
             </h2>
           </div>
+          <button
+            type="button"
+            onClick={() => setTocOpen((v) => !v)}
+            title="章节目录"
+            aria-label="章节目录"
+            aria-expanded={tocOpen}
+            className={`wb-press-soft flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] transition-colors ${
+              tocOpen
+                ? 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
+                : 'text-[color:var(--wb-muted)] hover:bg-[color:var(--wb-bg-subtle)]'
+            }`}
+          >
+            <Icon name="menu" size={14} />
+          </button>
           <IconBtn icon="close" size="sm" ariaLabel="退出引导" onClick={onClose} />
         </div>
 
-        <div className="h-1 w-full bg-[color:var(--wb-bg-subtle)]">
-          <div
-            className="h-full rounded-r-full bg-[color:var(--wb-accent)] transition-all duration-200"
-            style={{ width: `${((i + 1) / total) * 100}%` }}
-          />
-        </div>
+        {!isVideo && <TourProgress stepIndex={i} />}
 
-        <div className="px-4 py-3.5">
-          <p className="text-[12.5px] leading-[1.75] text-[color:var(--wb-text-soft)]">{step.body}</p>
-          {step.tip && (
-            <div className="mt-3 flex gap-2 rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2.5 py-2">
-              <Icon name="info" size={13} className="mt-[2px] shrink-0 text-[color:var(--wb-accent)]" />
-              <span className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">{step.tip}</span>
-            </div>
+        {tocOpen && <Toc active={i} onJump={goto} />}
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3.5">
+          {isVideo ? (
+            <VideoPanel onRestart={() => goto(0)} />
+          ) : (
+            <>
+              {step.key === 'welcome' && <WelcomeHero />}
+              <p className="text-[11.5px] font-medium leading-relaxed text-[color:var(--wb-accent)]">{step.goal}</p>
+              <p className="mt-1.5 text-[12.5px] leading-[1.8] text-[color:var(--wb-text-soft)]">{step.body}</p>
+
+              <ExampleBlock
+                example={step.example}
+                onCopy={onCopy}
+                onFill={onFill}
+                canFill={!!findEditable()}
+                state={copyState}
+              />
+
+              {step.tip && (
+                <div className="mt-3 flex gap-2 rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-2.5 py-2">
+                  <Icon name="info" size={13} className="mt-[2px] shrink-0 text-[color:var(--wb-accent)]" />
+                  <span className="text-[11px] leading-relaxed text-[color:var(--wb-muted)]">{step.tip}</span>
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        <div className="flex items-center gap-2 border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2.5">
+        <div className="flex shrink-0 items-center gap-2 border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2.5">
           <Btn size="xs" variant="ghost" onClick={onClose}>
             跳过引导
           </Btn>
-          <div className="ml-auto flex items-center gap-2">
+          <span className="truncate text-[10.5px] text-[color:var(--wb-muted)]">
+            {isVideo ? '视频 / PPT / 讲稿 可直接下载' : '每个功能点都配了示例'}
+          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             {i > 0 && (
               <Btn size="sm" onClick={prev}>
                 上一步
               </Btn>
             )}
             <Btn size="sm" variant="primary" onClick={next}>
-              {i === total - 1 ? '开始使用' : '下一步'}
+              {i === total - 1 ? '开始使用' : i === total - 2 ? '看教学视频' : '下一步'}
             </Btn>
           </div>
         </div>
 
-        <div className="border-t border-[color:var(--wb-border)] px-3 py-1.5 text-center text-[10.5px] text-[color:var(--wb-muted)]">
-          ← → 切换 · Esc 退出 · 高亮区域内可以直接操作
-        </div>
+        {!isVideo && (
+          <div className="shrink-0 border-t border-[color:var(--wb-border)] px-3 py-1.5 text-center text-[10px] text-[color:var(--wb-muted)]">
+            ← → 切换 · Esc 退出 · 点目录跳章 · 高亮区域内可以直接操作
+          </div>
+        )}
+      </div>
       </div>
     </>
   )

@@ -14,6 +14,7 @@ import { useAiTask } from '../lib/hooks'
 import { usePersist } from '../lib/state'
 import LitSearchCard from '../features/literature/LitSearchCard'
 import Discover from '../features/literature/Discover'
+import { LM_BLUE, LM_BORDER, LM_FAINT, LM_TITLE } from '../features/literature/litColors'
 
 type Out = { title: string; text: string } | null
 
@@ -48,11 +49,11 @@ export default function Search({ embedded = false }: { embedded?: boolean }) {
   /** 老链路：关键词 / DOI 命中列表，折叠收在底部（独立路由与嵌入 tab 共用）。
    *  与上面的发现区同属一整片：只用一条细分隔线，不套独立卡片、也不留块间空隙。 */
   const classicBlock = () => (
-    <div className="border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-6 py-3">
+    <div className={`border-t border-${LM_BORDER} bg-white px-6 py-3`}>
       <button
         type="button"
         onClick={() => setClassicOpen(!classicOpen)}
-        className="flex items-center gap-1.5 text-[11.5px] text-[color:var(--wb-muted)] transition hover:text-[color:var(--wb-accent)]"
+        className={`flex items-center gap-1.5 text-[11.5px] text-${LM_FAINT} transition hover:text-${LM_BLUE}`}
       >
         <Icon name="scan" size={13} />
         经典关键词检索（OpenAlex 命中列表）
@@ -71,17 +72,17 @@ export default function Search({ embedded = false }: { embedded?: boolean }) {
       className={
         embedded
           ? /* 满铺（文献页检索 tab）：标题条贴住顶栏边线，内容区内部滚动 */
-            'flex h-full min-h-0 flex-1 flex-col'
+            'lit-scope flex h-full min-h-0 flex-1 flex-col'
           : 'flex flex-col gap-3.5'
       }
     >
       {/* 独立路由时带完整页头；嵌入文献页 tab 时改满铺标题条，避免双页头与顶部空隙 */}
       {embedded ? (
         <>
-          <div className="flex shrink-0 items-center gap-2 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3.5 py-2.5">
-            <Icon name="scan" size={15} className="text-[color:var(--wb-accent)]" />
-            <span className="text-[14px] font-medium text-[color:var(--wb-text)]">文献检索</span>
-            <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+          <div className={`flex shrink-0 items-center gap-2 border-b border-${LM_BORDER} bg-white px-3.5 py-2.5`}>
+            <Icon name="scan" size={15} className={`text-${LM_BLUE}`} />
+            <span className={`text-[14px] font-medium text-${LM_TITLE}`}>文献检索</span>
+            <span className={`text-[11.5px] text-${LM_FAINT}`}>
               以一篇论文为起点，顺着真实引用关系发现相关研究
             </span>
             <Btn
@@ -97,7 +98,7 @@ export default function Search({ embedded = false }: { embedded?: boolean }) {
             </Btn>
           </div>
           {/* 满铺连续面：标题条、发现区、经典检索之间不留白、不套外框，靠细线分段 */}
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[color:var(--wb-surface)]">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-white">
             <Discover onImported={loadTitles} />
             {classicBlock()}
           </div>
@@ -151,7 +152,7 @@ export default function Search({ embedded = false }: { embedded?: boolean }) {
             value={topic}
             onChange={setTopic}
           />
-          <p className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
+          <p className={`text-[11.5px] leading-relaxed text-${LM_FAINT}`}>
             输出可直接粘贴到 Google Scholar / IEEE Xplore / arXiv 的布尔检索式、必追关键词与反向检索建议。
           </p>
           {kwTask.error && (
@@ -160,7 +161,7 @@ export default function Search({ embedded = false }: { embedded?: boolean }) {
           {kwTask.busy ? (
             <Loading text="正在生成检索方案…" />
           ) : out && !kwTask.error ? (
-            <div className="max-h-[52vh] overflow-y-auto rounded-[10px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] p-3">
+            <div className={`max-h-[52vh] overflow-y-auto rounded-[10px] border border-${LM_BORDER} bg-white p-3`}>
               <MdBlock text={out.text} />
               <AiMeta res={kwTask.data || {}} />
             </div>

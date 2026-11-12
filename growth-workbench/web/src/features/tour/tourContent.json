@@ -1,0 +1,706 @@
+{
+  "meta": {
+    "title": "研流 · 科研一站式工作台 · 从零上手",
+    "version": "2.0",
+    "date": "2026-11-12",
+    "topic": "用变异信号定位 LLM 生成测试的失败根因",
+    "topicShort": "变异信号驱动的测试失败分流",
+    "baseline": "规则分流 / 固定策略 / Jev 受约束选择",
+    "dataset": "TestEval 风格评测集（示例）与 CodaMosa 风格模块集（示例）",
+    "llm": "DeepSeek（在「设置 → 模型供应商」里配置）",
+    "goal": "在不降低分流质量的前提下，减少额外的 LLM 调用",
+    "disclaimer": "重要：本引导、教学视频与配套 PPT 中所有课题、文献条目、指标数值与结论，均为「演示用占位内容」，不是真实实验数据、不是真实文献元数据、也不构成任何研究结论。请替换为你自己的真实数据后再对外使用。",
+    "assets": {
+      "video": "/tutorial/workbench-tutorial.mp4",
+      "ppt": "/tutorial/workbench-tutorial.pptx",
+      "slides": "/tutorial/workbench-tutorial-slides.html",
+      "script": "/tutorial/workbench-tutorial-script.md",
+      "srt": "/tutorial/workbench-tutorial.srt",
+      "popular": "/tutorial/workbench-tutorial-popular.mp4",
+      "popularSource": "/tutorial/workbench-tutorial-popular-source.zip"
+    }
+  },
+  "chapters": [
+    { "id": "start", "no": "01", "title": "起步", "subtitle": "认路、接模型", "desc": "把导航分层和模型配置先弄清，后面所有 AI 功能才有意义。" },
+    { "id": "workspaces", "no": "02", "title": "核心工作台", "subtitle": "画布 · 首页 · 调研 · 课题 · 共识", "desc": "编排画布、统一首页、对话·调研、课题 Quest、共识检索，五个入口彼此独立，URL 即状态。" },
+    { "id": "assets", "no": "03", "title": "研究资产", "subtitle": "创新 → 文献 → 实验 → 论文", "desc": "流水线真正产出可复用资产的地方，每个视图都配一条可照抄的示例。" },
+    { "id": "rhythm", "no": "04", "title": "节奏闭环", "subtitle": "今日 · 复盘 · 导师 · 激励", "desc": "把研究进度、承诺与积分连成闭环，避免资产做完了没人推进。" },
+    { "id": "tools", "no": "05", "title": "工具与产出", "subtitle": "工作室 · 概览 · 速递 · 社区", "desc": "本机可直接跑 TeX / matplotlib / Python 的四个工作室，加上汇总与信息流。" },
+    { "id": "video", "no": "06", "title": "教学视频", "subtitle": "看完就能带别人上手", "desc": "配套视频与逐页对应的 PPT、讲稿、字幕。" }
+  ],
+  "steps": [
+    {
+      "key": "welcome",
+      "chapter": "start",
+      "title": "欢迎：一条线走完全站",
+      "goal": "先知道 6 个章节各管什么，再看每一步的具体示例。",
+      "body": "这份引导从零重做：每个功能点都配一条真实可照抄的示例，示例统一用同一个课题串起来，看完就能照着把自己的研究搬进来。左侧目录可以任意跳章，不必线性走完。",
+      "example": {
+        "image": "/tutorial/ui/ui-workbench.png",
+        "imageCaption": "统一工作台首页：一句话输入框与能力入口 · 真实界面截图",
+        "label": "贯穿全程的示例课题",
+        "inputLabel": "研究契约（示例占位）",
+        "input": "课题：用变异信号定位 LLM 生成测试的失败根因\nBaseline：规则分流 / 固定策略 / Jev 受约束选择\n数据：TestEval 风格评测集 + CodaMosa 风格模块集（示例）\nLLM：DeepSeek\n成功标准：分流质量不下降的前提下，额外 LLM 调用次数减少",
+        "outputLabel": "这条契约会被拆成",
+        "output": "文献若干篇 → 创新点 2~3 条 → 实验 3 组策略对照 → 论文 7 阶段 → 周复盘与积分。每一步都留在本工作台里，不靠记忆和聊天记录。",
+        "note": "示例中的名称与数值均为占位，不是实测结果。"
+      },
+      "tip": "点左上角目录可跳章；→ 下一步、← 上一步、Esc 退出；高亮区域内可以直接真操作。"
+    },
+    {
+      "key": "sidebar",
+      "chapter": "start",
+      "title": "侧边栏：两层信息架构",
+      "goal": "知道「做科研的地方」和「产出的东西」分别在哪个分组。",
+      "body": "顶部「工作台」把编排画布置顶，下面依次是统一首页、对话·调研、课题 Quest、共识 Consensus（接 consensus.app 真检索）；再往下是「研究 / 工具 / 节奏 / 更多」。侧栏最上方的「今日」是每天的总览。页面内的页签不再提升为侧栏项，所以文献的关联图、对比矩阵、检索都在同一页切换。",
+      "path": "/",
+      "target": "tour-sidebar",
+      "example": {
+        "image": "/tutorial/ui/ui-workbench.png",
+        "imageCaption": "侧栏分组：工作台 / 研究 / 工具 / 节奏 / 更多 · 真实界面截图",
+        "label": "示例 · 从侧栏找到文献的四个视图",
+        "inputLabel": "操作",
+        "input": "点「研究 → 文献库」",
+        "outputLabel": "你会得到",
+        "output": "URL 变成 /literature?tab=library；页内切换条有「文献库 / 关联图 / 对比矩阵 / 检索」四项。切到「关联图」时 URL 变成 ?tab=graph，刷新后仍停在关联图 —— URL 就是唯一真源。",
+        "note": "快捷键 [ 可收起侧栏；窄屏下它会变成左下角的抽屉按钮。"
+      }
+    },
+    {
+      "key": "settings",
+      "chapter": "start",
+      "title": "设置：先把模型接上",
+      "goal": "让画布、调研、对话里的 AI 功能真正能出结果。",
+      "body": "入口只有一处：左下角账户头像 → 设置。在「模型供应商」里增删改供应商、测试连接、拉取模型；DeepSeek / OpenAI 兼容中转 / Ollama / 本地模型都可以。TeX 路径、Zotero 同步、备份恢复也在这一页。",
+      "path": "/settings",
+      "target": "tour-settings-provider",
+      "targets": ["tour-settings-entry"],
+      "example": {
+        "image": "/tutorial/ui/ui-settings.png",
+        "imageCaption": "设置：账户、订阅与模型供应商 · 真实界面截图",
+        "label": "示例 · 配一个 DeepSeek 供应商",
+        "inputLabel": "你可以这样填",
+        "input": "名称：DeepSeek\nBase URL：https://api.deepseek.com/v1\n模型：deepseek-chat\nAPI Key：sk-（填你自己的）",
+        "outputLabel": "你会得到",
+        "output": "点「测试连接」返回成功；模型下拉里出现 deepseek-chat。之后在画布节点、调研报告、AI 分析里才会真正有输出；没配好时这些位置会给出明确的失败信封，而不是静默空白。",
+        "note": "不要在示例或截图里粘贴真实 API Key。"
+      }
+    },
+    {
+      "key": "workbench",
+      "chapter": "workspaces",
+      "title": "统一工作台：一句话启动",
+      "goal": "用最少的一次输入，把今天要做的事送进流水线。",
+      "body": "首页只有三个胶囊（对话 / 调研 / 实验）和一个大输入框。选中模式、写一句话、回车即可；就地挂技能和能力会变成输入框里的 chip，不需要先开一个表单。",
+      "path": "/",
+      "target": "tour-wb-composer",
+      "example": {
+        "image": "/tutorial/ui/ui-workbench.png",
+        "imageCaption": "首页：三个胶囊 + 一句话输入框 · 真实界面截图",
+        "label": "示例 · 调研模式启动一次背景梳理",
+        "inputLabel": "在输入框里粘贴",
+        "input": "帮我梳理近三年 LLM 生成单元测试的失败归因方法，重点看变异信号能否区分「测试写错」与「源码有 bug」，输出带引用的综述草稿",
+        "outputLabel": "你会得到",
+        "output": "进入 /research 的调研对话：先给出检索式，再查真实文献库、去重入库，最后产出带 [n] 引用标记的综述；引用标记可点开核对 DOI。",
+        "note": "点示例卡上的「填入示例」，文字会直接进输入框；也可以复制后自己粘贴。"
+      }
+    },
+    {
+      "key": "quest",
+      "chapter": "workspaces",
+      "title": "课题 Quest：契约 + 四阶段门禁",
+      "goal": "让一个课题按「调研 → 计划 → 实验 → 成文」推进，且每道门禁停下来等确认。",
+      "body": "先写目标 / Baseline / 成功标准 / 硬约束，AI 才能按契约推进。关键结论点「沉淀为发现」，之后每轮对话自动带上这些记忆，不会聊着聊着就忘了。",
+      "path": "/chat",
+      "targets": ["tour-chat-launch", "tour-chat-composer"],
+      "example": {
+        "image": "/tutorial/ui/ui-chat.png",
+        "imageCaption": "课题 Quest：与工作台对话 · 真实界面截图",
+        "label": "示例 · 新建一份研究契约",
+        "inputLabel": "你可以这样填",
+        "input": "目标：训练无关的失败分流机制\nBaseline：规则分流 / 固定策略 / Jev 受约束选择\n成功标准：分流质量不下降，额外 LLM 调用次数下降\n硬约束：不微调模型、不引入额外训练数据\n当前阶段：调研",
+        "outputLabel": "你会得到",
+        "output": "阶段条显示四阶段与当前位置；每阶段有交付物和门禁，AI 不会自己跳过。把「置信度分带可以让高置信样本直接走 Jev」沉淀为发现后，后续每一轮都会自动带着这条结论。",
+        "note": "成功标准是目标设定，不是实验结果；真实结果请在「实验」里录入。"
+      }
+    },
+    {
+      "key": "canvas",
+      "chapter": "workspaces",
+      "title": "编排画布：把多步 AI 任务连成 DAG",
+      "goal": "把重复的研究流程搭成可复用流水线，而不是每次重新对话。",
+      "body": "工具条按「搭 / 跑 / 复用 / 导出」分组。可以用一句话自动编排，也可以手拖 input / prompt / skill / tool / output 五类节点；同层节点并行跑，运行结果可一键存成创新点、文献或论文，也能立项成 Quest。",
+      "path": "/canvas?tab=build",
+      "target": "tour-canvas-toolbar",
+      "example": {
+        "image": "/tutorial/ui/ui-canvas.png",
+        "imageCaption": "编排画布：节点、连线与上下文 · 真实界面截图",
+        "label": "示例 · 一句话自动编排",
+        "inputLabel": "在画布的输入框里粘贴",
+        "input": "检索近三年 LLM 测试生成与失败归因的论文，生成带引用的综述，从中提炼 3 个可验证创新点，再设计一组 rule / fixed / Jev 三策略对照的消融实验",
+        "outputLabel": "你会得到",
+        "output": "一条 input → prompt/skill → tool → output 的 DAG；运行条显示已完成节点数、耗时与取消入口，节点检视面板里能看到每次调用用的模型、token 与耗时（证据账本）。",
+        "note": "画布唯一入口是侧栏「编排画布 Canvas」，不要再重建第二个 Studio。"
+      }
+    },
+    {
+      "key": "research",
+      "chapter": "workspaces",
+      "title": "调研 Research：深度检索到带引用报告",
+      "goal": "找文献的最短路径，且每个引用都能核验。",
+      "body": "深度检索会先把自然语言改写成检索式，再查 OpenAlex 真实数据、按标题归一化去重入库，最后产出带 [n] 引用的综述。左栏管理会话与历次报告，右栏看文献结果与指标口径。",
+      "path": "/research",
+      "target": "tour-research-dock",
+      "example": {
+        "image": "/tutorial/ui/ui-research.png",
+        "imageCaption": "对话·调研：检索式、引用与报告 · 真实界面截图",
+        "label": "示例 · 一次可核验的深度检索",
+        "inputLabel": "你可以这样问",
+        "input": "深度检索：LLM 生成单元测试的失败归因，关注 mutation signal 与 code structure graph，年份 2022–2026，报告里每个结论都要给可点开的引用",
+        "outputLabel": "你会得到",
+        "output": "检索式 → 命中的真实文献条目 → 去重后写入文献库 → 一份带 [n] 的报告；点 [n] 能看到 lit_id / DOI。检索到的文献直接出现在文献库，不用手动搬运。",
+        "note": "检索结果依赖网络与 OpenAlex 配额；无结果时会明确告知，不会用编造条目填充报告。"
+      }
+    },
+    {
+      "key": "ideas",
+      "chapter": "assets",
+      "title": "创新点：捕获 + 四维评分",
+      "goal": "把模糊想法变成可验证、可排序、可关联实验的条目。",
+      "body": "左边随手记：一句话说清要解决什么，选分类并打分；右边可让 AI 顺这个方向做结构化头脑风暴，产出的候选能批量入库。",
+      "path": "/ideas",
+      "target": "tour-idea-form",
+      "example": {
+        "image": "/tutorial/ui/ui-ideas.png",
+        "imageCaption": "创新点：novelty / feasibility / impact 打分 · 真实界面截图",
+        "label": "示例 · 落一条可验证的创新点",
+        "inputLabel": "捕获新想法（可填入）",
+        "input": "标题：用变异存活分布区分「测试写错」与「源码有 bug」\n一句话：生成测试失败时，不只看报错栈，而是对 mutants 的存活分布做代码结构图上的节点级定位\n分类：方法创新\n评分：新颖性 4 / 可行性 3 / 价值 5 / 成本 4",
+        "outputLabel": "你会得到",
+        "output": "一条状态为「待验证」的创新点；可以按分类筛选、按评分排序，后续在「实验」里用 idea_id 关联到具体实验，论文写作时直接引用。",
+        "note": "评分是你自己的主观判断，不是系统算出来的。"
+      }
+    },
+    {
+      "key": "idea-storm",
+      "chapter": "assets",
+      "title": "创新点：AI 头脑风暴与三角色质疑",
+      "goal": "在开跑之前，先把方法漏洞找出来。",
+      "body": "对一条创新点发起头脑风暴，会得到 defect / mve / risk 三类候选；再用不同审稿视角逐轮质疑，质疑历史会归档，方便回头看当初为什么改了方案。",
+      "path": "/ideas",
+      "target": "a[href=\"/ideas\"]",
+      "example": {
+        "image": "/tutorial/ui/ui-ideas-annotated.png",
+        "imageCaption": "创新点（标注版）：主张与打分口径 · 真实界面截图",
+        "label": "示例 · 让审稿人先挑刺",
+        "inputLabel": "质疑视角",
+        "input": "视角：实验有效性。请检查这条创新点的最小可验证实验（MVE）是否缺少敏感性分析，以及 baseline 是否只比了一个策略。",
+        "outputLabel": "你会得到",
+        "output": "结构化的质疑条目，例如「MVE 需要补一组阈值敏感性」「Baseline 至少要覆盖 rule / fixed / Jev 三策略」；选中后可批量入库，作为后续实验设计的输入。",
+        "note": "质疑条目是 AI 生成的待验证建议，不等于事实结论。"
+      }
+    },
+    {
+      "key": "literature",
+      "chapter": "assets",
+      "title": "文献库：录入、精读与 PDF",
+      "goal": "把文献变成带笔记、可检索、可对比的结构化资产。",
+      "body": "支持 BibTeX / RIS / CSL 粘贴、PDF、Zotero 三通道同步，按 DOI 去重。点开任意一篇，在抽屉里写分段精读笔记、记痛点，PDF 用居中大窗阅读并支持三档定位。",
+      "path": "/literature?tab=library",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-literature.png",
+        "imageCaption": "文献库：条目、标签与状态 · 真实界面截图",
+        "label": "示例 · 导入一篇并写第一条笔记",
+        "inputLabel": "在「导入」里粘贴",
+        "input": "@article{demo2026mutation, title={A Demo Study on Mutation Signals for Test Failure Triage}, author={A. Author and B. Author}, year={2026}, journal={Demo Venue}, doi={10.0000/demo.2026}}",
+        "outputLabel": "你会得到",
+        "output": "一条状态「待读」的文献（按 DOI 去重）；抽屉里可写「精读笔记 / 痛点」，例如在「痛点」记下「只用了报错栈，没用变异信号」，这条会成为创新点的直接依据。",
+        "note": "这条 BibTeX 是演示占位，不是真实论文。真实条目请从 Zotero / OpenAlex 导入。"
+      }
+    },
+    {
+      "key": "lit-search",
+      "chapter": "assets",
+      "title": "文献 · 在线检索",
+      "goal": "不离开文献页，就能把外部数据库的结果补进本地库。",
+      "body": "检索页按标题 / 年份等条件查 OpenAlex，标题归一化后与本地库比对，已存在的会标出来，勾选后批量入库。",
+      "path": "/literature?tab=search",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-lit-search.png",
+        "imageCaption": "文献检索：一整片连续白面 · 真实界面截图",
+        "label": "示例 · 补一批同主题文献",
+        "inputLabel": "检索条件",
+        "input": "关键词：mutation testing for LLM-generated tests\n年份：2020–2026\n只勾选「去重后未入库」的结果",
+        "outputLabel": "你会得到",
+        "output": "一批 OpenAlex 真实条目，库里已有的标灰；勾选批量入库后立刻出现在「文献库」和「关联图」里，不需要复制粘贴。",
+        "note": "在线检索走服务端统一访问层，带缓存与 429 提示；配额耗尽时会给出明确重置时间。"
+      }
+    },
+    {
+      "key": "lit-graph",
+      "chapter": "assets",
+      "title": "文献 · 关联图",
+      "goal": "从一篇种子论文长出一整张引文网络。",
+      "body": "横轴是年份，纵轴是被引次数的对数；选中一篇做双向扩边，会自动补齐引用与被引文献并入库。点节点回到详情写笔记。",
+      "path": "/literature?tab=graph",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-lit-graph.png",
+        "imageCaption": "文献关联图：年份 × 被引对数 · 真实界面截图",
+        "label": "示例 · 从一篇扩成一张网",
+        "inputLabel": "操作",
+        "input": "在关联图里选中种子论文 → 点「双向扩边」→ 把有年份但无被引数据的空壳节点清掉",
+        "outputLabel": "你会得到",
+        "output": "一张按年份铺开、纵向撑满的引文网络：能一眼看出这个方向从哪一年起量、哪几篇是枢纽；新扩出来的文献自动落库，可直接写精读笔记。",
+        "note": "扩边默认先清图再建，避免上一次的节点残留。"
+      }
+    },
+    {
+      "key": "lit-matrix",
+      "chapter": "assets",
+      "title": "文献 · 对比矩阵",
+      "goal": "把散在各篇笔记里的差异，收成一张可直接进论文的表。",
+      "body": "动态维度，失焦即存。每行一篇文献，每列一个自定维度，写完直接导出或复制成 Related Work 表格底稿。",
+      "path": "/literature?tab=matrix",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-lit-matrix.png",
+        "imageCaption": "文献对比矩阵 · 真实界面截图",
+        "label": "示例 · 一张 Related Work 底稿",
+        "inputLabel": "自定义维度列",
+        "input": "是否需要微调 | 反馈信号来源 | 定位粒度 | 用到的数据集 | 是否开源\n行：规则分流、固定策略、Jev 受约束选择、本方法（占位行）",
+        "outputLabel": "你会得到",
+        "output": "一张失焦即存的对比表；空白格会显式提醒「这篇还没读到这里」，避免把没读过的论文写成已核实结论。",
+        "note": "本方法那一行请先填实测配置，别先填预期结论。"
+      }
+    },
+    {
+      "key": "experiments",
+      "chapter": "assets",
+      "title": "实验：假设 → 结构化结果 → 结论写回",
+      "goal": "让每个数字都有来处，能直接被论文引用。",
+      "body": "先写清假设与配置，跑完把结果逐条录进去（case / method / metrics_json / success）。卡住的实验明确标注阻塞；结果攒够后用 AI 分析做一轮归因，结论会写回 conclusion 字段。",
+      "path": "/experiments",
+      "target": "tour-exp-form",
+      "example": {
+        "image": "/tutorial/ui/ui-experiments.png",
+        "imageCaption": "实验：策略对照与结果登记 · 真实界面截图",
+        "label": "示例 · 三策略对照的消融",
+        "inputLabel": "实验记录（结果列请填实测值）",
+        "input": "假设：受约束选择能在不降低分流质量的前提下减少额外 LLM 调用\n配置：同一评测集、同一 LLM、固定随机种子；策略 = rule / fixed / Jev\n结果字段：分流质量指标、额外调用次数、P95 延迟、失败样本数\n（数值一律填你自己的实测结果，不要抄示例）",
+        "outputLabel": "你会得到",
+        "output": "结构化结果表 + 横向多选对比；AI 归因写回 conclusion，并用 idea_id 关联到「变异存活分布」那条创新点。论文页可直接引用这组实验。",
+        "note": "严禁在示例里写虚构指标；这里刻意只给字段口径，不给数值。"
+      }
+    },
+    {
+      "key": "paper",
+      "chapter": "assets",
+      "title": "论文：七阶段流水线",
+      "goal": "别追求一次写完整篇，把当前阶段推到 done。",
+      "body": "一篇论文拆成 7 个阶段，逐个标记 doing / blocked / done；阻塞超过 3 天亮红牌，章节双轨字数与目标进度自动汇总到「今日」。",
+      "path": "/paper",
+      "target": "tour-paper-stages",
+      "example": {
+        "image": "/tutorial/ui/ui-paper-stages.png",
+        "imageCaption": "论文 7 阶段推进 · 真实界面截图",
+        "label": "示例 · 新建一篇并标出阻塞",
+        "inputLabel": "新建论文",
+        "input": "标题：Dynamic Multi-source Feedback Graph for Test Failure Triage（占位标题）\n当前阶段：实验\n目标字数：8000\n阻塞原因：等待三策略对照的延迟数据",
+        "outputLabel": "你会得到",
+        "output": "阶段 stepper 上「实验」显示为 blocked；超过 3 天后红牌脉冲，并顶到「今日」页首和顶栏铃铛待办里，不会悄悄消失。",
+        "note": "写卡住的地方就标 blocked，这比假装在做更有用。"
+      }
+    },
+    {
+      "key": "paperfeed",
+      "chapter": "assets",
+      "title": "论文速递：把新论文收进流里",
+      "goal": "不用每天手动刷 arXiv，也能保持对方向的敏感。",
+      "body": "三条来源：arXiv 实时拉取、邮箱投喂（IMAP）、手动粘贴链接或转发邮件正文。标题与摘要可自动翻译；有 arXiv id 时会拉取真实元数据。",
+      "path": "/paperfeed",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-paperfeed.png",
+        "imageCaption": "论文速递 · 真实界面截图",
+        "label": "示例 · 手动投喂一条",
+        "inputLabel": "在投喂框里粘贴",
+        "input": "https://arxiv.org/abs/2611.08457\n（或粘贴一封转发邮件的标题 + 摘要）",
+        "outputLabel": "你会得到",
+        "output": "一条带真实元数据或原始文本的速递卡片，标题摘要翻译成中文后可快速判断要不要转进文献库精读。",
+        "note": "上面的 arXiv id 仅为格式演示，不指向真实论文。"
+      }
+    },
+    {
+      "key": "today",
+      "chapter": "rhythm",
+      "title": "今日：每天的总览",
+      "goal": "一进来就知道今天该先动哪一块。",
+      "body": "页首就是今日打卡条：5 个字段一行填完，右上角直接提交。下面依次是待办（论文阻塞红条 / 逾期承诺 / 当前阶段）、研究漏斗四环与构成图、活跃热力图；生活曲线在底部折叠。原「概览指标」页已并入本页。",
+      "path": "/today",
+      "target": "tour-dash-stats",
+      "example": {
+        "image": "/tutorial/ui/ui-today.png",
+        "imageCaption": "今日：待办与研究进度总览 · 真实界面截图",
+        "label": "示例 · 读懂一屏红色告警",
+        "inputLabel": "你看到",
+        "input": "页首打卡条显示「今天还没打卡」；红条：「实验阶段已阻塞 4 天」；热力图断签 2 天",
+        "outputLabel": "该怎么动",
+        "output": "先在页首把今日打卡填了（睡眠 / 运动 / 专注 / 心情）→ 再去「论文」把阻塞原因补上或推进阶段 → 最后到「计划复盘」记一次 missed。红色项优先，绿色项不用管。",
+        "note": "铃铛里的待办与这里同源，都是真实待办，不是装饰数字。"
+      }
+    },
+    {
+      "key": "plan",
+      "chapter": "rhythm",
+      "title": "计划复盘：周计划 + 双周组会",
+      "goal": "周末不用临时拼汇报材料。",
+      "body": "周初写本周成果和支撑任务，周末做周复盘（done / missed 互斥）；组会按双周节奏，系统会在组会周自动生成双周汇报材料，且统计口径可展开核对。",
+      "path": "/plan",
+      "target": "tour-plan-week",
+      "example": {
+        "image": "/tutorial/ui/ui-plan.png",
+        "imageCaption": "周计划与周复盘 · 真实界面截图",
+        "label": "示例 · 写一条可验收的周成果",
+        "inputLabel": "本周成果",
+        "input": "完成 rule / fixed / Jev 三策略的同一评测集对照运行，并把结果录入实验页；交付物：实验记录 1 组 + 结论写回\n支撑任务：补一组阈值敏感性分析（未完成，记 missed）",
+        "outputLabel": "你会得到",
+        "output": "周复盘里 done / missed 各自归位；组会周自动汇总成双周汇报材料，口径说明可展开，避免把「计划做了」写成「做完了」。",
+        "note": "诚实记 missed 才能让下周计划不失真。"
+      }
+    },
+    {
+      "key": "advisor",
+      "chapter": "rhythm",
+      "title": "导师：承诺台账与沟通档案",
+      "goal": "把组会上说过的话变成可追踪的承诺。",
+      "body": "记承诺、逾期红警、沟通档案时间线；AI 可以从纪要原文抽取条目，但必须人工确认后才入库，不会自动替你写下承诺。",
+      "path": "/advisor",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-advisor.png",
+        "imageCaption": "导师激励 · 真实界面截图",
+        "label": "示例 · 从纪要里提一条承诺",
+        "inputLabel": "粘贴纪要片段",
+        "input": "「下周组会前把三策略对照的延迟数据补齐，并说明失败样本的分流依据。」",
+        "outputLabel": "你会得到",
+        "output": "AI 抽出候选承诺（内容 / 截止日 / 来源），你确认后进入台账；逾期会出现在「今日」页首与顶栏铃铛。沟通档案按时间线留存。",
+        "note": "人工确认是硬门禁，避免 AI 把讨论意见误记成你答应过的事。"
+      }
+    },
+    {
+      "key": "points",
+      "chapter": "rhythm",
+      "title": "激励规则：加减分、保护下限与奖励",
+      "goal": "用可配置的小反馈维持节奏，而不是靠意志力。",
+      "body": "积分双向加减：完成动作加分、拖延扣分；周净扣分有保护下限，连续没状态也不会扣穿。出口是自己维护的奖励清单，还有押注对赌可以玩，规则数值在本页可改。",
+      "path": "/points",
+      "target": "tour-points-stats",
+      "example": {
+        "image": "/tutorial/ui/ui-points.png",
+        "imageCaption": "积分：双向加减与流水 · 真实界面截图",
+        "label": "示例 · 一条规则怎么生效",
+        "inputLabel": "规则配置（占位数值）",
+        "input": "动作：录入一条结构化实验结果 → +N 分\n动作：承诺逾期未闭合 → −M 分\n保护下限：周净扣分不低于 −K",
+        "outputLabel": "你会得到",
+        "output": "余额 / 本周净分 / 保护下限三张卡与累计曲线同步变化；流水里能追到是哪次动作触发的加减，规则改了以后新动作按新值结算。",
+        "note": "N / M / K 是你自己设的占位值，不是默认值，也不是行为科学结论。"
+      }
+    },
+    {
+      "key": "studio-paper",
+      "chapter": "tools",
+      "title": "论文工作室：本机写 .tex 并编译",
+      "goal": "不离开工作台也能改稿、编译、看 PDF。",
+      "body": "左侧管理工作区文件，右侧编辑 .tex 源码，可配置本机 TeX bin 目录后直接编译；文件都落在隔离的工作区目录里。",
+      "path": "/studio/paper",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-studio-paper.png",
+        "imageCaption": "LaTeX 论文工作室 · 真实界面截图",
+        "label": "示例 · 起一份会议稿骨架",
+        "inputLabel": "新建文件 main.tex，粘贴",
+        "input": "\\documentclass{article}\n\\title{Demo: Mutation Signals for Failure Triage}\n\\author{A. Author}\n\\begin{document}\n\\maketitle\n\\section{Introduction}\n\\end{document}",
+        "outputLabel": "你会得到",
+        "output": "保存后点编译，本机 TeX 生成 PDF；找不到 TeX 时设置里可指定 MiKTeX / TeX Live 的 bin 目录。",
+        "note": "工作区命令走白名单、shell=False，不要在这里跑任意命令。"
+      }
+    },
+    {
+      "key": "studio-figure",
+      "chapter": "tools",
+      "title": "绘图工作室：脚本 / spec 出图",
+      "goal": "论文图与实验图统一在一处生成、可复现。",
+      "body": "可以写 matplotlib 脚本交给本机 Python 渲染，也可以编辑 figure.json 的图表 spec；结果可导出，spec 可保存复用。",
+      "path": "/studio/figure",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-studio-figure.png",
+        "imageCaption": "制图工作室：matplotlib 出图 · 真实界面截图",
+        "label": "示例 · 画一张三策略对比柱状图",
+        "inputLabel": "matplotlib 脚本片段（数据占位）",
+        "input": "labels = ['rule', 'fixed', 'Jev']\nvalues = [None, None, None]  # 换成你的实测值\n# ax.bar(labels, values); ax.set_ylabel('额外 LLM 调用次数')",
+        "outputLabel": "你会得到",
+        "output": "本机 Python 渲染出的图片，可导出到 outputs/；配合保存的 figure.json，下次换一组实测值就能重画同一张图。",
+        "note": "示例里刻意留 None，防止把占位数字当成实测结果画进论文。"
+      }
+    },
+    {
+      "key": "studio-analysis",
+      "chapter": "tools",
+      "title": "数据分析工作室：跑表、出统计",
+      "goal": "实验原始结果在本机直接算，不用来回导文件。",
+      "body": "工作区文件列表 + 分析执行；用隔离 venv 里的 Python（pandas / matplotlib / scipy / openpyxl 已装）处理数据，结果回写工作区。",
+      "path": "/studio/analysis",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-studio-analysis.png",
+        "imageCaption": "分析工作室：Python / pandas 执行 · 真实界面截图",
+        "label": "示例 · 汇总三策略的对照结果",
+        "inputLabel": "分析目标",
+        "input": "读取实验导出的 CSV，按 strategy 分组，计算分流质量指标与额外调用次数的均值 / 中位数，并输出一张汇总表",
+        "outputLabel": "你会得到",
+        "output": "一份可下载的汇总表与图；口径写在脚本里，下次复跑结论一致，方便在组会上回答「这个数怎么来的」。",
+        "note": "统计口径必须自己定义清楚，别只报一个均值。"
+      }
+    },
+    {
+      "key": "studio-code",
+      "chapter": "tools",
+      "title": "代码工作室：写脚本并执行",
+      "goal": "把一次性处理逻辑留在工作台里，而不是散在临时文件。",
+      "body": "新建 / 编辑 Python 脚本，用隔离 venv 执行，输出直接回显；命令走白名单，不做任意 shell 执行。",
+      "path": "/studio/code",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-studio-code.png",
+        "imageCaption": "代码工作室 · 真实界面截图",
+        "label": "示例 · 校验实验结果 CSV 的完整性",
+        "inputLabel": "script.py",
+        "input": "import pandas as pd\ndf = pd.read_csv('results.csv')\nprint(df.isna().sum())\nprint(df.groupby('strategy').size())",
+        "outputLabel": "你会得到",
+        "output": "缺列 / 空值与每组样本数一目了然；在写论文前先确认没有漏跑的样本。",
+        "note": "示例文件名与列名是占位，请换成你自己的导出格式。"
+      }
+    },
+    {
+      "key": "stats",
+      "chapter": "tools",
+      "title": "今日 · 汇总：全站数字的唯一汇总区",
+      "goal": "要引用总数时，只认「今日」页的汇总区，避免各处口径不一致。",
+      "body": "文献 / 创新点 / 实验 / 论文 / 积分等汇总全部来自实时接口，只读、不提供写操作；各模块页因此留成纯操作区。原独立「概览指标」页已并入「今日」（/stats 会自动跳转）。",
+      "path": "/today",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-today.png",
+        "imageCaption": "今日页 · 汇总区 · 真实界面截图",
+        "label": "示例 · 汇报前核一遍口径",
+        "inputLabel": "要做的事",
+        "input": "组会前打开「今日」，核对研究漏斗四环、文献待读数、实验计划中数、论文阻塞数",
+        "outputLabel": "你会得到",
+        "output": "一份口径一致的当期数字；汇报时只认这一页，不要凭印象报数。",
+        "note": "数字是实时汇总，不是手动填的第二份台账。"
+      }
+    },
+    {
+      "key": "community",
+      "chapter": "tools",
+      "title": "科研社区：本机内容板",
+      "goal": "留一个轻的地方放想法、模板与团队约定。",
+      "body": "发布 / 浏览帖子，内容只保存在本机数据库；内置「示例」帖可随时删除。列表不返回正文，打开才加载。",
+      "path": "/community",
+      "target": "main",
+      "example": {
+        "image": "/tutorial/ui/ui-community.png",
+        "imageCaption": "社区与案例 · 真实界面截图",
+        "label": "示例 · 发一条团队约定",
+        "inputLabel": "新帖",
+        "input": "标题：实验记录口径 v1\n正文：所有对照实验必须记录随机种子、LLM 版本与数据集划分；结果列只填实测值。",
+        "outputLabel": "你会得到",
+        "output": "一条本机可见的帖子，可作为新成员上手时的第一份约定；删掉内置示例帖后列表自动去重刷新。",
+        "note": "内容只在本机，换设备不会同步。"
+      }
+    },
+    {
+      "key": "globalsearch",
+      "chapter": "tools",
+      "title": "全局搜索与铃铛待办",
+      "goal": "找不到东西和忘了待办时，有两条兜底路径。",
+      "body": "顶栏搜索是跨模块入口；铃铛聚合论文阻塞红警、逾期承诺、今日未打卡三类真实待办，点击可直达对应模块。",
+      "path": "/",
+      "target": "header",
+      "example": {
+        "image": "/tutorial/ui/ui-workbench.png",
+        "imageCaption": "顶栏全局速搜所在的工作台首页 · 真实界面截图",
+        "label": "示例 · 从待办直接跳到阻塞",
+        "inputLabel": "操作",
+        "input": "点顶栏铃铛 → 选「实验阶段已阻塞 4 天」",
+        "outputLabel": "你会得到",
+        "output": "直接跳到论文页的对应阶段；处理完（推进阶段或改写阻塞原因）后，铃铛里的这条自动消失，不需要手动清。",
+        "note": "铃铛只放真实待办，没有就空着，不塞装饰性通知。"
+      }
+    },
+    {
+      "key": "video",
+      "chapter": "video",
+      "title": "教学视频与配套 PPT",
+      "goal": "自己学会之后，拿这份材料去带别人。",
+      "body": "视频按六个章节把同一条示例研究线从头走一遍；PPT 与视频逐页对应，讲稿和字幕可单独下载。引导结束后随时可以从侧栏「新手引导」回到这一页。",
+      "example": {
+        "image": "/tutorial/ui/ui-paper-doc.png",
+        "imageCaption": "工作台内编译出的论文产物（演示占位） · 真实界面截图",
+        "label": "配套材料",
+        "inputLabel": "怎么用",
+        "input": "1. 播放视频快速过一遍全局\n2. 用 PPT 在组会 / 培训里逐页讲\n3. 讲稿与字幕用于二次剪辑或配音\n4. 回到引导按目录跳到任意功能点现场演示",
+        "outputLabel": "你会得到",
+        "output": "一份可直接复用的教学包；视频、PPT、引导共用同一份内容源，功能点与示例严格一一对应，不会出现「视频里讲的功能在引导里找不到」。",
+        "note": "所有示例均为演示占位，对外培训前请替换成真实数据。"
+      },
+      "tip": "视频、PPT、讲稿、字幕都可以直接下载，文件放在站点 /tutorial/ 目录下。"
+    }
+  ],
+  "slides": [
+    {
+      "no": 1,
+      "kind": "cover",
+      "kicker": "研流 · 科研一站式工作台 · 教学包 v2.0",
+      "title": "从零上手研流",
+      "subtitle": "一条示例研究线，走通全站 28 个引导环节",
+      "bullets": ["新手引导：每个功能点配一条可照抄的示例", "教学视频：六章串讲，约 2 分钟", "配套 PPT：与视频逐页对应，可编辑"],
+      "example": { "input": "示例课题：用变异信号定位 LLM 生成测试的失败根因", "output": "Baseline：规则分流 / 固定策略 / Jev 受约束选择　·　LLM：DeepSeek" },
+      "narration": "这套材料从零重做了新手引导，并且为每一个功能点配了一条示例。所有示例共用同一个课题，方便你对照着把自己的研究搬进来。"
+    },
+    {
+      "no": 2,
+      "kind": "map",
+      "kicker": "00 · 全局地图",
+      "title": "六章，一条科研流水线",
+      "subtitle": "起步 → 三大工作台 → 研究资产 → 节奏闭环 → 工具与产出 → 教学视频",
+      "bullets": ["起步：认路 + 接模型，AI 才能出结果", "三大工作台：一句话启动 / 画布编排 / 深度检索", "研究资产：创新点 → 文献 → 实验 → 论文", "节奏闭环：今日 → 周复盘 → 导师 → 激励"],
+      "example": { "input": "输入：一句话研究契约", "output": "产出：文献、创新点、结构化实验、论文阶段、周报与积分，全部留在同一条线上" },
+      "narration": "先建立全局地图。整站分成六章，前两章解决「怎么起步、从哪进」，中间两章是真正产出资产与维持节奏的地方，最后是工具与教学材料。"
+    },
+    {
+      "no": 3,
+      "kind": "chapter",
+      "kicker": "01 · 起步",
+      "title": "认路，然后把模型接上",
+      "subtitle": "侧栏两层 IA + 左下角头像里的设置",
+      "bullets": ["顶部「工作台」把编排画布、统一首页、对话·调研、课题、共识收在一起，是做科研的核心区；下面是研究 / 工具 / 节奏 / 更多", "页面内页签不再提升为侧栏项：文献四视图在同一页用 ?tab= 切换", "设置唯一入口：左下角账户头像 → 设置 → 模型供应商"],
+      "example": { "input": "名称 DeepSeek｜Base URL https://api.deepseek.com/v1｜模型 deepseek-chat", "output": "「测试连接」成功后，画布节点、调研报告、AI 分析才有真实输出" },
+      "narration": "第一步是认路。导航只有两层，URL 就是状态。第二步是接模型，入口只有左下角头像一处；没配好之前，所有 AI 功能会给出明确失败信封，不会静默空白。"
+    },
+    {
+      "no": 4,
+      "kind": "chapter",
+      "kicker": "02 · 三大工作台",
+      "title": "一句话启动：把今天要做的事送进流水线",
+      "subtitle": "首页三胶囊（对话 / 调研 / 实验）+ 一个大输入框",
+      "bullets": ["选中模式、写一句话、回车即可，不需要先开表单", "技能与能力就地变成输入框里的 chip", "调研模式会带着启动信封直接进入 /research"],
+      "example": { "input": "帮我梳理近三年 LLM 生成单元测试的失败归因方法，重点看变异信号能否区分「测试写错」与「源码有 bug」", "output": "检索式 → 真实文献 → 去重入库 → 带 [n] 引用的综述草稿" },
+      "narration": "统一工作台把三个模式的启动收成一句话。这条示例会直接进入调研对话，产出带引用标记的综述，每个引用都能点开核对。"
+    },
+    {
+      "no": 5,
+      "kind": "chapter",
+      "kicker": "02 · 三大工作台",
+      "title": "课题 Quest：契约 + 四阶段门禁",
+      "subtitle": "调研 → 计划 → 实验 → 成文，每道门禁停下来等确认",
+      "bullets": ["先写目标 / Baseline / 成功标准 / 硬约束", "每阶段有交付物与门禁，AI 不会自己跳过", "关键结论「沉淀为发现」，后续每轮自动带上"],
+      "example": { "input": "目标：训练无关的失败分流｜成功标准：质量不降、额外调用减少｜硬约束：不微调模型", "output": "阶段条 + 发现记忆；例如「高置信样本直接走 Jev、低置信交 LLM」会成为后续每轮的固定上下文" },
+      "narration": "课题工作台的价值是让 AI 按契约推进，而不是每轮重新解释背景。把关键结论沉淀为发现，是这套流程里最容易被忽略、但最省时间的一步。"
+    },
+    {
+      "no": 6,
+      "kind": "chapter",
+      "kicker": "03 · 研究资产",
+      "title": "创新点：先落库，再让审稿人挑刺",
+      "subtitle": "捕获 + 四维评分 → 结构化风暴 → 三角色质疑",
+      "bullets": ["一句话说清「要解决什么」，选分类、打分", "AI 风暴产出 defect / mve / risk 三类候选，可批量入库", "质疑历史归档，回头能看清方案为什么改"],
+      "example": { "input": "标题：用变异存活分布区分「测试写错」与「源码有 bug」；一句话：在代码结构图上做节点级定位", "output": "质疑：MVE 缺阈值敏感性分析、Baseline 至少要覆盖 rule / fixed / Jev 三策略" },
+      "narration": "创新点不要求成熟，先落库。真正有价值的是后面的质疑环节：在开跑之前把最小可验证实验的漏洞找出来，比跑完再补便宜得多。"
+    },
+    {
+      "no": 7,
+      "kind": "chapter",
+      "kicker": "03 · 研究资产",
+      "title": "文献：一条 BibTeX 长出四个视图",
+      "subtitle": "文献库 / 检索 / 关联图 / 对比矩阵，同一页用 ?tab= 切换",
+      "bullets": ["导入：BibTeX·RIS·CSL 粘贴 / PDF / Zotero 三通道，按 DOI 去重", "检索：OpenAlex 真实条目，标题归一化后批量入库", "关联图：x=年份、y=被引 log，双向扩边自动补库", "对比矩阵：动态维度、失焦即存，直接当 Related Work 底稿"],
+      "example": { "input": "@article{demo2026mutation, title={A Demo Study on Mutation Signals...}, year={2026}, doi={10.0000/demo.2026}}", "output": "一条「待读」文献 → 抽屉精读笔记 / PDF 三档定位 → 关联图扩边 → 对比矩阵的一行" },
+      "narration": "文献模块的四个视图共用同一批数据。示例里这条 BibTeX 是演示占位，真实条目请从 Zotero 或 OpenAlex 导入。对比矩阵的空白格会提醒你哪篇还没读到，能防止把没核实的内容写进论文。"
+    },
+    {
+      "no": 8,
+      "kind": "chapter",
+      "kicker": "03 · 研究资产",
+      "title": "实验 → 论文：每个数字都有来处",
+      "subtitle": "结构化结果写回结论，再被七阶段流水线消费",
+      "bullets": ["实验：case / method / metrics_json / success，AI 归因写回 conclusion", "卡住的实验明确标 blocked，不让它悄悄消失", "论文：7 阶段 stepper，阻塞 >3 天红牌并顶到「今日」", "章节双轨字数与 readiness 自动汇总"],
+      "example": { "input": "假设：受约束选择能在不降低分流质量的前提下减少额外 LLM 调用；策略 = rule / fixed / Jev；结果列只填实测值", "output": "结构化结果表 + 横向对比 + 关联 idea_id；论文阶段标 blocked 后进入铃铛待办" },
+      "narration": "这里刻意不给具体数值。实验页只定义字段口径，数值必须来自你自己的实测。这一点和整套材料的边界一致：所有示例都是占位，不是研究结论。"
+    },
+    {
+      "no": 9,
+      "kind": "chapter",
+      "kicker": "04 · 节奏闭环",
+      "title": "今日 → 周复盘 → 导师 → 激励",
+      "subtitle": "资产做完了，还得有人推进",
+      "bullets": ["今日：阻塞与逾期承诺顶到页首，热力图 + 趋势曲线", "计划复盘：周成果 / 支撑任务 / done·missed 互斥 / 双周组会材料", "导师：AI 抽取承诺 → 人工确认才入库", "激励规则：加减分、保护下限、奖励清单，规则数值可改"],
+      "example": { "input": "页首红条「实验阶段已阻塞 4 天」+ 本周新增文献 0 + 热力图断签 2 天", "output": "先推进论文阶段 → 再补本周精读 → 最后在周复盘里诚实记一次 missed" },
+      "narration": "节奏层的作用是让问题不会悄悄消失。铃铛、今日页首和周复盘用的是同一批真实待办，所以红色项优先处理就够了，绿色项不用管。"
+    },
+    {
+      "no": 10,
+      "kind": "chapter",
+      "kicker": "05 · 工具与产出",
+      "title": "编排画布：把重复流程搭成 DAG",
+      "subtitle": "一句话自动编排，或手拖五类节点",
+      "bullets": ["input / prompt / skill / tool / output，同层并行", "运行条显示 done/total、耗时与取消；节点里留模型 / token / 耗时证据", "产出可一键存成创新点、文献、论文，或立项为 Quest", "四视图：编排 / 访问 / 日志 / 监控，URL 即状态"],
+      "example": { "input": "检索近三年论文 → 生成带引用综述 → 提炼 3 个创新点 → 设计 rule / fixed / Jev 三策略对照实验", "output": "一条可运行、可复用、可导出的 DAG，每个节点的调用都有账本" },
+      "narration": "画布解决的是「同一套流程每次都要重新对话」。搭一次，之后换数据就能重跑；每个节点留下证据账本，复盘时能追到是哪一步、哪个模型产出的。"
+    },
+    {
+      "no": 11,
+      "kind": "chapter",
+      "kicker": "05 · 工具与产出",
+      "title": "调研 Research 与四个工作室",
+      "subtitle": "可核验的检索 + 本机可跑的 TeX / matplotlib / Python",
+      "bullets": ["深度检索：检索式 → OpenAlex 真数据 → 去重入库 → 带 [n] 报告", "论文工作室：写 .tex、配 TeX bin、本机编译", "绘图工作室：matplotlib 脚本或 figure.json spec，出图可复现", "数据分析 / 代码工作室：隔离 venv 跑 pandas / scipy / 脚本"],
+      "example": { "input": "调研：LLM 测试生成失败归因 + mutation signal（2022–2026）｜绘图：labels=['rule','fixed','Jev']，values 用实测值", "output": "带 [n] 且可点开 DOI 的报告；同一份 figure spec 换数据即可重画" },
+      "narration": "调研工作台强调可核验：报告里每个引用都能点开。四个工作室则把论文、图表、统计和脚本都收在本机隔离环境里，命令走白名单，不提供任意 shell 执行。"
+    },
+    {
+      "no": 12,
+      "kind": "chapter",
+      "kicker": "05 · 工具与产出",
+      "title": "信息流与汇总：速递 / 概览 / 社区 / 搜索",
+      "subtitle": "低频但各有明确职责",
+      "bullets": ["论文速递：arXiv 拉取 / 邮箱投喂 / 手动粘贴，标题摘要可翻译", "今日·汇总：全站数字唯一汇总区，只读、实时接口（原概览指标已并入今日）", "科研社区：本机内容板，内置示例帖可删", "顶栏搜索跨模块；铃铛只放三类真实待办"],
+      "example": { "input": "组会前打开「今日」汇总区，核对文献待读数、实验计划中数、论文阻塞数", "output": "一份口径一致的当期数字；和「今日」页首对不上时先刷新再汇报" },
+      "narration": "这些是低频入口，但职责都很明确。要引用总数时只认今日页的汇总区，避免各处口径不一致；铃铛没有待办就空着，不塞装饰性通知。"
+    },
+    {
+      "no": 13,
+      "kind": "flow",
+      "kicker": "端到端 · 把示例走一遍",
+      "title": "同一条研究线，在 8 个页面里怎么流动",
+      "subtitle": "从一句话契约到组会材料",
+      "bullets": ["① 首页一句话启动 → ② 课题 Quest 写契约、沉淀发现", "③ 调研 Research 出带引用综述 → ④ 文献库 / 关联图 / 对比矩阵", "⑤ 创新点落库 + 审稿视角质疑 → ⑥ 实验三策略对照、结果写回", "⑦ 论文七阶段推进 → ⑧ 今日（含汇总区）/ 周复盘整理成组会材料"],
+      "example": { "input": "起点：用变异信号定位 LLM 生成测试的失败根因", "output": "终点：一份有引用、有实测结果、有阻塞记录、口径可核对的组会汇报" },
+      "narration": "把前面所有功能点串起来看：这条线从一句话契约出发，每一站的产出都是下一站的输入，最后收成一份口径可核对的组会材料。这就是这套工作台的设计意图。"
+    },
+    {
+      "no": 14,
+      "kind": "end",
+      "kicker": "06 · 教学视频",
+      "title": "教学包怎么用",
+      "subtitle": "视频 · PPT · 讲稿 · 字幕 · 交互引导，共用同一份内容源",
+      "bullets": ["视频：约 2 分钟，六章串讲，适合新人第一遍", "PPT：与视频逐页对应，可编辑，适合组会 / 培训", "讲稿与字幕：可二次剪辑、配音或本地化", "交互引导：侧栏底部随时打开，按目录跳到任意功能点现场演示"],
+      "example": { "input": "重要边界：本材料全部示例均为演示占位内容", "output": "不是真实实验数据、不是真实文献元数据、不构成任何研究结论；对外使用前请替换成你自己的真实数据" },
+      "narration": "最后说明边界。这套材料里的课题、文献条目和所有数值都是占位示例，不是实测结果。对外培训或写论文前，请替换成真实数据。引导随时可以从侧栏底部重新打开。"
+    }
+  ]
+}

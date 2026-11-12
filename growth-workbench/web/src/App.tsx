@@ -8,7 +8,6 @@ import Search from './pages/Search'
 import Experiments from './pages/Experiments'
 import Paper from './pages/Paper'
 import Plan from './pages/Plan'
-import Overview from './pages/Overview'
 import Advisor from './pages/Advisor'
 import Points from './pages/Points'
 import Settings from './pages/Settings'
@@ -17,8 +16,16 @@ import Community from './pages/Community'
 import PaperFeed from './pages/PaperFeed'
 import Canvas from './pages/Canvas'
 import ResearchChat from './pages/ResearchChat'
+import Consensus from './pages/Consensus'
+import Workbench from './pages/Workbench'
+import PaperStudio from './pages/PaperStudio'
+import FigureStudio from './pages/FigureStudio'
+import AnalysisStudio from './pages/AnalysisStudio'
+import CodeStudio from './pages/CodeStudio'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
+import TutorialFrame from './features/tutorial/TutorialFrame'
+import TutorialGuideHost from './features/tutorial/TutorialGuide'
 import { TopBar, StatusBar } from './components/TopBar'
 import { ToastHost } from './components/toast'
 import Tour from './components/Tour'
@@ -29,56 +36,53 @@ import { usePersist } from './lib/state'
 import { get } from './lib/api'
 import { displayNameOf, useAuth } from './lib/auth'
 import SettingsPanel from './features/settings/SettingsPanel'
+import { PlanProvider } from './lib/plan'
+import Pricing from './pages/Pricing'
 
 /**
- * 三层信息架构：① 工作台（做科研的地方）→ ② 研究资产（产出的东西）→ ③ 节奏与工具（收纳）。
- * 工作台用与下方导航同款的普通列表项（不再用渐变大卡，避免层级倒挂）；术语字典见
- * docs/feature-ia-redesign-2026-11-08.md 第 5.3 节。
+ * 两层信息架构：① 工作台（做科研的地方，侧栏顶部）→ ② 研究 / 工具 / 节奏 / 更多（产出的东西与收纳）。
+ * 统一工作台（/）是唯一首页：对话 / 调研 / 实验 三模式一句话启动；画布与课题从侧栏进入。
+ * 工作台用与下方导航同款的普通列表项（不再用渐变大卡，避免层级倒挂）；
+ * 术语字典见 docs/feature-ia-redesign-2026-11-08.md 第 5.3 节，但分组以本文件 NAV_GROUPS 为准
+ * （2026-11-12 已由 9 组收敛为 5 组，那份文档记录的是当时的方案）。
  */
 const WORKSPACES: { to: string; label: string; hint: string; icon: IconName }[] = [
-  { to: '/chat', label: '课题 Quest', hint: '契约 → 四阶段门禁 → 成文', icon: 'sparkle' },
   { to: '/canvas', label: '编排画布 Canvas', hint: '多步 AI 任务连成流水线', icon: 'layers' },
-  { to: '/research', label: '调研 Research', hint: '找文献 → 自动入库 → 带引用报告', icon: 'message' },
+  { to: '/', label: '工作台', hint: '对话 · 调研 · 实验 一站式启动', icon: 'home' },
+  { to: '/research', label: '对话 · 调研', hint: '研究对话：深度检索 → 入库 → 带引用报告', icon: 'message' },
+  { to: '/chat', label: '课题 Quest', hint: '契约 → 四阶段门禁 → 成文', icon: 'sparkle' },
+  { to: '/consensus', label: '共识 Consensus', hint: '接 consensus.app 做真实学术共识检索', icon: 'check' },
 ]
 
 type NavItem = { to: string; label: string; icon: IconName; badge?: boolean }
 
-/** 导航按「功能域」分组，并把页面内的视图提升为菜单直达项，让工具一眼看全：
- *  - 「文献」各视图用 ?tab= 指向同一页（URL 是唯一真源），菜单高亮按 pathname + search 精确匹配；
- *  - 「画布 / 对话工作流」即工作台组的「编排画布 Canvas / 课题 Quest」，与页面顶部切换条一一对应；
- *  - 「工具」常显，不再给折叠展开栏。
- *  文献页现有 4 个 tab：library / graph（详情面板 + 引文图谱）/ matrix / search；旧 /search 路由保留兼容。 */
+/** 导航结构（2026-11-12 收紧为 5 分组 + 顶部工作台组 + 今日独立项）：
+ *  - 顶部「工作台」组 5 项：编排画布（置顶）/ 工作台 / 对话·调研 / 课题 Quest / 共识——
+ *    即「工作台·调研·课题·共识」合并进同一个小菜单，画布置顶；共识由独立项并入本组。
+ *  - 页面内 tab 不再提升为侧栏项：文献的 关联图/对比矩阵/检索 回归页面内切换条，侧栏只留「文献库」；
+ *  - 站点快搜从侧栏撤掉（顶栏已有同款入口）；单项孤组（速递/社区）并入相邻分组；
+ *  - 低频的「工作室」降级到工具组，高频的文献/实验靠 badge 气泡保持在第一屏。
+ *  - 直达项合计 20：工作台组 5 + 今日 1 + 研究 5 + 工具 4 + 节奏 3 + 更多 2。
+ *  - 概览指标已并入「今日」（2026-11-12），/stats 重定向到 /today。 */
 const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
   {
-    group: '画布',
-    items: [
-      { to: '/canvas?tab=build', label: '编排', icon: 'layers' },
-    ],
-  },
-  {
-    group: '文献',
+    group: '研究',
     items: [
       { to: '/literature?tab=library', label: '文献库', icon: 'book', badge: true },
-      { to: '/literature?tab=graph', label: '关联图', icon: 'network' },
-      { to: '/literature?tab=matrix', label: '对比矩阵', icon: 'grid' },
-      { to: '/literature?tab=search', label: '文献检索', icon: 'scan' },
-    ],
-  },
-  {
-    group: '速递',
-    items: [{ to: '/paperfeed', label: '论文速递', icon: 'inbox' }],
-  },
-  {
-    group: '研究资产',
-    items: [
+      { to: '/paperfeed', label: '论文速递', icon: 'inbox' },
       { to: '/ideas', label: '创新点', icon: 'sparkle' },
       { to: '/experiments', label: '实验', icon: 'beaker', badge: true },
       { to: '/paper', label: '论文', icon: 'file' },
     ],
   },
   {
-    group: '社区',
-    items: [{ to: '/community', label: '科研社区', icon: 'users' }],
+    group: '工具',
+    items: [
+      { to: '/studio/paper', label: '论文工作室', icon: 'quill' },
+      { to: '/studio/figure', label: '绘图工作室', icon: 'chart' },
+      { to: '/studio/analysis', label: '数据分析', icon: 'sigma' },
+      { to: '/studio/code', label: '代码工作室', icon: 'cpu' },
+    ],
   },
   {
     group: '节奏',
@@ -89,10 +93,10 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
     ],
   },
   {
-    group: '工具',
+    group: '更多',
     items: [
-      { to: '/stats', label: '概览指标', icon: 'chart' },
-      { to: '/navigator', label: '站点快搜', icon: 'search' },
+      { to: '/community', label: '科研社区', icon: 'users' },
+      { to: '/tutorial/llmutg', label: '案例教程', icon: 'book' },
     ],
   },
 ]
@@ -168,7 +172,32 @@ function BrandMark({ size = 30 }: { size?: number }) {
   )
 }
 
-/** ① 工作台：与下方「研究资产」同款普通列表项，只保留当前页 accent 高亮（不再用渐变大卡） */
+/** ① 工作台：与下方导航同款普通列表项，只保留当前页 accent 高亮（不再用渐变大卡）
+ *  2026-11-12：「今日」提到品牌区正下方、全侧栏第一个位置（带真实待办气泡），
+ *  这里仍是「工作台」组本身；今日不并进 WORKSPACES 数组（那会丢掉角标）。 */
+function TodayItem({ collapsed, badge }: { collapsed: boolean; badge?: NavBadge }) {
+  return (
+    <div className={collapsed ? 'px-2 pb-1 pt-1' : 'px-3 pb-1 pt-1'}>
+      <NavLink
+        to="/today"
+        end
+        title={collapsed ? '今日' : '今日：待办 · 打卡 · 概览'}
+        className={({ isActive }) =>
+          `${itemCls(isActive, collapsed)} ${
+            isActive
+              ? ''
+              : 'bg-[color:var(--wb-accent-soft)]/55 text-[color:var(--wb-text)]'
+          }`
+        }
+      >
+        <Icon name="sun" size={15} className="text-[color:var(--wb-accent)]" />
+        {collapsed ? <span className="sr-only">今日</span> : <span className="truncate font-medium">今日</span>}
+        <NavCount badge={badge} collapsed={collapsed} />
+      </NavLink>
+    </div>
+  )
+}
+
 function WorkspaceGroup({ collapsed }: { collapsed: boolean }) {
   return (
     <div className={collapsed ? 'px-2 pb-1 pt-1' : 'px-3 pb-1 pt-1'}>
@@ -184,6 +213,7 @@ function WorkspaceGroup({ collapsed }: { collapsed: boolean }) {
           <NavLink
             key={w.to}
             to={w.to}
+            end={w.to === '/'}
             title={collapsed ? w.label : w.hint}
             className={({ isActive }) => itemCls(isActive, collapsed)}
           >
@@ -243,17 +273,15 @@ function Sidebar({
   const name = displayNameOf(user)
   const { pathname, search } = useLocation()
 
-  /** 带 ?tab= 的文献子项按 pathname + search 精确高亮，避免三个子项一起亮；
-   *  无 tab 参数时 /literature 默认高亮「文献库」。 */
+  /** 侧栏收紧后只剩「文献库」一个带 ?tab= 的入口：按 pathname + tab 精确高亮，
+   *  无 ?tab= 时按文献模块的默认视图（library）命中。画布等子视图已回归页面内切换条。 */
   const isItemActive = (to: string) => {
     const [p, q] = to.split('?')
     if (pathname !== p) return false
     if (!q) return true
     const want = new URLSearchParams(q).get('tab')
     const got = new URLSearchParams(search).get('tab')
-    // 无 ?tab= 时按模块各自的默认视图高亮（文献→文献库，画布→编排）
-    const def = p === '/canvas' ? 'build' : 'library'
-    return got ? got === want : want === def
+    return (got || 'library') === want
   }
 
   const menuItem =
@@ -272,8 +300,8 @@ function Sidebar({
         <BrandMark />
         {!collapsed && (
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[12.5px] font-semibold text-[color:var(--wb-text)]">科研工作台</div>
-            <div className="truncate text-[10.5px] text-[color:var(--wb-muted)]">Research Workbench</div>
+            <div className="truncate text-[12.5px] font-semibold text-[color:var(--wb-text)]">研流</div>
+            <div className="truncate text-[10.5px] text-[color:var(--wb-muted)]">科研一站式工作台</div>
           </div>
         )}
         <button
@@ -287,22 +315,20 @@ function Sidebar({
         </button>
       </div>
 
-      {/* ① 工作台：三个独立产品，一组三卡（路由驱动，不再由 state 决定显示谁） */}
+      {/* 「今日」钉在品牌区正下方：每天的第一入口，带真实待办气泡。
+          它不属于任何分组，所以不并进 WORKSPACES / NAV_GROUPS（那会丢掉角标）。 */}
+      <TodayItem collapsed={collapsed} badge={badges['/today']} />
+
+      {/* ① 工作台组：入口用与下方导航同款的普通列表项，路由驱动、不用渐变大卡 */}
       <WorkspaceGroup collapsed={collapsed} />
 
       <nav
         data-tour="tour-sidebar"
-        className={`mt-2 min-h-0 flex-1 overflow-y-auto pb-2 ${collapsed ? 'px-2' : 'px-3'}`}
+        className={`min-h-0 flex-1 overflow-y-auto pb-2 ${collapsed ? 'px-2' : 'px-3'}`}
         aria-label="主导航"
       >
-        {/* 主页 = 编排选择页（/ 重定向到 /canvas?tab=build，即「发布的应用」小卡片） */}
-
-        <NavLink to="/today" end title={collapsed ? '今日' : undefined} className={({ isActive }) => itemCls(isActive, collapsed)}>
-          <Icon name="sun" size={15} />
-          {!collapsed && <span className="truncate">今日</span>}
-          {collapsed && <span className="sr-only">今日</span>}
-          <NavCount badge={badges['/today']} collapsed={collapsed} />
-        </NavLink>
+      {/* 「共识」已并入顶部「工作台」组（与 画布/工作台/调研/课题 同块），
+          接 consensus.app 做真实学术共识检索；不再作为独立项渲染。 */}
 
         {NAV_GROUPS.map((g, gi) => (
           <div key={gi}>
@@ -454,13 +480,14 @@ function Splash({ label = '正在打开工作台' }: { label?: string }) {
 export default function App() {
   const loc = useLocation()
   const path = loc.pathname
-  /** 三个工作台 + 落地页满铺；工作台顶部由 App 统一挂一份 WorkspaceTabs */
+  /** 三个工作台 + 落地页满铺；顶栏只做定位，不再挂工作台切换条 */
   const isWorkspace = path === '/chat' || path === '/canvas' || path === '/research'
   // 文献页四个视图（文献库 / 关联图 / 对比矩阵 / 检索）满铺：占满顶栏与状态栏之间的
   // 整个内容区，与侧栏边线直接相接；页面身份由顶栏面包屑承担，页内不再渲染大标题
   // 实验页与文献页同款满铺：Agent 实验三栏 / 结果与运行都要占满顶栏与状态栏之间的整个内容区，
   // 不能再被 max-w-[1240px] 居中限制出右侧与下方的灰底留白
-  const full = isWorkspace || path === '/landing' || path === '/paperfeed' || path === '/literature' || path === '/experiments'
+  // 共识页同款满铺：共识表内部自滚动，被 max-w 居中会截断三列表格
+  const full = isWorkspace || path === '/landing' || path === '/paperfeed' || path === '/literature' || path === '/experiments' || path === '/consensus' || path.startsWith('/studio/') || path === '/tutorial/llmutg'
   const isLanding = path === '/landing'
   const [navOpen, setNavOpen] = useState(false)
   const [collapsed, setCollapsed] = usePersist('app.navCollapsed', false)
@@ -545,6 +572,7 @@ export default function App() {
   }
 
   return (
+    <PlanProvider>
     <div className="flex h-full bg-[color:var(--wb-bg)]">
       {/* 窄屏：抽屉式导航（点遮罩或左上角按钮收起）；宽屏：常驻，可折叠成图标条 */}
       {!isLanding && navOpen && (
@@ -603,31 +631,43 @@ export default function App() {
           }
         >
             <Routes>
-              {/* 主页 = 编排入口：重定向到 /canvas?tab=build（无 cid 时显示「发布的应用」选择页） */}
-              <Route path="/" element={<Navigate to="/canvas?tab=build" replace />} />
+              {/* 主页 = 统一工作台启动面（对话 / 调研 / 实验 三胶囊 + 一句话输入框） */}
+              <Route path="/" element={<Workbench />} />
               <Route path="/landing" element={<Landing />} />
+              <Route path="/studio/paper" element={<PaperStudio />} />
+              <Route path="/studio/figure" element={<FigureStudio />} />
+              <Route path="/studio/analysis" element={<AnalysisStudio />} />
+              <Route path="/studio/code" element={<CodeStudio />} />
               <Route path="/today" element={<Dashboard />} />
               <Route path="/ideas" element={<Ideas />} />
             <Route path="/literature" element={<Literature />} />
             <Route path="/research" element={<ResearchChat />} />
+            <Route path="/consensus" element={<Consensus />} />
             <Route path="/navigator" element={<Navigator />} />
             <Route path="/search" element={<Search />} />
             <Route path="/experiments" element={<Experiments />} />
             <Route path="/paper" element={<Paper />} />
-            <Route path="/community" element={<Community />} />
-            <Route path="/paperfeed" element={<PaperFeed />} />
+              <Route path="/community" element={<Community />} />
+              <Route path="/paperfeed" element={<PaperFeed />} />
+              <Route path="/pricing" element={<Pricing />} />
             <Route path="/plan" element={<Plan />} />
-            <Route path="/stats" element={<Overview />} />
+            {/* 概览指标已并入「今日」页（2026-11-12）：旧地址重定向，避免收藏夹/引用扑空 */}
+            <Route path="/stats" element={<Navigate to="/today" replace />} />
             <Route path="/advisor" element={<Advisor />} />
             <Route path="/points" element={<Points />} />
-            {/* 三个工作台各自独立：不再经 Chat 的 tab 转发，URL 就是唯一真源 */}
+            {/* 课题 / 画布各自独立：不再经 Chat 的 tab 转发，URL 就是唯一真源 */}
             <Route path="/canvas" element={<Canvas />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />
+            {/* 案例教程：把静态教程页以 iframe 嵌入，作为工作台内功能 */}
+            <Route path="/tutorial/llmutg" element={<TutorialFrame />} />
           </Routes>
         </div>
         {!isLanding && <StatusBar />}
       </main>
+
+      {/* 案例教程跨页指引：教程页「前往实操」后，在目标页接住并浮出引导 */}
+      <TutorialGuideHost />
 
       {!isLanding && !navOpen && (
         <button
@@ -714,5 +754,6 @@ export default function App() {
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Tour open={tourOpen} onClose={closeTour} />
     </div>
+    </PlanProvider>
   )
 }

@@ -39,9 +39,10 @@ import { del, post } from '../../lib/api'
 import { useAiTask } from '../../lib/hooks'
 import { usePersist } from '../../lib/state'
 import { STATUS, abstractOf, collsOf, inCollection, tagsOf } from './literature-shared'
+import { LM_BLUE, LM_BLUE_SOFT, LM_BORDER, LM_BORDER_STRONG, LM_CHIP_BG, LM_FAINT, LM_TEXT, LM_TITLE } from './litColors'
 
 const STATUS_DOT: Record<string, string> = {
-  todo: 'bg-[color:var(--wb-muted)]',
+  todo: `bg-${LM_FAINT}`,
   reading: 'bg-[color:var(--wb-warn)]',
   done: 'bg-[color:var(--wb-ok)]',
 }
@@ -266,11 +267,36 @@ export default function LibraryView({
     return items.filter((i) => i.status === v).length
   }
 
+  /** 空结果时说清楚是哪几层筛选叠出来的，别让人误以为分类没加载出论文 */
+  const emptyHint = (() => {
+    if (!items.length) return '右上角「新增文献」，或从 Zotero 同步一批进来'
+    const labels = [
+      view !== 'all' ? `智能视图「${SMART.find((s) => s.value === view)?.label}」` : '',
+      coll ? `分类「${viewLabel}」` : '',
+      q.trim() ? `关键词「${q.trim()}」` : '',
+    ].filter(Boolean)
+    if (!labels.length) return '换个关键词，或点「清空筛选」'
+    return `当前筛选：${labels.join(' + ')} · 点下面「清空筛选」回到全部文献`
+  })()
+
   const toggleNode = (path: string) => {
     const next = new Set(expanded)
     if (next.has(path)) next.delete(path)
     else next.add(path)
     setExpanded(next)
+  }
+
+  /**
+   * 点分类 = 「看这个分类下的全部文献」（与 Zotero 行为一致）。
+   * 必须把智能视图（待读/在读/已读/最近添加）一起复位到「全部文献」：
+   * 否则从「已读」切到分类时，只剩「该分类 ∩ 已读」的 0–1 篇，
+   * 看起来就像点了分类却没加载出论文。
+   */
+  const pickCollection = (path: string) => {
+    resetTo(() => {
+      setView('all')
+      setColl(path)
+    })
   }
 
   const renderNode = (n: any): any => {
@@ -283,7 +309,7 @@ export default function LibraryView({
           {kids.length > 0 ? (
             <button
               onClick={() => toggleNode(n.path)}
-              className="w-3 shrink-0 text-[11.5px] text-[color:var(--wb-muted)] hover:text-[color:var(--wb-text)]"
+              className={`w-3 shrink-0 text-[11.5px] text-${LM_FAINT} hover:text-${LM_TITLE}`}
               aria-label={open ? '收起分类' : '展开分类'}
             >
               <Icon name={open ? 'chevronDown' : 'chevronRight'} size={11} strokeWidth={2} />
@@ -292,15 +318,15 @@ export default function LibraryView({
             <span className="w-3 shrink-0" />
           )}
           <button
-            onClick={() => resetTo(() => setColl(active ? '' : n.path))}
+            onClick={() => pickCollection(active ? '' : n.path)}
             className={`flex min-w-0 flex-1 items-center justify-between rounded-[7px] px-1.5 py-1 text-[12px] transition ${
               active
-                ? 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
-                : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
+                ? `bg-${LM_BLUE_SOFT} text-${LM_BLUE}`
+                : `text-${LM_TEXT} hover:bg-${LM_CHIP_BG}`
             }`}
           >
             <span className="truncate text-left">{n.name}</span>
-            <span className="ml-1 shrink-0 text-[11.5px] text-[color:var(--wb-muted)]">
+            <span className={`ml-1 shrink-0 text-[11.5px] text-${LM_FAINT}`}>
               {n.total ?? n.count}
             </span>
           </button>
@@ -334,8 +360,8 @@ export default function LibraryView({
     return (
       <div
         key={l.id}
-        className={`group flex gap-2.5 border-b border-[color:var(--wb-border)] px-3 py-2.5 transition hover:bg-[color:var(--wb-bg-subtle)] ${
-          checked ? 'bg-[color:var(--wb-accent-soft)]' : ''
+        className={`group flex gap-2.5 border-b border-${LM_BORDER} px-3 py-2.5 transition hover:bg-${LM_CHIP_BG} ${
+          checked ? `bg-${LM_BLUE_SOFT}` : ''
         }`}
       >
         {multi && (
@@ -347,7 +373,7 @@ export default function LibraryView({
           onClick={() => onOpenPdf(l)}
           title="打开 PDF 阅读窗口"
         >
-          <span className="flex max-w-full items-center gap-1.5 text-[11.5px] text-[color:var(--wb-muted)]">
+          <span className={`flex max-w-full items-center gap-1.5 text-[11.5px] text-${LM_FAINT}`}>
             <span
               className={`h-[6px] w-[6px] shrink-0 rounded-full ${STATUS_DOT[l.status] || STATUS_DOT.todo}`}
             />
@@ -355,18 +381,18 @@ export default function LibraryView({
               {firstAuthor(l)}. {l.year || '年份未填'}
             </span>
           </span>
-          <span className="w-full text-[13px] font-medium leading-snug text-[color:var(--wb-text)] transition group-hover:text-[color:var(--wb-accent)]">
+          <span className={`w-full text-[13px] font-medium leading-snug text-${LM_TITLE} transition group-hover:text-${LM_BLUE}`}>
             {l.title}
           </span>
           {l.venue && (
-            <span className="w-full truncate text-[11.5px] text-[color:var(--wb-text-soft)]">
+            <span className={`w-full truncate text-[11.5px] text-${LM_TEXT}`}>
               {l.venue}
             </span>
           )}
           {abs && (
             <span
               style={CLAMP2}
-              className="mt-0.5 w-full text-[11.5px] leading-[1.55] text-[color:var(--wb-muted)]"
+              className={`mt-0.5 w-full text-[11.5px] leading-[1.55] text-${LM_FAINT}`}
             >
               {abs}
             </span>
@@ -376,7 +402,7 @@ export default function LibraryView({
               {chips.map((c, idx) => (
                 <span
                   key={`${c}-${idx}`}
-                  className="rounded-[5px] bg-[color:var(--wb-bg-subtle)] px-1.5 py-[1px] text-[11px] text-[color:var(--wb-text-soft)]"
+                  className={`rounded-[5px] bg-${LM_CHIP_BG} px-1.5 py-[1px] text-[11px] text-${LM_TEXT}`}
                   title={c}
                 >
                   {c}
@@ -397,8 +423,8 @@ export default function LibraryView({
             title={checked ? '取消选中' : '选中（进入多选）'}
             className={`flex h-[15px] w-[15px] items-center justify-center rounded-full border transition ${
               checked
-                ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent)] text-white'
-                : 'border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface)] hover:border-[color:var(--wb-accent)]'
+                ? `border-${LM_BLUE} bg-${LM_BLUE} text-white`
+                : `border-${LM_BORDER_STRONG} bg-white hover:border-${LM_BLUE}`
             }`}
           >
             {checked && <Icon name="check" size={10} strokeWidth={2.5} />}
@@ -442,10 +468,10 @@ export default function LibraryView({
 
   return (
     /* 满铺：直接贴住顶栏 / 侧栏 / 状态栏，分隔线由它们的边框承担，自己不再带圆角和外边框 */
-    <div className="wb-view-enter flex h-full min-h-0 flex-1 gap-0 overflow-hidden bg-[color:var(--wb-surface)]">
+    <div className="wb-view-enter lit-scope flex h-full min-h-0 flex-1 gap-0 overflow-hidden bg-white">
       {/* 左栏：页面级持久导航 */}
-      <aside className="hidden w-[210px] shrink-0 flex-col overflow-y-auto border-r border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] lg:flex">
-        <div className="px-3 pb-1 pt-3 text-[11px] text-[color:var(--wb-muted)]">智能视图</div>
+      <aside className={`hidden w-[210px] shrink-0 flex-col overflow-y-auto border-r border-${LM_BORDER} bg-white lg:flex`}>
+        <div className={`px-3 pb-1 pt-3 text-[11px] text-${LM_FAINT}`}>智能视图</div>
         <div className="flex flex-col gap-0.5 px-2">
           {SMART.map((s) => {
             const active = !coll && view === s.value
@@ -460,13 +486,13 @@ export default function LibraryView({
                 }
                 className={`flex items-center gap-2 rounded-[8px] px-2 py-1.5 text-left text-[12px] transition ${
                   active
-                    ? 'bg-[color:var(--wb-accent-soft)] font-medium text-[color:var(--wb-accent)]'
-                    : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
+                    ? `bg-${LM_BLUE_SOFT} font-medium text-${LM_BLUE}`
+                    : `text-${LM_TEXT} hover:bg-${LM_CHIP_BG}`
                 }`}
               >
                 <Icon name={s.icon} size={13} className="shrink-0" />
                 <span className="min-w-0 flex-1 truncate">{s.label}</span>
-                <span className="shrink-0 text-[11px] text-[color:var(--wb-muted)]">
+                <span className={`shrink-0 text-[11px] text-${LM_FAINT}`}>
                   {countFor(s.value)}
                 </span>
               </button>
@@ -474,12 +500,12 @@ export default function LibraryView({
           })}
         </div>
 
-        <div className="mt-3 flex items-center justify-between border-t border-[color:var(--wb-border)] px-3 py-2.5 text-[11px] text-[color:var(--wb-muted)]">
+        <div className={`mt-3 flex items-center justify-between border-t border-${LM_BORDER} px-3 py-2.5 text-[11px] text-${LM_FAINT}`}>
           <span>Collections</span>
           {coll && (
             <button
               onClick={() => resetTo(() => setColl(''))}
-              className="text-[11px] text-[color:var(--wb-accent)]"
+              className={`text-[11px] text-${LM_BLUE}`}
             >
               清除
             </button>
@@ -489,18 +515,18 @@ export default function LibraryView({
           {tree.length > 0 ? (
             <div className="flex flex-col gap-0.5">{tree.map(renderNode)}</div>
           ) : (
-            <p className="px-1 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
+            <p className={`px-1 text-[11.5px] leading-relaxed text-${LM_FAINT}`}>
               还没有 Zotero 分类。到设置页同步一次，这里会按分类树列出文献。
             </p>
           )}
           {tree.length > 0 && (
-            <p className="mt-2 px-1 text-[11px] leading-relaxed text-[color:var(--wb-muted)]">
+            <p className={`mt-2 px-1 text-[11px] leading-relaxed text-${LM_FAINT}`}>
               点父分类会带上它下面所有子分类的文献
             </p>
           )}
         </div>
 
-        <div className="mt-auto flex shrink-0 flex-wrap gap-1 border-t border-[color:var(--wb-border)] px-2.5 py-2.5">
+        <div className={`mt-auto flex shrink-0 flex-wrap gap-1 border-t border-${LM_BORDER} px-2.5 py-2.5`}>
           <Btn size="xs" onClick={() => exportRows(filtered, 'bib')} title="导出当前筛选结果的 BibTeX">
             导出 BibTeX
           </Btn>
@@ -512,11 +538,12 @@ export default function LibraryView({
 
       {/* 右主区 */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[color:var(--wb-border)] px-3.5 py-2.5">
-          <Icon name="library" size={15} className="text-[color:var(--wb-accent)]" />
-          <span className="text-[14px] font-medium text-[color:var(--wb-text)]">{viewLabel}</span>
-          <span className="text-[11.5px] text-[color:var(--wb-muted)]">
-            {items.length} 篇 · {collCount} 个分类
+        <div className={`flex shrink-0 flex-wrap items-center gap-2 border-b border-${LM_BORDER} px-3.5 py-2.5`}>
+          <Icon name="library" size={15} className={`text-${LM_BLUE}`} />
+          <span className={`text-[14px] font-medium text-${LM_TITLE}`}>{viewLabel}</span>
+          <span className={`text-[11.5px] text-${LM_FAINT}`}>
+            {coll ? `馆藏 ${items.length} 篇 · ` : `${items.length} 篇 · `}
+            {collCount} 个分类
           </span>
           <div className="ml-auto flex items-center gap-1.5">
             <Btn size="sm" onClick={() => onOpenGraph(null)}>
@@ -530,18 +557,18 @@ export default function LibraryView({
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3.5 py-1.5">
-          <span className="text-[11.5px] text-[color:var(--wb-muted)]">
-            已选 {bulk.count} · 命中 <span className="text-[color:var(--wb-text-soft)]">{filtered.length}</span> 篇
+        <div className={`flex shrink-0 flex-wrap items-center gap-1.5 border-b border-${LM_BORDER} bg-white px-3.5 py-1.5`}>
+          <span className={`text-[11.5px] text-${LM_FAINT}`}>
+            已选 {bulk.count} · 命中 <span className={`text-${LM_TEXT}`}>{filtered.length}</span> 篇
           </span>
-          <span className="mx-0.5 h-3 w-px bg-[color:var(--wb-border-strong)]" />
+          <span className={`mx-0.5 h-3 w-px bg-${LM_BORDER_STRONG}`} />
           <SearchInput
             value={q}
             onChange={(v) => resetTo(() => setQ(v))}
             placeholder="搜标题 / 作者 / 摘要…"
             className="w-44"
           />
-          <Select value={coll} onChange={(v) => resetTo(() => setColl(v))} options={flatOptions} className="lg:hidden" />
+          <Select value={coll} onChange={pickCollection} options={flatOptions} className="lg:hidden" />
           <Select value={sortBy} onChange={(v) => resetTo(() => setSortBy(v))} options={SORT_OPTIONS} />
           <Btn size="sm" onClick={() => resetTo(() => setGroupBy(!groupBy))}>
             {groupBy ? '取消分组' : '按分类分组'}
@@ -579,14 +606,14 @@ export default function LibraryView({
           </div>
         )}
 
-        <div className="flex shrink-0 items-center justify-between px-3.5 py-1.5 text-[11.5px] text-[color:var(--wb-muted)]">
+        <div className={`flex shrink-0 items-center justify-between px-3.5 py-1.5 text-[11.5px] text-${LM_FAINT}`}>
           <span>
             显示 {paged.length} 篇{groupBy ? ' · 按分类分组' : ''}
             {view === 'recent' ? ' · 最近添加的 30 篇' : ''}
           </span>
           {(q || coll || view !== 'all') && (
             <button
-              className="text-[color:var(--wb-accent)] underline underline-offset-2"
+              className={`text-${LM_BLUE} underline underline-offset-2`}
               onClick={() =>
                 resetTo(() => {
                   setQ('')
@@ -601,15 +628,11 @@ export default function LibraryView({
         </div>
 
         {/* 列表独立滚动：左栏与整页不跟着动 */}
-        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-[color:var(--wb-border)]">
+        <div ref={listRef} className={`min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-${LM_BORDER}`}>
           {filtered.length === 0 ? (
             <Empty
               text={items.length ? '没有命中的文献' : '还没有文献'}
-              hint={
-                items.length
-                  ? '换个关键词，或点「清空筛选」'
-                  : '右上角「新增文献」，或从 Zotero 同步一批进来'
-              }
+              hint={emptyHint}
               action={
                 <Btn size="sm" variant="primary" onClick={onAdd}>
                   新增文献
@@ -620,9 +643,9 @@ export default function LibraryView({
             <div>
               {grouped.map((g) => (
                 <div key={g.name}>
-                  <div className="flex items-center gap-2 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--wb-text)]">
+                  <div className={`flex items-center gap-2 border-b border-${LM_BORDER} bg-white px-3 py-1.5 text-[12px] font-medium text-${LM_TITLE}`}>
                     <span>{g.name}</span>
-                    <span className="text-[11.5px] font-normal text-[color:var(--wb-muted)]">
+                    <span className={`text-[11.5px] font-normal text-${LM_FAINT}`}>
                       {g.list.length} 篇
                     </span>
                   </div>
@@ -635,7 +658,7 @@ export default function LibraryView({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-[color:var(--wb-border)] px-3.5 py-2">
+        <div className={`shrink-0 border-t border-${LM_BORDER} px-3.5 py-2`}>
           <Pagination
             total={filtered.length}
             page={cur}

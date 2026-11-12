@@ -1,0 +1,48 @@
+{
+  "schema": "native_pptx_enhancement_plan.v1",
+  "status": "confirmed",
+  "source_pptx": "sources/workbench-tutorial.pptx",
+  "slide_count": 14,
+  "modules": {
+    "notes": {
+      "enabled": true,
+      "requires_confirmation": true,
+      "status": "needs_notes",
+      "coverage": {
+        "ready": 0,
+        "total": 14
+      }
+    },
+    "audio": {
+      "enabled": false,
+      "requires_confirmation": true,
+      "status": "needs_audio",
+      "coverage": {
+        "ready": 0,
+        "total": 14
+      }
+    },
+    "timings": {
+      "enabled": false,
+      "requires_confirmation": true,
+      "status": "blocked_until_audio",
+      "source": "audio_duration",
+      "narration_padding": 0.4
+    },
+    "transitions": {
+      "enabled": true,
+      "requires_confirmation": true,
+      "status": "ready",
+      "effect": "fade",
+      "duration": 0.5,
+      "apply_without_audio": true
+    }
+  },
+  "not_in_v1": [
+    "object_animation",
+    "visible_watermark",
+    "footer_or_logo_insertion",
+    "background_music",
+    "media_compression"
+  ]
+}

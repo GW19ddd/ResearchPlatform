@@ -38,6 +38,7 @@ import {
   type DiscoverStage,
   type Suggestion,
 } from './discoverApi'
+import { LM_BLUE, LM_BLUE_SOFT, LM_BORDER, LM_BORDER_STRONG, LM_CHIP_BG, LM_EDGE_HOT, LM_FAINT, LM_NODE_STROKE, LM_TEXT, LM_TITLE } from './litColors'
 
 type Phase = 'idle' | 'searching' | 'results'
 type StartParams = { q?: string; oa_id?: string; limit?: number }
@@ -76,10 +77,10 @@ function HeroDoodle() {
   return (
     <svg className="absolute inset-0 h-full w-full" viewBox="0 0 880 200" preserveAspectRatio="xMidYMid slice" aria-hidden>
       {lines.map(([a, b], i) => (
-        <line key={i} x1={nodes[a][0]} y1={nodes[a][1]} x2={nodes[b][0]} y2={nodes[b][1]} stroke="#b9b4f0" strokeWidth="1" opacity="0.45" />
+        <line key={i} x1={nodes[a][0]} y1={nodes[a][1]} x2={nodes[b][0]} y2={nodes[b][1]} stroke={LM_EDGE_HOT} strokeWidth="1" opacity="0.5" />
       ))}
       {nodes.map(([x, y, r], i) => (
-        <circle key={i} cx={x} cy={y} r={r} fill="#8f88e8" opacity="0.5" />
+        <circle key={i} cx={x} cy={y} r={r} fill={LM_NODE_STROKE} opacity="0.45" />
       ))}
     </svg>
   )
@@ -387,31 +388,31 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
           <div className="border-b border-[color:var(--wb-danger)]/30 bg-[color:var(--wb-danger-soft)] px-6 py-2 text-[12px] leading-relaxed text-[color:var(--wb-danger)]">
             {error.message}
             {error.hint && (
-              <span className="ml-1 text-[color:var(--wb-text-soft)]">{error.hint}</span>
+              <span className={`ml-1 text-${LM_TEXT}`}>{error.hint}</span>
             )}
           </div>
         )}
-        <div className="relative overflow-hidden bg-[color:var(--wb-surface)]">
-          <div className="pointer-events-none absolute inset-x-0 top-[168px] h-[190px] bg-[color:var(--wb-accent-soft)]/55">
+        <div className="relative overflow-hidden bg-white">
+          <div className={`pointer-events-none absolute inset-x-0 top-[168px] h-[190px] bg-${LM_BLUE_SOFT}/55`}>
             <HeroDoodle />
           </div>
           <div className="relative flex min-h-[430px] flex-col items-center justify-center px-6 py-12">
-            <div className="text-[10.5px] font-semibold uppercase tracking-[0.22em] text-[color:var(--wb-muted)]">
+            <div className={`text-[10.5px] font-semibold uppercase tracking-[0.22em] text-${LM_FAINT}`}>
               Literature Discovery
             </div>
             <h1
-              className="mt-3 text-center text-[32px] font-semibold leading-[1.22] text-[color:var(--wb-text)] md:text-[40px]"
+              className={`mt-3 text-center text-[32px] font-semibold leading-[1.22] text-${LM_TITLE} md:text-[40px]`}
               style={{ fontFamily: 'Georgia, "Times New Roman", "Songti SC", serif' }}
             >
               发现科学文献的世界
             </h1>
-            <p className="mt-2 max-w-[520px] text-center text-[12.5px] leading-relaxed text-[color:var(--wb-text-soft)]">
+            <p className={`mt-2 max-w-[520px] text-center text-[12.5px] leading-relaxed text-${LM_TEXT}`}>
               输入一篇论文、一个 DOI 或一个关键词，顺着真实引用关系长出一张引文网络
             </p>
 
             <div ref={sugBoxRef} className="relative mt-8 w-full max-w-[620px]">
-              <div className="flex items-center gap-3 rounded-[14px] border-2 border-[color:var(--wb-text)] bg-white px-4 py-3 shadow-[var(--wb-shadow-md)]">
-                <Icon name="search" size={18} className="shrink-0 text-[color:var(--wb-muted)]" />
+              <div className={`flex items-center gap-3 rounded-[14px] border-2 border-${LM_TITLE} bg-white px-4 py-3 shadow-[var(--wb-shadow-md)]`}>
+                <Icon name="search" size={18} className={`shrink-0 text-${LM_FAINT}`} />
                 <input
                   value={q}
                   onChange={(e) => {
@@ -422,15 +423,15 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
                   onFocus={() => setSugOpen(true)}
                   onKeyDown={onKey}
                   placeholder="搜索论文标题、作者或 DOI…"
-                  className="w-full bg-transparent text-[15px] outline-none placeholder:text-[color:var(--wb-muted)]"
+                  className={`w-full bg-transparent text-[15px] outline-none placeholder:text-${LM_FAINT}`}
                 />
-                <span className="hidden shrink-0 rounded-[5px] border border-[color:var(--wb-border-strong)] px-1.5 py-[1px] text-[10px] text-[color:var(--wb-muted)] sm:block">
+                <span className={`hidden shrink-0 rounded-[5px] border border-${LM_BORDER_STRONG} px-1.5 py-[1px] text-[10px] text-${LM_FAINT} sm:block`}>
                   Enter
                 </span>
               </div>
 
               {sugOpen && (suggestions.length > 0 || sugLoading) && (
-                <div className="absolute left-0 right-0 top-full z-30 mt-1.5 overflow-hidden rounded-[10px] border border-[color:var(--wb-border-strong)] bg-white shadow-[var(--wb-shadow-lg)]">
+                <div className={`absolute left-0 right-0 top-full z-30 mt-1.5 overflow-hidden rounded-[10px] border border-${LM_BORDER_STRONG} bg-white shadow-[var(--wb-shadow-lg)]`}>
                   <div className="max-h-[232px] overflow-y-auto overscroll-contain">
                   {suggestions.map((s, i) => (
                     <button
@@ -439,28 +440,28 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => pick(s)}
                       onMouseEnter={() => setActiveIdx(i)}
-                      className={`flex w-full flex-col items-start gap-0.5 border-b border-[color:var(--wb-border)] px-3 py-2 text-left transition last:border-0 ${
-                        i === activeIdx ? 'bg-[color:var(--wb-accent-soft)]' : 'hover:bg-[color:var(--wb-bg-subtle)]'
+                      className={`flex w-full flex-col items-start gap-0.5 border-b border-${LM_BORDER} px-3 py-2 text-left transition last:border-0 ${
+                        i === activeIdx ? `bg-${LM_BLUE_SOFT}` : `hover:bg-${LM_CHIP_BG}`
                       }`}
                     >
                       <div className="flex w-full items-center justify-between gap-2">
-                        <span className="text-[12px] font-medium text-[color:var(--wb-text)]">{s.head}</span>
-                        <span className="shrink-0 rounded-full border border-[color:var(--wb-border)] px-1.5 py-[1px] text-[9.5px] text-[color:var(--wb-muted)]">
+                        <span className={`text-[12px] font-medium text-${LM_TITLE}`}>{s.head}</span>
+                        <span className={`shrink-0 rounded-full border border-${LM_BORDER} px-1.5 py-[1px] text-[9.5px] text-${LM_FAINT}`}>
                           {s.source}
                         </span>
                       </div>
-                      <span className="line-clamp-1 w-full text-[11.5px] text-[color:var(--wb-text-soft)]">
+                      <span className={`line-clamp-1 w-full text-[11.5px] text-${LM_TEXT}`}>
                         {s.title}
                       </span>
                     </button>
                   ))}
                   {sugLoading && (
-                    <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-[color:var(--wb-muted)]">
+                    <div className={`flex items-center gap-2 px-3 py-2 text-[11px] text-${LM_FAINT}`}>
                       <Spinner /> 正在检索 OpenAlex…
                     </div>
                   )}
                 </div>
-                <div className="flex items-center justify-between gap-2 border-t border-[color:var(--wb-border)] bg-[color:var(--wb-bg-subtle)] px-3 py-1.5 text-[10px] text-[color:var(--wb-muted)]">
+                <div className={`flex items-center justify-between gap-2 border-t border-${LM_BORDER} bg-${LM_CHIP_BG} px-3 py-1.5 text-[10px] text-${LM_FAINT}`}>
                   <span>方向键选择 · Enter 检索 · Esc 收起</span>
                   <span className="shrink-0">{suggestions.length} 条建议</span>
                 </div>
@@ -469,7 +470,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
             </div>
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
-              <span className="text-[11px] text-[color:var(--wb-muted)]">试试：</span>
+              <span className={`text-[11px] text-${LM_FAINT}`}>试试：</span>
               {QUICK_TERMS.map((t) => (
                 <button
                   key={t}
@@ -478,7 +479,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
                     setQ(t)
                     start({ q: t })
                   }}
-                  className="rounded-full border border-[color:var(--wb-border)] bg-white px-2.5 py-[3px] text-[11px] text-[color:var(--wb-text-soft)] transition hover:border-[color:var(--wb-accent)] hover:bg-[color:var(--wb-accent-soft)] hover:text-[color:var(--wb-accent)]"
+                  className={`rounded-full border border-${LM_BORDER} bg-white px-2.5 py-[3px] text-[11px] text-${LM_TEXT} transition hover:border-${LM_BLUE} hover:bg-${LM_BLUE_SOFT} hover:text-${LM_BLUE}`}
                 >
                   {t}
                 </button>
@@ -486,7 +487,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-px border-t border-[color:var(--wb-border)] bg-[color:var(--wb-border)] sm:grid-cols-4">
+          <div className={`grid grid-cols-2 gap-px border-t border-${LM_BORDER} bg-${LM_BORDER} sm:grid-cols-4`}>
             {[
               { icon: 'search' as const, title: '发现', desc: '从一篇种子论文找到相关研究' },
               { icon: 'network' as const, title: '可视化', desc: '引用关系铺成一张引文网络' },
@@ -494,18 +495,18 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
               { icon: 'radar' as const, title: '追踪', desc: '顺着施引文献看后续进展' },
             ].map((f) => (
               <div key={f.title} className="flex items-start gap-2.5 bg-white px-4 py-3">
-                <span className="mt-[2px] flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
+                <span className={`mt-[2px] flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-${LM_BLUE_SOFT} text-${LM_BLUE}`}>
                   <Icon name={f.icon} size={14} />
                 </span>
                 <div className="min-w-0">
-                  <div className="text-[12.5px] font-semibold text-[color:var(--wb-text)]">{f.title}</div>
-                  <div className="text-[10.5px] leading-snug text-[color:var(--wb-muted)]">{f.desc}</div>
+                  <div className={`text-[12.5px] font-semibold text-${LM_TITLE}`}>{f.title}</div>
+                  <div className={`text-[10.5px] leading-snug text-${LM_FAINT}`}>{f.desc}</div>
                 </div>
               </div>
             ))}
           </div>
         </div>
-        <div className="border-t border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] px-6 py-2.5 text-center text-[11px] text-[color:var(--wb-muted)]">
+        <div className={`border-t border-${LM_BORDER} bg-white px-6 py-2.5 text-center text-[11px] text-${LM_FAINT}`}>
           数据来源 OpenAlex · 结果实时检索、默认不落库 · 点「入库」后与文献库共用同一条链路
         </div>
       </div>
@@ -520,7 +521,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
         <Icon name="chevronLeft" size={13} />
         换个种子
       </Btn>
-      <div className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[color:var(--wb-text)]">
+      <div className={`min-w-0 flex-1 truncate text-[12.5px] font-medium text-${LM_TITLE}`}>
         {seed?.title || q}
       </div>
       {phase === 'results' && <Pill tone="gray">OpenAlex 实时检索</Pill>}
@@ -533,9 +534,9 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
         {head}
         <div className="flex flex-col gap-3 lg:flex-row" style={{ minHeight: 460 }}>
           <div className="flex w-full shrink-0 flex-col gap-3 lg:w-[330px]">
-            <div className="rounded-[12px] border border-[color:var(--wb-border)] bg-white p-4">
-              <div className="text-[13px] font-semibold text-[color:var(--wb-text)]">检索进度</div>
-              <div className="mt-0.5 text-[11px] text-[color:var(--wb-muted)]">
+            <div className={`rounded-[12px] border border-${LM_BORDER} bg-white p-4`}>
+              <div className={`text-[13px] font-semibold text-${LM_TITLE}`}>检索进度</div>
+              <div className={`mt-0.5 text-[11px] text-${LM_FAINT}`}>
                 按 OpenAlex 真实请求阶段扩展引文网络
               </div>
 
@@ -552,7 +553,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
                         {error.message}
                       </div>
                       {error.hint && (
-                        <div className="mt-1 text-[11px] leading-relaxed text-[color:var(--wb-text-soft)]">
+                        <div className={`mt-1 text-[11px] leading-relaxed text-${LM_TEXT}`}>
                           {error.hint}
                         </div>
                       )}
@@ -586,7 +587,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
                     )}
                   </div>
                   {error.code === 'rate_limited' && (
-                    <div className="text-[10.5px] leading-relaxed text-[color:var(--wb-muted)]">
+                    <div className={`text-[10.5px] leading-relaxed text-${LM_FAINT}`}>
                       免费额度按出口 IP 共享，同网络下所有人一起花；反复点「重试」不会变快，等重置或填自己的 key 才有用。
                     </div>
                   )}
@@ -594,11 +595,11 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
               ) : (
                 <>
                   <div className="flex flex-col items-center gap-3 py-7">
-                    <div className="h-[52px] w-[52px] animate-spin rounded-full border-[3px] border-[color:var(--wb-bg-subtle)] border-t-[color:var(--wb-accent)]" />
-                    <div className="text-center text-[12.5px] font-medium text-[color:var(--wb-text-soft)]">
+                    <Icon name="clock" size={40} strokeWidth={1.8} className={`text-${LM_BLUE}`} />
+                    <div className={`text-center text-[12.5px] font-medium text-${LM_TEXT}`}>
                       {stage?.label || '正在准备检索…'}
                     </div>
-                    <div className="text-center text-[11px] text-[color:var(--wb-muted)]">
+                    <div className={`text-center text-[11px] text-${LM_FAINT}`}>
                       {stage?.detail || '连接 OpenAlex'}
                     </div>
                   </div>
@@ -614,13 +615,13 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
                               done
                                 ? 'bg-[color:var(--wb-ok-soft)] text-[color:var(--wb-ok)]'
                                 : active
-                                  ? 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
-                                  : 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-muted)]'
+                                  ? `bg-${LM_BLUE_SOFT} text-${LM_BLUE}`
+                                  : `bg-${LM_CHIP_BG} text-${LM_FAINT}`
                             }`}
                           >
                             {done ? <Icon name="check" size={10} strokeWidth={2.4} /> : i + 1}
                           </span>
-                          <span className={active ? 'text-[color:var(--wb-text)]' : 'text-[color:var(--wb-muted)]'}>
+                          <span className={active ? `text-${LM_TITLE}` : `text-${LM_FAINT}`}>
                             {s.label}
                           </span>
                         </div>
@@ -632,15 +633,15 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
             </div>
 
             {seed && (
-              <div className="rounded-[12px] border border-[color:var(--wb-border)] bg-white p-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--wb-muted)]">
+              <div className={`rounded-[12px] border border-${LM_BORDER} bg-white p-3`}>
+                <div className={`text-[10px] font-semibold uppercase tracking-[0.16em] text-${LM_FAINT}`}>
                   种子文献
                 </div>
-                <div className="mt-1.5 text-[12.5px] font-medium leading-snug text-[color:var(--wb-text)]">
+                <div className={`mt-1.5 text-[12.5px] font-medium leading-snug text-${LM_TITLE}`}>
                   {seed.title}
                 </div>
-                <div className="mt-1 text-[11px] text-[color:var(--wb-text-soft)]">{seed.authors}</div>
-                <div className="mt-1.5 flex flex-wrap gap-x-3 text-[10.5px] text-[color:var(--wb-muted)]">
+                <div className={`mt-1 text-[11px] text-${LM_TEXT}`}>{seed.authors}</div>
+                <div className={`mt-1.5 flex flex-wrap gap-x-3 text-[10.5px] text-${LM_FAINT}`}>
                   {seed.year && <span>{seed.year}</span>}
                   {seed.venue && <span className="max-w-[240px] truncate">{seed.venue}</span>}
                   <span>参考文献 {seed.references}</span>
@@ -662,7 +663,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
             pending
           />
         </div>
-        <p className="text-center text-[11px] text-[color:var(--wb-muted)]">
+        <p className={`text-center text-[11px] text-${LM_FAINT}`}>
           进度来自后端真实阶段（OpenAlex 请求逐段完成），不是定时器模拟
         </p>
       </div>
@@ -678,19 +679,19 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
       {head}
       <div className="flex flex-col gap-3 lg:flex-row" style={{ height: 'max(540px, calc(100vh - 218px))' }}>
         {/* 左栏：关联文献列表 */}
-        <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-[12px] border border-[color:var(--wb-border)] bg-white lg:w-[350px]">
-          <div className="shrink-0 border-b border-[color:var(--wb-border)] p-3">
+        <div className={`flex w-full shrink-0 flex-col overflow-hidden rounded-[12px] border border-${LM_BORDER} bg-white lg:w-[350px]`}>
+          <div className={`shrink-0 border-b border-${LM_BORDER} p-3`}>
             <div className="flex items-center justify-between gap-2">
-              <div className="text-[13px] font-semibold text-[color:var(--wb-text)]">探索关联文献</div>
+              <div className={`text-[13px] font-semibold text-${LM_TITLE}`}>探索关联文献</div>
               <button
                 type="button"
                 onClick={() => setExplainOpen(true)}
-                className="text-[11px] text-[color:var(--wb-accent)] underline underline-offset-2"
+                className={`text-[11px] text-${LM_BLUE} underline underline-offset-2`}
               >
                 结果如何计算？
               </button>
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] text-[color:var(--wb-muted)]">
+            <div className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] text-${LM_FAINT}`}>
               <span>种子 {seed ? shortLabel(seed) : '—'}</span>
               <span>· 参考文献 {stats.references}</span>
               <span>· 施引 {stats.citing}</span>
@@ -715,11 +716,11 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
                 }}
                 options={RELATION_OPTIONS}
               />
-              <span className="shrink-0 text-[10px] text-[color:var(--wb-muted)]">按被引排序</span>
+              <span className={`shrink-0 text-[10px] text-${LM_FAINT}`}>按被引排序</span>
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[color:var(--wb-surface-alt)] p-2">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white p-2">
             {paged.length === 0 ? (
               <Empty text="没有匹配的相关文献" hint="换个筛选词，或切回「全部」" />
             ) : (
@@ -729,12 +730,12 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
                   onClick={() => setSelectedId(p.oa_id)}
                   className={`mb-2 cursor-pointer rounded-[10px] border px-3 py-2.5 transition ${
                     selectedId === p.oa_id
-                      ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent-soft)]/50'
-                      : 'border-[color:var(--wb-border)] bg-white hover:border-[color:var(--wb-border-strong)] hover:shadow-[var(--wb-shadow-sm)]'
+                      ? `border-${LM_BLUE} bg-${LM_BLUE_SOFT}/50`
+                      : `border-${LM_BORDER} bg-white hover:border-${LM_BORDER_STRONG} hover:shadow-[var(--wb-shadow-sm)]`
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-[12px] font-semibold text-[color:var(--wb-text)]">
+                    <span className={`text-[12px] font-semibold text-${LM_TITLE}`}>
                       {shortLabel(p)}
                     </span>
                     <span
@@ -747,31 +748,31 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
                       {p.relation === 'reference' ? '参考文献' : '施引文献'}
                     </span>
                   </div>
-                  <div className="mt-1 text-[12.5px] leading-snug text-[color:var(--wb-text)]">
+                  <div className={`mt-1 text-[12.5px] leading-snug text-${LM_TITLE}`}>
                     {p.title}
                   </div>
                   {p.venue && (
-                    <div className="mt-1 truncate text-[11px] text-[color:var(--wb-accent)]">{p.venue}</div>
+                    <div className={`mt-1 truncate text-[11px] text-${LM_BLUE}`}>{p.venue}</div>
                   )}
-                  <div className="mt-2 flex gap-4 text-[10px] uppercase tracking-[0.08em] text-[color:var(--wb-muted)]">
+                  <div className={`mt-2 flex gap-4 text-[10px] uppercase tracking-[0.08em] text-${LM_FAINT}`}>
                     <span>
-                      <b className="mr-1 text-[12px] normal-case tracking-normal text-[color:var(--wb-text-soft)]">
+                      <b className={`mr-1 text-[12px] normal-case tracking-normal text-${LM_TEXT}`}>
                         {p.references}
                       </b>
                       参考文献
                     </span>
                     <span>
-                      <b className="mr-1 text-[12px] normal-case tracking-normal text-[color:var(--wb-text-soft)]">
+                      <b className={`mr-1 text-[12px] normal-case tracking-normal text-${LM_TEXT}`}>
                         {p.citations}
                       </b>
                       被引
                     </span>
                   </div>
                   <div
-                    className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-[color:var(--wb-border)] pt-2"
+                    className={`mt-2 flex flex-wrap items-center gap-1.5 border-t border-${LM_BORDER} pt-2`}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <span className="text-[11px] text-[color:var(--wb-muted)]">细化检索：</span>
+                    <span className={`text-[11px] text-${LM_FAINT}`}>细化检索：</span>
                     <Btn size="xs" variant="primary" onClick={() => refine(p)}>
                       更多类似
                     </Btn>
@@ -788,7 +789,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
                         href={p.pdf_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[11px] text-[color:var(--wb-accent)] underline underline-offset-2"
+                        className={`text-[11px] text-${LM_BLUE} underline underline-offset-2`}
                       >
                         PDF
                       </a>
@@ -799,7 +800,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
             )}
           </div>
 
-          <div className="shrink-0 border-t border-[color:var(--wb-border)] p-2">
+          <div className={`shrink-0 border-t border-${LM_BORDER} p-2`}>
             <Pagination
               total={filtered.length}
               page={cur}
@@ -833,7 +834,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
 
       {/* 口径说明：真实 / 模拟边界写清楚 */}
       <Modal open={explainOpen} onClose={() => setExplainOpen(false)} title="这些结果是怎么来的？" width="max-w-2xl">
-        <div className="flex flex-col gap-2.5 text-[12px] leading-relaxed text-[color:var(--wb-text-soft)]">
+        <div className={`flex flex-col gap-2.5 text-[12px] leading-relaxed text-${LM_TEXT}`}>
           <p>
             全部数据来自 <b>OpenAlex 实时响应</b>，本页不生成任何模拟数据；检索结果默认不落库，点「入库 / 加入文献库」才写入本地文献库。
           </p>
@@ -854,7 +855,7 @@ export default function Discover({ onImported }: { onImported?: () => void }) {
               <b>坐标</b>：横轴发表年份（越右越晚），纵轴被引次数（<code>log1p</code> 缩放）；两者都按<b>本次结果集内的相对位置</b>铺满画布（年份取 5–95 分位、被引取 min–max），避免个别早年 / 超高被引论文把点压成一团——单调性不变，但刻度不是绝对等距。圆点大小 = 被引次数，实心深色圆 = 种子；同年份 / 相近被引的点会做确定性去重叠散开，只轻微移位。
             </li>
           </ul>
-          <p className="rounded-[8px] bg-[color:var(--wb-bg-subtle)] px-3 py-2 text-[11.5px]">
+          <p className={`rounded-[8px] bg-${LM_CHIP_BG} px-3 py-2 text-[11.5px]`}>
             卡片里的「参考文献 / 被引」是 OpenAlex 的 <code>referenced_works_count</code> / <code>cited_by_count</code>，是全库计数；图上的连线只是这次结果集内部的引用关系，两者口径不同，不要等同看待。
           </p>
         </div>

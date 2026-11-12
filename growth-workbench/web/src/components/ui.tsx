@@ -224,7 +224,7 @@ export function IconBtn({
 // ---------------------------------------------------------------- Form
 
 const CONTROL_BASE =
-  'wb-input-w rounded-[10px] border bg-[color:var(--wb-surface)] text-[13px] text-[color:var(--wb-text)] outline-none transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-[color:var(--wb-muted)] hover:border-[color:var(--wb-text-soft)]/40 focus:border-[color:var(--wb-accent)] focus:shadow-[var(--wb-ring)] disabled:cursor-not-allowed disabled:bg-[color:var(--wb-bg-subtle)] disabled:text-[color:var(--wb-muted)]'
+  'wb-input-w rounded-[10px] border bg-[color:var(--wb-surface)] text-[13px] text-[color:var(--wb-text)] outline-none transition-[border-color,background-color] duration-150 placeholder:text-[color:var(--wb-muted)] hover:border-[color:var(--wb-text-soft)]/40 disabled:cursor-not-allowed disabled:bg-[color:var(--wb-bg-subtle)] disabled:text-[color:var(--wb-muted)]'
 
 export function Input({
   value,
@@ -265,7 +265,7 @@ export function Input({
       onChange={(e) => onChange?.(e.target.value)}
       onBlur={onBlur}
       onKeyDown={onKeyDown}
-      className={`${CONTROL_BASE} border-[color:var(--wb-border-strong)] px-3 py-[7px] focus:border-[color:var(--wb-accent)] ${className}`}
+      className={`${CONTROL_BASE} border-[color:var(--wb-border-strong)] px-3 py-[7px] ${className}`}
     />
   )
 }
@@ -299,7 +299,7 @@ export function TextArea({
       onChange={(e) => onChange?.(e.target.value)}
       onKeyDown={onKeyDown}
       onBlur={onBlur}
-      className={`${CONTROL_BASE} resize-y border-[color:var(--wb-border-strong)] px-3 py-2 leading-relaxed focus:border-[color:var(--wb-accent)] ${className}`}
+      className={`${CONTROL_BASE} resize-y border-[color:var(--wb-border-strong)] px-3 py-2 leading-relaxed ${className}`}
     />
   )
 }
@@ -320,7 +320,7 @@ export function Select({
       <select
         value={value ?? ''}
         onChange={(e) => onChange?.(e.target.value)}
-        className={`${CONTROL_BASE} w-auto cursor-pointer appearance-none border-[color:var(--wb-border-strong)] py-[7px] pl-3 pr-7 text-[12.5px] focus:border-[color:var(--wb-accent)]`}
+        className={`${CONTROL_BASE} w-auto cursor-pointer appearance-none border-[color:var(--wb-border-strong)] py-[7px] pl-3 pr-7 text-[12.5px]`}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -936,15 +936,15 @@ export function StatusTag({
     warn: { cls: 'bg-[color:var(--wb-warn-soft)] text-[color:var(--wb-warn)]', icon: 'alert' },
     danger: { cls: 'bg-[color:var(--wb-danger-soft)] text-[color:var(--wb-danger)]', icon: 'close' },
     info: { cls: 'bg-[color:var(--wb-info-soft)] text-[color:var(--wb-info)]', icon: 'info' },
-    busy: { cls: 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]', icon: 'refresh' },
+    busy: { cls: 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]', icon: 'clock' },
   }
   const t = map[tone] || map.gray
   return (
     <span
       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[1px] text-[11.5px] font-medium leading-[18px] ${t.cls} ${className}`}
     >
-      {/* 忙碌态用旋转图标表达「进行中」，其余档位本身就是语义符号，aria-hidden 交给 Icon */}
-      <Icon name={t.icon} size={11} className={tone === 'busy' ? 'wb-anim-spin' : ''} />
+      {/* 每一档都是静态语义符号（busy 用时钟表达「进行中」，不带旋转动画），aria-hidden 交给 Icon */}
+      <Icon name={t.icon} size={11} />
       {children}
     </span>
   )

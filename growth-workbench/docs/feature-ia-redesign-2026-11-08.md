@@ -1,4 +1,4 @@
-# 科研工作台：功能盘点、重要性分级与 UI 重组方案
+# 研流：功能盘点、重要性分级与 UI 重组方案
 
 - 日期：2026-11-08
 - 范围：`growth-workbench/web/src`（约 17,418 行 TSX，48 个 tsx 文件）＋ `growth-workbench/server/routers`（约 200 个端点）

@@ -21,6 +21,13 @@ const SECTIONS: {
     icon: 'user',
   },
   {
+    key: 'billing',
+    label: '会员与订阅',
+    desc: '套餐 / 额度 / 升级',
+    hint: '升级 Pro 解锁无限 AI 额度与高级推理模型',
+    icon: 'crown',
+  },
+  {
     key: 'model',
     label: '模型供应商',
     desc: 'API 与调用统计',

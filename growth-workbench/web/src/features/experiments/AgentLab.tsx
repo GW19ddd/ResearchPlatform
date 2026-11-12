@@ -4,7 +4,8 @@ import { Icon, type IconName } from '../../components/Icon'
 import { AiError } from '../../components/AiError'
 import ChatPanel, { type ChatMsg, type ChipConf } from '../canvas/ChatPanel'
 import { ResizeHandle } from '../../components/ResizeHandle'
-import { del, get, post } from '../../lib/api'
+import { del, get } from '../../lib/api'
+import { postSse } from '../../lib/sse'
 import { usePersist } from '../../lib/state'
 import { chatEnvelope } from '../chat/prefs'
 
@@ -38,6 +39,17 @@ const CHIPS: ChipConf[] = SKILLS.map((s) => ({
   tag: '实验指令',
 }))
 
+/** 实验 Agent 默认自动挂载的本地技能（与后端 expagent.DEFAULT_EXP_SKILLS 对应）。
+ *  每次实验自动生效；用户可在左栏开关。前端总是把当前开启的技能作为 skill_refs 发给后端，
+ *  后端据此注入这些本机 SKILL.md 原文，让 Agent 按技能规程干活。 */
+const EXP_DEFAULT_SKILLS: { id: string; name: string; desc: string; icon: IconName }[] = [
+  { id: 'local:test-research-code', name: '可复现性核查', desc: '让研究代码可运行、可复现（artifact review）', icon: 'cpu' },
+  { id: 'local:scientific-critical-thinking', name: '科学批判性思考', desc: '评估科学主张与证据质量', icon: 'shield' },
+  { id: 'local:verify-results', name: '结果一致性核查', desc: '核对论文指标与本地代码输出是否一致', icon: 'clipboardCheck' },
+  { id: 'local:benchmark-and-baseline-selector', name: '基准与基线选择', desc: '推荐支撑主张所需的基准与基线', icon: 'target' },
+  { id: 'local:paper-figure', name: '论文图表生成', desc: '从实验结果产出出版级图表', icon: 'layers' },
+]
+
 type ViewFile = { name: string; content: string; size: number } | null
 
 /**
@@ -69,11 +81,17 @@ export function AgentLab({
   const [files, setFiles] = useState<any[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  /** SSE 阶段事件的当前文本（生成方案 / 执行命令…），点亮在忙碌态里 */
+  const [stageNote, setStageNote] = useState('')
   const [err, setErr] = useState<any>(null)
   const [viewFile, setViewFile] = useState<ViewFile>(null)
   // 左右两栏宽度各自持久化：刷新 / 切页签都保持（对标调研页 leftW / paneW）
   const [leftW, setLeftW] = usePersist('exp.labLeftW', 220)
   const [paneW, setPaneW] = usePersist('exp.paneW', 260)
+  /** 默认自动挂载的实验技能（每轮生效）；用户可在左栏逐个开关 */
+  const [expSkills, setExpSkills] = useState<Set<string>>(
+    () => new Set(EXP_DEFAULT_SKILLS.map((s) => s.id)),
+  )
 
   const load = async () => {
     setRows(await get(`/experiments/${exp.id}/agent/messages`))
@@ -134,15 +152,35 @@ export function AgentLab({
     setBusy(true)
     setErr(null)
     setInput('')
+    setStageNote('')
     try {
-      const r: any = await post(`/experiments/${exp.id}/agent`, { message: msg, ...chatEnvelope() }, { ok: false })
-      if (r && r.ok === false) {
-        setErr(r.error || { kind: 'unknown', label: 'Agent 没有跑通', message: '请重试' })
+      // 默认挂载的实验技能：把当前开启的本地技能作为 skill_refs 注入本轮（缺省即全部开启）
+      const skillRefs = EXP_DEFAULT_SKILLS.filter((s) => expSkills.has(s.id)).map((s) => ({
+        id: s.id,
+        name: s.name,
+      }))
+      // 流式：SSE 阶段事件实时点亮忙碌态（生成方案 → 写文件 → 执行命令 → 落账）
+      let donePayload: any = null
+      await postSse(
+        `/api/experiments/${exp.id}/agent/stream`,
+        { message: msg, ...chatEnvelope(), skill_refs: skillRefs },
+        (ev: any) => {
+        if (ev.type === 'stage') {
+          setStageNote(`${ev.label}${ev.detail ? ` · ${ev.detail}` : ''}`)
+        } else if (ev.type === 'done') {
+          donePayload = ev
+        } else if (ev.type === 'error') {
+          setErr({ kind: 'unknown', label: '这一轮没有跑通', message: String(ev.message || '') })
+        }
+      })
+      if (donePayload && donePayload.ok === false) {
+        setErr(donePayload.error || { kind: 'unknown', label: 'Agent 没有跑通', message: '请重试' })
       }
     } catch (e: any) {
-      setErr(e?.body?.error || { kind: 'network', label: '请求失败', message: String(e) })
+      setErr({ kind: 'network', label: '请求失败', message: e?.message || String(e) })
     } finally {
       setBusy(false)
+      setStageNote('')
       await load()
       onChanged()
     }
@@ -249,6 +287,49 @@ export function AgentLab({
             ))}
           </div>
         </div>
+        {/* 默认挂载的本地实验技能：每轮自动注入 Agent，用户可逐个开关 */}
+        <div className="mt-1 border-t border-[color:var(--wb-border)]">
+          <span className="block px-2 pb-1.5 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--wb-muted)]">
+            自动挂载技能
+          </span>
+          <div className="flex flex-col">
+            {EXP_DEFAULT_SKILLS.map((s) => {
+              const on = expSkills.has(s.id)
+              return (
+                <button
+                  key={s.id}
+                  onClick={() =>
+                    setExpSkills((prev) => {
+                      const n = new Set(prev)
+                      if (n.has(s.id)) n.delete(s.id)
+                      else n.add(s.id)
+                      return n
+                    })
+                  }
+                  className={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-[12px] transition hover:bg-[color:var(--wb-surface)]/60 ${
+                    on ? 'text-[color:var(--wb-text)]' : 'text-[color:var(--wb-muted)]'
+                  }`}
+                  title={s.desc}
+                >
+                  <span
+                    className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border ${
+                      on
+                        ? 'border-[color:var(--wb-accent)] bg-[color:var(--wb-accent)] text-white'
+                        : 'border-[color:var(--wb-border)]'
+                    }`}
+                  >
+                    {on && <Icon name="check" size={10} />}
+                  </span>
+                  <Icon name={s.icon} size={12} className="shrink-0 text-[color:var(--wb-muted)]" />
+                  <span className="truncate">{s.name}</span>
+                </button>
+              )
+            })}
+          </div>
+          <span className="block px-2 pb-2 pt-1 text-[10.5px] leading-snug text-[color:var(--wb-muted)]">
+            勾选的技能每轮自动注入；与上方快捷指令互不冲突，可随时关闭
+          </span>
+        </div>
       </aside>
       <ResizeHandle
         width={leftW}
@@ -265,6 +346,7 @@ export function AgentLab({
         exportName={`实验Agent-${exp.name}`}
         messages={msgs}
         busy={busy}
+        busyNote={stageNote || undefined}
         input={input}
         onInput={setInput}
         onSend={send}

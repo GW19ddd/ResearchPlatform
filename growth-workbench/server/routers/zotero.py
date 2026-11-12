@@ -110,6 +110,42 @@ def _endpoint(cfg: dict, path: str = "items") -> tuple[str, dict]:
     return f"{LOCAL_BASE}/api/users/0/{path}", {"Zotero-API-Version": "3"}
 
 
+# Zotero（本地 / Web）单页上限都是 100：写 200/300 会被 Web API 直接 400，
+# 而分类读取失败过去是静默 return {} —— 于是「同步某个分类」时条目全部落进未分类。
+PAGE_MAX = 100
+
+
+async def _paged_get(url: str, headers: dict, want: int, extra: dict | None = None) -> list:
+    """按 start/limit 翻页取到 want 条；服务端忽略 start 时靠首条 key 去重兜底。"""
+    out: list = []
+    want = max(1, min(int(want or PAGE_MAX), 2000))
+    start = 0
+    seen_head = set()
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        while len(out) < want:
+            size = min(PAGE_MAX, want - len(out))
+            params = {"format": "json", "limit": size, "start": start}
+            params.update(extra or {})
+            r = await client.get(url, headers=headers, params=params)
+            r.raise_for_status()
+            raw = r.json()
+            batch = raw if isinstance(raw, list) else []
+            if not batch:
+                break
+            first = batch[0] if isinstance(batch[0], dict) else {}
+            head = first.get("key") or (first.get("data") or {}).get("key")
+            # 服务端没认 start：第二页会和第一页重复，直接收手，别死循环
+            if start and head and head in seen_head:
+                break
+            if head:
+                seen_head.add(head)
+            out.extend(batch)
+            start += len(batch)
+            if len(batch) < size:
+                break
+    return out
+
+
 async def _fetch_collections(cfg: dict) -> dict:
     """返回 {collection_key: {"name","parent","path"}}，path 是含父级的完整路径。
 
@@ -118,10 +154,7 @@ async def _fetch_collections(cfg: dict) -> dict:
     """
     url, headers = _endpoint(cfg, "collections")
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            r = await client.get(url, headers=headers, params={"format": "json", "limit": 300})
-            r.raise_for_status()
-            raw = r.json()
+        raw = await _paged_get(url, headers, 1000)
     except Exception:
         return {}
     nodes: dict[str, dict] = {}
@@ -150,16 +183,12 @@ async def _fetch_items(cfg: dict, limit: int) -> list[dict]:
         url, headers = _endpoint(cfg, f"collections/{collection}/items/top")
     else:
         url, headers = _endpoint(cfg, "items/top")
-    params = {
-        "format": "json",
-        "limit": min(int(limit or 100), 200),
-        "sort": "dateModified",
-        "direction": "desc",
-    }
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        r = await client.get(url, headers=headers, params=params)
-        r.raise_for_status()
-        raw = r.json()
+    raw = await _paged_get(
+        url,
+        headers,
+        int(limit or 100),
+        {"sort": "dateModified", "direction": "desc"},
+    )
     items = []
     for x in raw if isinstance(raw, list) else []:
         data = x.get("data") if isinstance(x, dict) and "data" in x else x
@@ -299,7 +328,11 @@ def _map_item(d: dict, coll_map: dict | None = None, fallback_collection: str = 
     if not title:
         return None
     colls = _parse_collections(_collections(d, coll_map or {}))
-    if not colls and fallback_collection:
+    # 条目自身没带 collections 字段（某些同步路径会这样），只能拿当前分类兜底；
+    # 这种「不完整」的分类信息在更新老条目时必须并集，不能覆盖，
+    # 否则先同步 A 分类、再同步 B 分类，A 树里的论文会被 B 顶掉。
+    guessed = not colls and bool(fallback_collection)
+    if guessed:
         colls = [fallback_collection]
     return {
         "title": title[:500],
@@ -311,6 +344,7 @@ def _map_item(d: dict, coll_map: dict | None = None, fallback_collection: str = 
         "tags": _tags(d),
         "notes": _notes(d),
         "collections": _dump_collections(colls),
+        "_coll_guessed": guessed,
         "source_key": str(d.get("key") or ""),
         "status": "todo",
         "rating": 3,
@@ -340,6 +374,10 @@ def _refresh_meta(lid: int, m: dict) -> bool:
         return False
     cur = rows[0]
     new_c = m.get("collections") or cur.get("collections") or ""
+    if m.get("_coll_guessed"):
+        # 兜底推出来的分类不完整：与库里已有的取并集，别把别的分类覆盖掉
+        merged = _parse_collections(cur.get("collections")) + _parse_collections(new_c)
+        new_c = _dump_collections(list(dict.fromkeys(merged)))
     new_t = m.get("tags") or cur.get("tags") or ""
     new_v = m.get("venue") or cur.get("venue") or ""
     new_y = m.get("year") if m.get("year") else cur.get("year")
@@ -455,10 +493,18 @@ async def sync(body: SyncIn):
     coll_map = await _fetch_collections(cfg)
     # 单分类同步时，用该分类的完整路径兜底（Zotero 单分类查询的返回体偶尔不带 collections 字段）
     fallback = ""
+    hint = ""
     if cfg.get("collection"):
         node = coll_map.get(cfg["collection"])
         if node:
             fallback = node.get("path") or node.get("name") or ""
+        else:
+            # 分类表没读到时，条目只能落进「未分类」：必须说清楚，
+            # 否则用户会以为「点了别的分类却什么都没同步进来」。
+            hint = (
+                "分类信息没读到，本次同步的条目会落在「未分类」。"
+                "请确认 Zotero 桌面端已启动并开启本机 API（本地模式），或 user_id / API Key 是否正确（Web 模式），然后重试一次。"
+            )
 
     tag_filter = (body.tag or "").strip().lower()
     mapped: list[dict] = []
@@ -483,6 +529,7 @@ async def sync(body: SyncIn):
         "skipped": skipped,
         "samples": samples,
         "collections_found": len(coll_map),
+        "hint": hint,
     }
 
 
@@ -546,40 +593,44 @@ def _build_tree(paths: list[str]) -> list[dict]:
 
 @router.get("/library/collections")
 def library_collections():
-    """文献库里已导入条目按 Zotero 分类的分组统计（保留父子层级）。"""
+    """文献库里已导入条目按 Zotero 分类的分组统计（保留父子层级）。
+
+    计数必须按「文献 id 去重」：一篇文献常常同时挂在父分类和子分类里
+    （Zotero 允许一条条目属于多个集合），若按 (文献, 分类) 对累加，
+    父节点的 total 会虚高（实测 Agent 徽标 79、点进去只有 41 篇）。
+    这里每个节点持有 id 集合，父子合并时取并集，保证徽标数字 = 点进去的篇数。
+    """
     _ensure_columns()
     rows = query("SELECT id, collections, status FROM literature")
-    own: dict[str, dict] = {}  # path -> {count, done}
+    own: dict[str, dict] = {}  # path -> {"ids": set, "done": set}
     for r in rows:
-        paths = _parse_collections(r.get("collections"))
-        if not paths:
-            b = own.setdefault("未分类", {"count": 0, "done": 0})
-            b["count"] += 1
-            if r.get("status") == "done":
-                b["done"] += 1
-            continue
+        paths = _parse_collections(r.get("collections")) or ["未分类"]
+        is_done = r.get("status") == "done"
         for p in paths:
-            b = own.setdefault(p, {"count": 0, "done": 0})
-            b["count"] += 1
-            if r.get("status") == "done":
-                b["done"] += 1
+            b = own.setdefault(p, {"ids": set(), "done": set()})
+            b["ids"].add(r["id"])
+            if is_done:
+                b["done"].add(r["id"])
 
     # 名字交给 _build_tree 按前缀算，这里只给完整路径（"C/C++" 这种名字不能被切）
     tree = _build_tree([p for p in own if p != "未分类"])
 
-    def fill(nodes: list[dict]) -> int:
-        """返回该子树总篇数（含子孙），并就地写 total/done。"""
-        total = 0
-        done = 0
+    def fill(nodes: list[dict]) -> tuple[set, set]:
+        """就地写 count/total/done，返回该子树（含子孙）的 id 集合与已读 id 集合。"""
+        all_ids: set = set()
+        all_done: set = set()
         for n in nodes:
-            st = own.get(n["path"], {"count": 0, "done": 0})
-            sub = fill(n["children"])
-            n["count"] = st["count"]
-            n["total"] = st["count"] + sub[0]
-            n["done"] = st["done"] + sub[1]
-            total += n["total"]
-            done += n["done"]
-        return total, done
+            bucket = own.get(n["path"], {"ids": set(), "done": set()})
+            own_ids, own_done = bucket["ids"], bucket["done"]
+            sub_ids, sub_done = fill(n["children"])
+            ids = own_ids | sub_ids
+            done = own_done | sub_done
+            n["count"] = len(own_ids)   # 只算直接挂在本分类的
+            n["total"] = len(ids)       # 含子分类，且同一篇只算一次
+            n["done"] = len(done)
+            all_ids |= ids
+            all_done |= done
+        return all_ids, all_done
 
     fill(tree)
     tree.sort(key=lambda x: -x["total"])
@@ -589,13 +640,13 @@ def library_collections():
             "path": "未分类",
             "depth": 0,
             "children": [],
-            "count": own["未分类"]["count"],
-            "total": own["未分类"]["count"],
-            "done": own["未分类"]["done"],
+            "count": len(own["未分类"]["ids"]),
+            "total": len(own["未分类"]["ids"]),
+            "done": len(own["未分类"]["done"]),
         })
 
     groups = sorted(
-        [{"name": k, **v} for k, v in own.items()],
+        [{"name": k, "count": len(v["ids"]), "done": len(v["done"])} for k, v in own.items()],
         key=lambda x: -x["count"],
     )
     return {"groups": groups, "tree": tree}

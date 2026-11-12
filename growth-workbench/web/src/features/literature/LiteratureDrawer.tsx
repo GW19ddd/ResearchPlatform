@@ -13,6 +13,7 @@ import { toast } from '../../components/toast'
 import { del, get, patch, post, put } from '../../lib/api'
 import { usePersist } from '../../lib/state'
 import { STATUS } from './literature-shared'
+import { LM_BLUE, LM_BLUE_SOFT, LM_BORDER, LM_CHIP_BG, LM_FAINT, LM_TEXT, LM_TITLE } from './litColors'
 
 export default function LiteratureDrawer({
   item: _item,
@@ -218,19 +219,19 @@ export default function LiteratureDrawer({
         onClick={onClose}
       />
       <div
-        className={`fixed right-0 top-0 z-40 flex h-full w-full max-w-[38rem] flex-col border-l border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)] ${presence.leaving ? 'wb-drawer-out pointer-events-none' : 'wb-drawer-in'}`}
+        className={`fixed right-0 top-0 z-40 flex h-full w-full max-w-[38rem] flex-col border-l border-${LM_BORDER} bg-white shadow-[var(--wb-shadow-lg)] ${presence.leaving ? 'wb-drawer-out pointer-events-none' : 'wb-drawer-in'}`}
       >
         {/* 第一行：标题 · 作者/年份 · 打开 PDF · 状态 · 关闭 */}
-        <div className="flex shrink-0 items-center gap-2 border-b border-[color:var(--wb-border)] px-4 py-2.5">
+        <div className={`flex shrink-0 items-center gap-2 border-b border-${LM_BORDER} px-4 py-2.5`}>
           <span
-            className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-[color:var(--wb-text)]"
+            className={`min-w-0 flex-1 truncate text-[13.5px] font-semibold text-${LM_TITLE}`}
             title={item.title}
           >
             {item.title}
           </span>
           {[item.authors, item.year, item.venue].filter(Boolean).join(' · ') && (
             <span
-              className="max-w-[20rem] shrink-0 truncate text-[11.5px] text-[color:var(--wb-muted)]"
+              className={`max-w-[20rem] shrink-0 truncate text-[11.5px] text-${LM_FAINT}`}
               title={[item.authors, item.year, item.venue].filter(Boolean).join(' · ')}
             >
               {[item.authors, item.year, item.venue].filter(Boolean).join(' · ')}
@@ -257,15 +258,15 @@ export default function LiteratureDrawer({
         </div>
 
         {/* 第二行：标签 */}
-        <div className="flex shrink-0 gap-1 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-4 py-2">
+        <div className={`flex shrink-0 gap-1 border-b border-${LM_BORDER} bg-white px-4 py-2`}>
           {TABS.map((t) => (
             <button
               key={t.k}
               onClick={() => setTab(t.k)}
               className={`flex-1 rounded-[8px] px-2 py-1.5 text-[12px] transition ${
                 tab === t.k
-                  ? 'bg-[color:var(--wb-accent)] font-medium text-white'
-                  : 'text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-bg-subtle)]'
+                  ? `bg-${LM_BLUE} font-medium text-white`
+                  : `text-${LM_TEXT} hover:bg-${LM_CHIP_BG}`
               }`}
             >
               {t.label}
@@ -281,7 +282,7 @@ export default function LiteratureDrawer({
                 <Btn variant="primary" onClick={() => genNotes()} disabled={dbusy === 'all'}>
                   {dbusy === 'all' ? '生成中…' : notes.length ? '重新生成全部' : 'AI 生成笔记'}
                 </Btn>
-                <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+                <span className={`text-[11.5px] text-${LM_FAINT}`}>
                   按小节分开存，每节可单独重生成 / 编辑
                 </span>
               </div>
@@ -292,11 +293,11 @@ export default function LiteratureDrawer({
                 notes.map((n: any) => (
                   <div
                     key={n.id}
-                    className="rounded-[10px] border border-[color:var(--wb-border)] p-3"
+                    className={`rounded-[10px] border border-${LM_BORDER} p-3`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-[12.5px] font-medium text-[color:var(--wb-text)]">
+                        <span className={`text-[12.5px] font-medium text-${LM_TITLE}`}>
                           {n.section}
                         </span>
                         <Pill tone={n.source === 'ai' ? 'blue' : 'gray'}>
@@ -360,10 +361,10 @@ export default function LiteratureDrawer({
               </div>
 
               {(item.notes || absEdit !== null) && (
-                <details className="rounded-[10px] border border-[color:var(--wb-border)] px-3 py-2">
-                  <summary className="cursor-pointer text-[12px] text-[color:var(--wb-text-soft)]">
+                <details className={`rounded-[10px] border border-${LM_BORDER} px-3 py-2`}>
+                  <summary className={`cursor-pointer text-[12px] text-${LM_TEXT}`}>
                     摘要 · 备注
-                    <span className="ml-1 text-[11.5px] text-[color:var(--wb-muted)]">
+                    <span className={`ml-1 text-[11.5px] text-${LM_FAINT}`}>
                       （Zotero 摘要 / 历史备注，不会出现在列表里）
                     </span>
                   </summary>
@@ -401,7 +402,7 @@ export default function LiteratureDrawer({
                     onChange={setPpFocus}
                   />
                 </div>
-                <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+                <span className={`text-[11.5px] text-${LM_FAINT}`}>
                   从这篇文献提炼「研究机会」视角的痛点，逐条带原文证据；转成创新点后会带文献出处。
                 </span>
               </div>
@@ -414,20 +415,20 @@ export default function LiteratureDrawer({
                 <Empty text="这篇还没有痛点记录" hint="提炼出来的痛点是「文献 → 备选创新点」流水线的原料，可在创新点页一键转正。" />
               ) : (
                 pps.map((p) => (
-                  <div key={p.id} className="rounded-[10px] border border-[color:var(--wb-border)] p-3">
+                  <div key={p.id} className={`rounded-[10px] border border-${LM_BORDER} p-3`}>
                     <div className="flex items-start gap-2">
                       <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color:var(--wb-warn-soft)] text-[color:var(--wb-warn)]">
                         <Icon name="alert" size={11} />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <div className="text-[12.5px] leading-relaxed text-[color:var(--wb-text)]">{p.content}</div>
+                        <div className={`text-[12.5px] leading-relaxed text-${LM_TITLE}`}>{p.content}</div>
                         {p.evidence && (
-                          <div className="mt-1.5 border-l-2 border-[color:var(--wb-border)] pl-2 text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
+                          <div className={`mt-1.5 border-l-2 border-${LM_BORDER} pl-2 text-[11.5px] leading-relaxed text-${LM_FAINT}`}>
                             证据：{p.evidence}
                           </div>
                         )}
                         {p.direction && (
-                          <div className="mt-1 text-[11.5px] leading-relaxed text-[color:var(--wb-accent)]">
+                          <div className={`mt-1 text-[11.5px] leading-relaxed text-${LM_BLUE}`}>
                             方向：{p.direction}
                           </div>
                         )}
@@ -449,9 +450,9 @@ export default function LiteratureDrawer({
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              <div className="rounded-[10px] border border-[color:var(--wb-border)] p-3">
+              <div className={`rounded-[10px] border border-${LM_BORDER} p-3`}>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[12.5px] font-medium text-[color:var(--wb-text)]">
+                  <span className={`text-[12.5px] font-medium text-${LM_TITLE}`}>
                     Gloss（旁注）
                   </span>
                   {gstatus?.running ? (
@@ -462,7 +463,7 @@ export default function LiteratureDrawer({
                     <Pill tone="red">未找到</Pill>
                   )}
                 </div>
-                <div className="mt-1 text-[11.5px] text-[color:var(--wb-muted)]">
+                <div className={`mt-1 text-[11.5px] text-${LM_FAINT}`}>
                   {gstatus?.dir || '—'}
                   {gstatus?.url ? ` · ${gstatus.url}` : ''}
                 </div>
@@ -475,7 +476,7 @@ export default function LiteratureDrawer({
                 )}
 
                 <details className="mt-2">
-                  <summary className="cursor-pointer text-[11.5px] text-[color:var(--wb-text-soft)]">
+                  <summary className={`cursor-pointer text-[11.5px] text-${LM_TEXT}`}>
                     配置（Gloss 目录 / 找 PDF 的目录）
                   </summary>
                   <div className="mt-2 flex flex-col gap-2">
@@ -488,7 +489,7 @@ export default function LiteratureDrawer({
                     <div className="flex items-center gap-2">
                       <Btn onClick={saveGlossCfg}>保存配置</Btn>
                       {gstatus?.pdf_dirs?.length > 0 && (
-                        <span className="text-[11.5px] text-[color:var(--wb-muted)]">
+                        <span className={`text-[11.5px] text-${LM_FAINT}`}>
                           当前搜索：{gstatus.pdf_dirs.join(' , ')}
                         </span>
                       )}
@@ -498,7 +499,7 @@ export default function LiteratureDrawer({
               </div>
 
               <div className="flex flex-col gap-2">
-                <div className="text-[12.5px] font-medium text-[color:var(--wb-text)]">
+                <div className={`text-[12.5px] font-medium text-${LM_TITLE}`}>
                   这篇的 PDF
                 </div>
                 <div className="flex gap-2">
@@ -520,7 +521,7 @@ export default function LiteratureDrawer({
                 </div>
                 {cands.length > 0 && (
                   <div className="flex flex-col gap-1">
-                    <div className="text-[11.5px] text-[color:var(--wb-muted)]">
+                    <div className={`text-[11.5px] text-${LM_FAINT}`}>
                       按标题在本地找到的候选（点一下填到上面）：
                     </div>
                     {cands.map((c: any) => (
@@ -529,8 +530,8 @@ export default function LiteratureDrawer({
                         onClick={() => setPdfPath(c.path)}
                         className={`truncate rounded-[8px] px-2 py-1 text-left text-[11.5px] ${
                           pdfPath === c.path
-                            ? 'bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]'
-                            : 'bg-[color:var(--wb-bg-subtle)] text-[color:var(--wb-text-soft)] hover:bg-[color:var(--wb-border)]'
+                            ? `bg-${LM_BLUE_SOFT} text-${LM_BLUE}`
+                            : `bg-${LM_CHIP_BG} text-${LM_TEXT} hover:bg-${LM_BORDER}`
                         }`}
                         title={c.path}
                       >
@@ -578,7 +579,7 @@ export default function LiteratureDrawer({
                   href={item.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-[12px] text-[color:var(--wb-accent)] underline"
+                  className={`text-[12px] text-${LM_BLUE} underline`}
                 >
                   原文链接 / DOI
                 </a>

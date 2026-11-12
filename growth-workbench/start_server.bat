@@ -1,5 +1,5 @@
 @echo off
-rem WB-GrowthWorkbench launcher: minimized window, logs to server.log
-cd /d "D:\03-Codes\2026-09-20-01-46-40\growth-workbench\server"
-set PY=C:\Users\Amber\.workbuddy\binaries\python\envs\default\Scripts\python.exe
-start "WB-GrowthWorkbench" /min cmd /c ""%PY%" -m uvicorn main:app --host 127.0.0.1 --port 8000 > "%~dp0server\server.log" 2>&1"
+rem 科研工作台统一入口：起后端 + 公网隧道（逻辑在 bin\launch.ps1，桌面双击/开机自启走同一条链路）
+rem 只想后台起服务、不开浏览器时也用它。
+cd /d "%~dp0"
+start "" wscript.exe "%~dp0bin\launch.vbs" boot

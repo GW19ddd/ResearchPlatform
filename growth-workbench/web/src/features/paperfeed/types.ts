@@ -36,12 +36,15 @@ export type FeedSettingsData = {
 }
 
 /** 图片走后端代理（服务器端下载并缓存，浏览器不直连 arXiv——直连常被网络/防盗链拦）。
- * 只用论文自己的配图：figure_url（arXiv 正文首图）。绝不用 PDF 首页截图当封面。 */
+ * 图有四层来源：正文 img / object 矢量图 / 内嵌 svg / PDF 首页渲染（kind='pdf'，
+ * 均为论文自己的内容）。只有 'none'（确认全空）不给端点。
+ * 还没抓到图但「可重试」的论文也返回端点：后端 /fig/{pid} 会现场懒补图。 */
 export function figSrc(
-  p: { id: number; figure_url: string | null; figure_kind?: string | null },
+  p: { id: number; figure_url: string | null; arxiv_id?: string | null; figure_kind?: string | null },
   bust = '',
 ): string {
-  if (!p.figure_url) return ''
+  const pending = !p.figure_url && !!p.arxiv_id && p.figure_kind !== 'none'
+  if (!p.figure_url && !pending) return ''
   return `/api/paperfeed/fig/${p.id}${bust ? `?v=${bust}` : ''}`
 }
 

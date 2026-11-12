@@ -251,7 +251,7 @@ export default function PdfViewer({ src }: { src: string }) {
             onKeyDown={(e) => {
               if (e.key === 'Enter') goPage(Number(page))
             }}
-            className="w-11 rounded-[6px] border border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface)] px-1 py-[1px] text-center text-[12px] tabular-nums outline-none focus:border-[color:var(--wb-accent)]"
+            className="w-11 rounded-[6px] border border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface)] px-1 py-[1px] text-center text-[12px] tabular-nums outline-none"
             aria-label="页码"
           />
           <span className="tabular-nums text-[color:var(--wb-muted)]">/ {numPages || '…'}</span>

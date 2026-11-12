@@ -1,0 +1,92 @@
+{
+  "generated_at": "2026-11-08 12:43:59",
+  "kind": "REAL_LLM_CALLS",
+  "note": "真实模型调用，非 mock；失败项如实记录，未做任何补写。",
+  "results": [
+    {
+      "name": "settings.test_connection",
+      "ok": true,
+      "elapsed_ms": 1192,
+      "summary": "连通正常 · 模型 deepseek-chat 回复：可用"
+    },
+    {
+      "name": "settings.list_models",
+      "ok": true,
+      "elapsed_ms": 322,
+      "summary": "共 2 个模型：deepseek-flash, deepseek-v4-pro",
+      "model_count": 2
+    },
+    {
+      "name": "llm.complete_result(fast)",
+      "ok": true,
+      "elapsed_ms": 940,
+      "summary": "单元测试生成是指自动或半自动地为给定代码生成可执行的单元测试用例（含输入、调用与断言），以验证其行为是否符合预期。",
+      "model": "deepseek-chat",
+      "tokens_in": 78,
+      "tokens_out": 32,
+      "error_kind": null
+    },
+    {
+      "name": "llm.complete_result(reason→FORCE_FAST)",
+      "ok": true,
+      "elapsed_ms": 1076,
+      "summary": "收到",
+      "model": "deepseek-chat",
+      "same_model_as_fast": true,
+      "degraded": false
+    },
+    {
+      "name": "llm.complete_json_result",
+      "ok": true,
+      "elapsed_ms": 1099,
+      "summary": "{\"ok\": true, \"note\": \"已确认输出格式要求：仅返回单个合法 JSON 对象，包含 ok(boolean) 与 note(string) 两个字段，不含解释文字或代码块围栏。\"}",
+      "parsed_type": "dict",
+      "error_kind": null
+    },
+    {
+      "name": "llm.chat_result",
+      "ok": true,
+      "elapsed_ms": 1111,
+      "summary": "42",
+      "model": "deepseek-chat"
+    },
+    {
+      "name": "llm.stream_chat_events",
+      "ok": true,
+      "elapsed_ms": 1311,
+      "summary": "事件=['delta', 'delta', 'delta', 'delta', 'delta', 'meta'] 正文=1 2 3",
+      "event_types": [
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "meta"
+      ],
+      "model": "deepseek-chat"
+    },
+    {
+      "name": "llm.redact",
+      "ok": true,
+      "elapsed_ms": 3,
+      "summary": "Bearer *** 出错"
+    },
+    {
+      "name": "endpoint.POST /api/chat/quick",
+      "ok": true,
+      "elapsed_ms": 931,
+      "summary": "可用",
+      "status_code": 200,
+      "model": "deepseek-chat"
+    },
+    {
+      "name": "endpoint.POST /api/canvas/auto (save=false)",
+      "ok": true,
+      "elapsed_ms": 4218,
+      "summary": "nodes=7 edges=6 fallback=False dropped=0",
+      "status_code": 200,
+      "fallback": false,
+      "node_count": 7
+    }
+  ]
+}

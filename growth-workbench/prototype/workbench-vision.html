@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>研流 · 科研一站式工作台 · 愿景草图（演示占位）</title>
+<style>
+  :root{
+    --wb-bg:#f5f5f7; --wb-bg-subtle:#eeeef1; --wb-surface:#fff; --wb-surface-alt:#fafafb;
+    --wb-border:#ebecf0; --wb-border-strong:#dcdee5;
+    --wb-text:#101114; --wb-text-soft:#4b5160; --wb-muted:#6b7280;
+    --wb-accent:#5145e0; --wb-accent-soft:#eeecfd; --wb-accent-strong:#4034c4;
+    --wb-ok:#067a45; --wb-ok-soft:#e8f6ef;
+    --wb-warn:#a15c07; --wb-warn-soft:#fdf3e4;
+    --wb-danger:#c02b21; --wb-danger-soft:#fdeceb;
+    --wb-info:#14618f; --wb-info-soft:#e9f4fa;
+    --wb-pro:#b07d12; --wb-pro-soft:#f8f0d9;
+    --r-sm:8px; --r:12px; --r-lg:16px; --r-xl:22px;
+    --sh-sm:0 1px 2px rgba(16,17,20,.04),0 2px 8px -2px rgba(16,17,20,.06);
+    --sh-md:0 1px 3px rgba(16,17,20,.05),0 8px 24px -12px rgba(16,17,20,.12);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--wb-bg);color:var(--wb-text);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;}
+  .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
+    padding:10px 22px;background:rgba(245,245,247,.82);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--wb-border);}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.2px}
+  .logo .dot{width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,var(--wb-accent),#7c72f0);
+    box-shadow:0 2px 8px -2px rgba(81,69,224,.5);}
+  .spacer{flex:1}
+  .seg{display:flex;gap:2px;background:var(--wb-surface-alt);border:1px solid var(--wb-border);
+    border-radius:999px;padding:3px}
+  .seg button{border:0;background:transparent;color:var(--wb-text-soft);font-weight:600;
+    padding:6px 14px;border-radius:999px;cursor:pointer;font-size:13px}
+  .seg button.on{background:var(--wb-surface);color:var(--wb-accent);box-shadow:var(--sh-sm)}
+  .pill{font-size:11px;padding:2px 9px;border-radius:999px;font-weight:600}
+  .pill.blue{background:var(--wb-accent-soft);color:var(--wb-accent)}
+  .pill.gray{background:var(--wb-bg-subtle);color:var(--wb-muted)}
+  .pill.red{background:var(--wb-danger-soft);color:var(--wb-danger)}
+  .pill.ok{background:var(--wb-ok-soft);color:var(--wb-ok)}
+  .pill.warn{background:var(--wb-warn-soft);color:var(--wb-warn)}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--wb-muted)}
+  h1{font-size:21px;margin:4px 0 2px}
+  .sub{color:var(--wb-text-soft);font-size:13px;margin-bottom:18px}
+  .grid{display:grid;gap:14px}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:900px){.g4,.g3,.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:1fr}}
+  .card{background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:var(--r-lg);
+    box-shadow:var(--sh-sm);padding:16px}
+  .card h3{margin:0 0 12px;font-size:14px;display:flex;align-items:center;gap:8px}
+  .card .note{font-size:11px;color:var(--wb-muted)}
+  .kpi{display:flex;flex-direction:column;gap:2px}
+  .kpi .v{font-size:26px;font-weight:750;letter-spacing:-.5px}
+  .kpi .l{font-size:12px;color:var(--wb-muted)}
+  .kpi .h{font-size:11px;color:var(--wb-ok);margin-top:2px}
+  .pillar{position:relative;overflow:hidden}
+  .pillar .bar{height:6px;border-radius:99px;background:var(--wb-bg-subtle);margin-top:10px;overflow:hidden}
+  .pillar .bar i{display:block;height:100%;border-radius:99px}
+  .accent{color:var(--wb-accent)} .ok{color:var(--wb-ok)} .danger{color:var(--wb-danger)} .warn{color:var(--wb-warn)}
+  .alert{display:flex;gap:10px;align-items:flex-start;background:var(--wb-danger-soft);
+    border:1px solid rgba(192,43,33,.25);border-radius:var(--r);padding:11px 13px;margin-bottom:8px}
+  .alert .ic{width:18px;height:18px;border-radius:50%;background:var(--wb-danger);color:#fff;
+    display:grid;place-items:center;font-size:11px;font-weight:800;flex:none;margin-top:1px}
+  .alert .t{font-size:12.5px;font-weight:600;color:var(--wb-danger)}
+  .alert .d{font-size:12px;color:var(--wb-text-soft)}
+  .timeline{position:relative;margin-top:6px}
+  .tl-track{position:relative;height:3px;background:var(--wb-bg-subtle);border-radius:99px;margin:26px 8px 40px}
+  .tl-node{position:absolute;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;
+    background:var(--wb-surface);border:3px solid var(--wb-accent)}
+  .tl-node.done{border-color:var(--wb-ok);background:var(--wb-ok)}
+  .tl-node.now{border-color:var(--wb-accent);box-shadow:0 0 0 5px var(--wb-accent-soft)}
+  .tl-lab{position:absolute;top:18px;transform:translateX(-50%);font-size:11px;white-space:nowrap;color:var(--wb-text-soft)}
+  .tl-lab b{display:block;color:var(--wb-text);font-size:11.5px}
+  .kanban{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .col{background:var(--wb-surface-alt);border:1px solid var(--wb-border);border-radius:var(--r);padding:10px}
+  .col h4{margin:0 0 8px;font-size:12px;color:var(--wb-muted);display:flex;justify-content:space-between}
+  .task{background:var(--wb-surface);border:1px solid var(--wb-border);border-radius:9px;padding:8px 9px;
+    font-size:12px;margin-bottom:7px;box-shadow:var(--sh-sm)}
+  .task .m{font-size:10.5px;color:var(--wb-muted);margin-top:3px}
+  .ach{display:flex;flex-direction:column;gap:8px;justify-content:center;align-items:center;
+    background:linear-gradient(160deg,var(--wb-accent-soft),#fff);border:1px solid #e4e1fb;border-radius:var(--r);padding:16px}
+  .ach .big{font-size:30px;font-weight:800;color:var(--wb-accent)}
+  .ach .cap{font-size:12px;color:var(--wb-text-soft);text-align:center}
+  .ach .medal{font-size:26px}
+  .btn{border:0;border-radius:10px;padding:9px 14px;font-weight:650;font-size:13px;cursor:pointer}
+  .btn.p{background:var(--wb-accent);color:#fff;box-shadow:0 4px 14px -6px rgba(81,69,224,.7)}
+  .btn.g{background:var(--wb-surface-alt);color:var(--wb-text-soft);border:1px solid var(--wb-border)}
+  .ta{width:100%;border:1px solid var(--wb-border);border-radius:10px;padding:9px;font:inherit;resize:vertical;background:var(--wb-surface-alt)}
+  .quote{background:var(--wb-accent-soft);border-left:3px solid var(--wb-accent);border-radius:0 10px 10px 0;
+    padding:11px 13px;font-size:13px;color:var(--wb-text);line-height:1.65}
+  .quote .by{display:block;margin-top:6px;font-size:11.5px;color:var(--wb-muted)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .foot{font-size:11px;color:var(--wb-muted);text-align:center;margin:26px 0 8px}
+  .hidden{display:none}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--wb-muted);margin-top:8px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo"><span class="dot"></span>研流</div>
+  <span class="pill blue">愿景草图</span>
+  <div class="spacer"></div>
+  <div class="seg" id="tabs">
+    <button class="on" data-t="dash">四块总览</button>
+    <button data-t="mentor">导师激励</button>
+    <button data-t="plan">计划复盘</button>
+  </div>
+</div>
+
+<!-- ===================== 四块总览 ===================== -->
+<section class="wrap" id="dash">
+  <div class="eyebrow">Overview · 进度驾驶舱</div>
+  <h1>四块进度总览</h1>
+  <div class="sub">实验 / 论文 / 计划 / 激励 一张图看全；红警自动置顶，无法忽略。</div>
+
+  <div class="grid g4" style="margin-bottom:14px">
+    <div class="card pillar">
+      <div class="eyebrow accent">实验进度</div>
+      <div class="kpi"><span class="v">17<span style="font-size:14px;color:var(--wb-muted)">/<s>22</s></span></span>
+        <span class="l">已完成 / 计划</span><span class="h">本周 +3</span></div>
+      <div class="bar"><i style="width:77%;background:var(--wb-accent)"></i></div>
+    </div>
+    <div class="card pillar">
+      <div class="eyebrow accent">论文进度</div>
+      <div class="kpi"><span class="v">42<span style="font-size:14px;color:var(--wb-muted)">%</span></span>
+        <span class="l">7 阶段 · 现「方法」</span><span class="h">字数 11.8k / 30k</span></div>
+      <div class="bar"><i style="width:42%;background:var(--wb-info)"></i></div>
+    </div>
+    <div class="card pillar">
+      <div class="eyebrow accent">计划复盘</div>
+      <div class="kpi"><span class="v">3<span style="font-size:14px;color:var(--wb-muted)"> 成果</span></span>
+        <span class="l">本周 · 2/3 完成</span><span class="h">自评 4/5</span></div>
+      <div class="bar"><i style="width:67%;background:var(--wb-ok)"></i></div>
+    </div>
+    <div class="card pillar">
+      <div class="eyebrow accent">导师激励</div>
+      <div class="kpi"><span class="v">+340</span>
+        <span class="l">积分 · 连续打卡 12 天</span><span class="h">2 项承诺逾期 ⚠</span></div>
+      <div class="bar"><i style="width:88%;background:var(--wb-pro)"></i></div>
+    </div>
+  </div>
+
+  <!-- 红警 -->
+  <div class="card" style="margin-bottom:14px;border-color:rgba(192,43,33,.3)">
+    <h3>🚨 红警（阻塞 &gt; 3 天 / 承诺逾期）</h3>
+    <div class="alert"><span class="ic">!</span><div><div class="t">论文「实验」章节阻塞 5 天</div>
+      <div class="d">原因：baseline 数据未跑完 · 建议今天先补 1 组对照</div></div></div>
+    <div class="alert"><span class="ic">!</span><div><div class="t">对导师承诺「下周五给初稿」已逾期 2 天</div>
+      <div class="d">来自 11/06 组会 · 点「标记完成」或重排截止日</div></div></div>
+  </div>
+
+  <div class="grid g2">
+    <!-- 燃尽 -->
+    <div class="card">
+      <h3>实验燃尽图 <span class="note">· 剩余待跑 vs 周</span></h3>
+      <svg viewBox="0 0 460 200" width="100%" height="200">
+        <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#5145e0" stop-opacity=".18"/><stop offset="1" stop-color="#5145e0" stop-opacity="0"/></linearGradient></defs>
+        <g stroke="#ebecf0"><line x1="40" y1="20" x2="40" y2="170"/><line x1="40" y1="170" x2="440" y2="170"/></g>
+        <polyline points="40,40 130,70 220,85 310,110 400,150" fill="none" stroke="#c9c4f5" stroke-width="2" stroke-dasharray="5 4"/>
+        <path d="M40,60 L130,78 L220,95 L310,118 L400,148 L400,170 L40,170 Z" fill="url(#g1)"/>
+        <polyline points="40,60 130,78 220,95 310,118 400,148" fill="none" stroke="#5145e0" stroke-width="3" stroke-linecap="round"/>
+        <g fill="#6b7280" font-size="10" text-anchor="middle">
+          <text x="40" y="188">W1</text><text x="130" y="188">W2</text><text x="220" y="188">W3</text><text x="310" y="188">W4</text><text x="400" y="188">W5</text></g>
+        <g fill="#6b7280" font-size="10" text-anchor="end">
+          <text x="34" y="64">22</text><text x="34" y="174">0</text></g>
+        <circle cx="400" cy="148" r="4.5" fill="#5145e0"/><text x="406" y="144" font-size="10" fill="#4034c4">剩 5</text>
+      </svg>
+      <div class="legend"><span><i style="background:#5145e0"></i>实际剩余</span><span><i style="background:#c9c4f5"></i>理想燃尽</span></div>
+    </div>
+
+    <!-- 里程碑时间线 -->
+    <div class="card">
+      <h3>论文里程碑时间线 <span class="note">· 7 阶段</span></h3>
+      <div class="timeline">
+        <div class="tl-track">
+          <div class="tl-node done" style="left:6%"></div>
+          <div class="tl-node done" style="left:24%"></div>
+          <div class="tl-node done" style="left:42%"></div>
+          <div class="tl-node now" style="left:60%"></div>
+          <div class="tl-node" style="left:78%"></div>
+          <div class="tl-node" style="left:94%"></div>
+          <div class="tl-lab" style="left:6%"><b>选题</b>9/10</div>
+          <div class="tl-lab" style="left:24%"><b>背景</b>9/24</div>
+          <div class="tl-lab" style="left:42%"><b>相关</b>10/8</div>
+          <div class="tl-lab" style="left:60%"><b>方法</b>进行</div>
+          <div class="tl-lab" style="left:78%"><b>实验</b>阻塞</div>
+          <div class="tl-lab" style="left:94%"><b>投稿</b>—</div>
+        </div>
+      </div>
+      <div class="note" style="margin-top:8px">节点 = 周；绿=已完成，蓝环=当前阶段，灰=未开始。阻塞阶段（实验）自动飘红。</div>
+    </div>
+  </div>
+
+  <!-- 计划看板 mini -->
+  <div class="card" style="margin-top:14px">
+    <h3>本周计划看板 <span class="note">· 拖拽/勾选即更新，&lt;60 秒录入</span></h3>
+    <div class="kanban">
+      <div class="col"><h4>待做 <span class="pill gray">3</span></h4>
+        <div class="task">跑完 baseline 对照 <div class="m">支撑：论文实验章节</div></div>
+        <div class="task">整理 F2 组数据 <div class="m">10 分</div></div>
+        <div class="task">约导师看方法章节 <div class="m">承诺 11/06</div></div>
+      </div>
+      <div class="col"><h4>进行中 <span class="pill blue">1</span></h4>
+        <div class="task">写方法章节 4.2 <div class="m">本周成果 · 进行</div></div>
+      </div>
+      <div class="col"><h4>已完成 <span class="pill ok">2</span></h4>
+        <div class="task">完成 3 个实验 <div class="m">+30 分</div></div>
+        <div class="task">文献综述定稿 <div class="m">21 篇</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 导师激励 ===================== -->
+<section class="wrap hidden" id="mentor">
+  <div class="eyebrow">Mentor · 激励层</div>
+  <h1>导师激励</h1>
+  <div class="sub">把「硬进度」翻译成「成就感」：成就墙 + AI 鼓励语 + 一键给导师的进展简报。</div>
+
+  <div class="grid g4" style="margin-bottom:14px">
+    <div class="ach"><div class="medal">🔥</div><div class="big">12</div><div class="cap">连续打卡天数</div></div>
+    <div class="ach"><div class="medal">🧪</div><div class="big">17</div><div class="cap">累计完成实验</div></div>
+    <div class="ach"><div class="medal">📄</div><div class="big">42%</div><div class="cap">论文阶段进度</div></div>
+    <div class="ach"><div class="medal">⭐</div><div class="big">+340</div><div class="cap">累计积分</div></div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card">
+      <h3>AI 鼓励语 <span class="note">· 基于你的真实进度生成，导师口吻 / 系统口吻可切换</span></h3>
+      <div class="row" style="margin-bottom:10px">
+        <span class="pill blue">本周：+3 实验 · 论文进方法章</span>
+        <span class="pill gray">连续打卡 12 天</span>
+      </div>
+      <button class="btn p" onclick="gen()">生成鼓励语</button>
+      <div id="enc" style="margin-top:12px">
+        <div class="quote">点「生成鼓励语」，AI 会结合你本周的真实进展，写一句能让你继续坐到电脑前的句话。
+          <span class="by">— 演示占位，未接真实模型</span></div>
+      </div>
+      <div class="note" style="margin-top:10px">不依赖 AI 也能用：手动记一条「今天的小胜利」，墙会自动累计。</div>
+    </div>
+
+    <div class="card">
+      <h3>给导师的进展简报 <span class="note">· 一键生成，微信/邮件可直接发</span></h3>
+      <textarea class="ta" id="brief" rows="6" placeholder="可手写补充，或留空让 AI 自动汇总本周成果 / 卡点 / 下周计划…">本周完成 3 个实验（CM 基准 +30 分），论文进入方法章节写作；卡点：baseline 对照未跑完，预计周五前补齐。</textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn p" onclick="this.textContent='已生成 · 可复制'">生成简报</button>
+        <button class="btn g">复制</button>
+        <span class="pill warn">2 项承诺逾期，建议先处理</span>
+      </div>
+      <div class="note" style="margin-top:10px">和现有「导师」页的承诺台账打通：逾期项会在这里提醒，避免汇报时漏嘴。</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>成就墙 <span class="note">· 可分享的里程碑卡片</span></h3>
+    <div class="row">
+      <span class="pill ok">🏅 首篇文献综述定稿</span>
+      <span class="pill ok">🏅 连续 7 天打卡</span>
+      <span class="pill ok">🏅 单周 +3 实验</span>
+      <span class="pill blue">🎯 投稿目标：ICSE（剩 86 天）</span>
+      <button class="btn g">+ 记一个里程碑</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 计划复盘 ===================== -->
+<section class="wrap hidden" id="plan">
+  <div class="eyebrow">Review · 复盘</div>
+  <h1>计划复盘</h1>
+  <div class="sub">周计划 + 周复盘 + 双周组会汇报；AI 给复盘建议与下周草稿。</div>
+
+  <div class="grid g2">
+    <div class="card">
+      <h3>本周成果 <span class="note">· 只写 3 条可交付物</span></h3>
+      <div class="row" style="margin-bottom:8px">
+        <input class="ta" style="flex:1" placeholder="必须是可交付物，例：完成 F2 组数据整理" />
+        <button class="btn p">添加</button>
+      </div>
+      <div class="task">1. 完成 3 个实验（CM 基准）<div class="m">已勾选完成</div></div>
+      <div class="task">2. 文献综述定稿<div class="m">已勾选完成</div></div>
+      <div class="task">3. 写方法章节 4.2<div class="m">进行中</div></div>
+    </div>
+
+    <div class="card">
+      <h3>周复盘</h3>
+      <div class="row" style="margin-bottom:8px">
+        <span class="pill ok">完成 2/3</span><span class="pill warn">卡点：baseline</span>
+        <span class="pill gray">自评 4/5</span>
+      </div>
+      <textarea class="ta" rows="3" placeholder="卡在哪（诚实写）">baseline 对照数据未跑完，受环境依赖阻塞。</textarea>
+      <textarea class="ta" rows="2" placeholder="下周最小动作" style="margin-top:8px">周五前补齐 1 组 baseline 对照，先解阻塞。</textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn p">提交周复盘</button>
+        <button class="btn g" onclick="alert('演示：调 /plan/biweekly 生成双周组会汇报')">生成双周汇报</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>跨周成果时间线 <span class="note">· 可视化你的节奏</span></h3>
+    <svg viewBox="0 0 920 120" width="100%" height="120">
+      <g stroke="#ebecf0"><line x1="50" y1="60" x2="880" y2="60"/></g>
+      <g font-size="11" fill="#4b5160" text-anchor="middle">
+        <text x="120" y="92">W1</text><text x="290" y="92">W2</text><text x="460" y="92">W3</text><text x="630" y="92">W4</text><text x="800" y="92">W5</text></g>
+      <g>
+        <circle cx="120" cy="60" r="9" fill="#067a45"/><text x="120" y="48" font-size="10" fill="#067a45" text-anchor="middle">2</text>
+        <circle cx="290" cy="60" r="9" fill="#067a45"/><text x="290" y="48" font-size="10" fill="#067a45" text-anchor="middle">3</text>
+        <circle cx="460" cy="60" r="9" fill="#067a45"/><text x="460" y="48" font-size="10" fill="#067a45" text-anchor="middle">3</text>
+        <circle cx="630" cy="60" r="9" fill="#a15c07"/><text x="630" y="48" font-size="10" fill="#a15c07" text-anchor="middle">1</text>
+        <circle cx="800" cy="60" r="9" fill="#5145e0"/><text x="800" y="48" font-size="10" fill="#4034c4" text-anchor="middle">2</text>
+      </g>
+      <text x="50" y="20" font-size="11" fill="#6b7280">每周完成成果数</text>
+    </svg>
+    <div class="legend"><span><i style="background:#067a45"></i>达标(≥3)</span><span><i style="background:#a15c07"></i>偏低(≤1)</span><span><i style="background:#5145e0"></i>本周</span></div>
+  </div>
+</section>
+
+<div class="foot">本页面为「研流」愿景草图 · 全部数据为<strong>演示占位、非实测</strong> · 用于视觉与布局对齐，最终在 React 应用内用真实组件库落地。</div>
+
+<script>
+  const tabs=document.getElementById('tabs');
+  tabs.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return;
+    [...tabs.children].forEach(x=>x.classList.toggle('on',x===b));
+    ['dash','mentor','plan'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==b.dataset.t));
+  });
+  const lines=[
+    "你这周把 3 个实验稳稳跑完了，论文也推到了方法章——不是「在做了」，是「做完了」。明天先把 baseline 那 1 组对照补齐，这篇就立住了。",
+    "连续 12 天打卡，这种节奏本身就是成果。卡住的不是你，是环境依赖；周五前补一组对照，阻塞就解开。",
+    "从选题到方法章，你已经走过 4 个阶段。剩下的实验章节只是一个待办，不是一座山。今天的小胜利：先写满 200 字。"
+  ];
+  let i=0;
+  function gen(){
+    const el=document.getElementById('enc');
+    el.innerHTML='<div class="quote">'+lines[i%lines.length]+'<span class="by">— AI 鼓励语（演示占位）· 导师口吻</span></div>';
+    i++;
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,284 @@
+{
+  "note": "真实工作台界面截图，演示占位用；非实测数据渲染。",
+  "shots": {
+    "workbench": {
+      "file": "ui-workbench.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/",
+      "caption": "统一工作台首页：三个胶囊 + 一句话输入框",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-workbench.png"
+    },
+    "settings": {
+      "file": "ui-settings.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/settings",
+      "caption": "设置：模型供应商与 TeX / Zotero 配置",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-settings.png"
+    },
+    "research": {
+      "file": "ui-research.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/research",
+      "caption": "对话·调研：检索式、引用与报告",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-research.png"
+    },
+    "chat": {
+      "file": "ui-chat.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/chat",
+      "caption": "课题 Quest：与工作台对话",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-chat.png"
+    },
+    "lit-search": {
+      "file": "ui-lit-search.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/literature?tab=search",
+      "caption": "文献检索：一整片连续白面",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-lit-search.png"
+    },
+    "lit-graph": {
+      "file": "ui-lit-graph.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/literature?tab=graph",
+      "caption": "文献关联图：年份 × 被引对数",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-lit-graph.png"
+    },
+    "lit-matrix": {
+      "file": "ui-lit-matrix.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/literature?tab=matrix",
+      "caption": "文献对比矩阵",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-lit-matrix.png"
+    },
+    "today": {
+      "file": "ui-today.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/today",
+      "caption": "今日：待办与研究进度总览",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-today.png"
+    },
+    "plan": {
+      "file": "ui-plan.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/plan",
+      "caption": "周计划与周复盘",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-plan.png"
+    },
+    "points": {
+      "file": "ui-points.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/points",
+      "caption": "积分：双向加减与流水",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-points.png"
+    },
+    "stats": {
+      "file": "ui-stats.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/stats",
+      "caption": "概览指标与可视化",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-stats.png"
+    },
+    "studio-analysis": {
+      "file": "ui-studio-analysis.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/studio/analysis",
+      "caption": "分析工作室：Python / pandas 执行",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-studio-analysis.png"
+    },
+    "studio-figure": {
+      "file": "ui-studio-figure.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/studio/figure",
+      "caption": "制图工作室：matplotlib 出图",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-studio-figure.png"
+    },
+    "studio-code": {
+      "file": "ui-studio-code.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/studio/code",
+      "caption": "代码工作室",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-studio-code.png"
+    },
+    "paper-stages": {
+      "file": "ui-paper-stages.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/paper",
+      "caption": "论文 7 阶段推进",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-paper-stages.png"
+    },
+    "community": {
+      "file": "ui-community.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/community",
+      "caption": "社区与案例",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-community.png"
+    },
+    "paperfeed": {
+      "file": "ui-paperfeed.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/paperfeed",
+      "caption": "论文速递",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-paperfeed.png"
+    },
+    "advisor": {
+      "file": "ui-advisor.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/advisor",
+      "caption": "导师激励",
+      "origin": "new",
+      "source": "tutorial/build/raw-shots/ui-advisor.png"
+    },
+    "literature": {
+      "file": "ui-literature.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/literature?tab=library",
+      "caption": "文献库：条目、标签与状态",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/01-literature.png"
+    },
+    "literature-annotated": {
+      "file": "ui-literature-annotated.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/literature?tab=library",
+      "caption": "文献库（标注版）",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/01-literature-annotated.png"
+    },
+    "ideas": {
+      "file": "ui-ideas.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/ideas",
+      "caption": "创新点：novelty / feasibility / impact 打分",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/02-ideas.png"
+    },
+    "ideas-annotated": {
+      "file": "ui-ideas-annotated.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/ideas",
+      "caption": "创新点（标注版）",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/02-ideas-annotated.png"
+    },
+    "canvas": {
+      "file": "ui-canvas.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/canvas?tab=build",
+      "caption": "编排画布：节点、连线与上下文",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/03-canvas.png"
+    },
+    "canvas-annotated": {
+      "file": "ui-canvas-annotated.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/canvas?tab=build",
+      "caption": "编排画布（标注版）",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/03-canvas-annotated.png"
+    },
+    "paper-doc": {
+      "file": "ui-paper-doc.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/studio/paper",
+      "caption": "论文编译产物（工作台内）",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/04-paper.png"
+    },
+    "studio-paper": {
+      "file": "ui-studio-paper.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/studio/paper",
+      "caption": "LaTeX 论文工作室",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/05-studio-paper.png"
+    },
+    "studio-paper-annotated": {
+      "file": "ui-studio-paper-annotated.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/studio/paper",
+      "caption": "LaTeX 论文工作室（标注版）",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/05-studio-paper-annotated.png"
+    },
+    "experiments": {
+      "file": "ui-experiments.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/experiments",
+      "caption": "实验：策略对照与结果登记",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/06-experiments.png"
+    },
+    "experiments-annotated": {
+      "file": "ui-experiments-annotated.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/experiments",
+      "caption": "实验（标注版）",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/06-experiments-annotated.png"
+    },
+    "paper": {
+      "file": "ui-paper.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/paper",
+      "caption": "论文章节与阶段",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/07-paper.png"
+    },
+    "paper-annotated": {
+      "file": "ui-paper-annotated.png",
+      "w": 1400,
+      "h": 875,
+      "page": "/paper",
+      "caption": "论文章节与阶段（标注版）",
+      "origin": "existing",
+      "source": "web/public/tutorial/llmutg/shots/07-paper-annotated.png"
+    }
+  }
+}

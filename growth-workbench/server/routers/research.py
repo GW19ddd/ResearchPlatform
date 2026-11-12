@@ -1147,11 +1147,16 @@ def get_graph():
 
 
 @router.post("/literature/{lit_id}/expand")
-async def expand_literature(lit_id: int):
-    """从 OpenAlex 拉取引用关系，自动创建关联文献与边。
+async def expand_literature(lit_id: int, mode: str = "clean"):
+    """从 OpenAlex 拉取引用关系，生成以该文献为种子的一张图谱。
 
-    - references（本文引用了谁）：取前 15 篇
-    - cited_by（谁引用了本文）：取前 15 篇，按被引次数降序
+    - references（本文引用了谁）：最多 15 篇
+    - cited_by（谁引用了本文）：最多 15 篇，按被引次数降序
+    - 相关性门槛：只保留与该文献共享参考文献 ≥2 篇、或同年同刊的条目（见
+      _expand_oa_edges）；没有任何边、且是自动爬进来的空壳会被顺手回收。
+
+    默认 mode=clean：先清空旧图谱再重建 —— 一次「探索相关文献」就只该看到这一篇的
+    真实邻居，而不是历次探索叠在一起的几百个节点。mode=add 才是「在现有图谱上追加」。
     """
     lit = row_or_404("literature", lit_id)
 
@@ -1169,28 +1174,58 @@ async def expand_literature(lit_id: int):
             )
         execute("UPDATE literature SET openalex_id=? WHERE id=?", (oa_id, lit_id))
 
-    # 2. 拉取引用数据并建边
+    # 2. 拉取引用数据并建边（默认重建整张图，避免历次探索叠加成一团）
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            created, new_edges = await _expand_oa_edges(client, lit_id, oa_id)
+            created, new_edges = await _expand_oa_edges(
+                client, lit_id, oa_id, mode="clean" if mode != "add" else "add"
+            )
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(502, f"OpenAlex 请求失败：{e}")
 
+    pruned = _prune_orphan_shells(lit_id)
     return {
         "ok": True,
         "created": created,
         "new_edges": new_edges,
+        "edges": new_edges,
+        "pruned": pruned,
     }
 
 
+def _prune_orphan_shells(keep_id: int) -> int:
+    """回收自动爬进来、却没有任何边的空壳文献（不碰用户自己录入/写过内容的那批）。"""
+    rows = query(
+        """SELECT l.id FROM literature l
+           WHERE l.id != ?
+             AND l.status = 'todo'
+             AND l.openalex_id IS NOT NULL
+             AND NOT EXISTS (SELECT 1 FROM lit_edges e
+                             WHERE e.source_id = l.id OR e.target_id = l.id)
+             AND NOT EXISTS (SELECT 1 FROM lit_notes n WHERE n.literature_id = l.id)
+             AND NOT EXISTS (SELECT 1 FROM lit_painpoints p WHERE p.literature_id = l.id)
+             AND NOT EXISTS (SELECT 1 FROM lit_matrix m WHERE m.literature_id = l.id)""",
+        (keep_id,),
+    )
+    ids = [r["id"] for r in rows]
+    if not ids:
+        return 0
+    execute(
+        "DELETE FROM literature WHERE id IN (%s)" % ",".join("?" * len(ids)),
+        tuple(ids),
+    )
+    return len(ids)
+
+
 async def _expand_oa_edges(
-    client: httpx.AsyncClient, lit_id: int, oa_id: str
+    client: httpx.AsyncClient, lit_id: int, oa_id: str, mode: str = "add"
 ) -> tuple[int, int]:
     """拉取 lit_id 的 references + cited_by 并建边；返回 (新建文献数, 新建边数)。
 
-    expand 与 graph/seed 共用这一套，保证两条入口生成的图口径一致。
+    mode="clean"：先清空整张图（lit_edges）再按本次种子重建，种子 = 本次探索的文献。
+    expand / graph/seed 共用这一套，保证两条入口生成的图口径一致。
     """
     work = await _oa_fetch_work(client, oa_id)
     if not work:
@@ -1198,6 +1233,8 @@ async def _expand_oa_edges(
     # 中心文献自己的被引数也回填（节点大小按被引次数渲染）
     w0 = _parse_oa_work(work)
     _fill_cited(lit_id, w0.get("cited_by_count"), w0.get("ref_count"))
+    if mode == "clean":
+        execute("DELETE FROM lit_edges")
     ref_ids = [_oa_short_id(r) for r in (work.get("referenced_works") or [])][:15]
     citing = await _oa_fetch_citing(client, oa_id, limit=15)
     ref_metas = await _oa_batch_works(client, ref_ids) if ref_ids else []
@@ -1267,7 +1304,10 @@ async def seed_graph(body: SeedIn):
                 )
             meta = _parse_oa_work(work)
             lit_id, _ = _find_or_create_lit(meta)
-            created, new_edges = await _expand_oa_edges(client, lit_id, meta["openalex_id"])
+            created, new_edges = await _expand_oa_edges(
+                client, lit_id, meta["openalex_id"], mode="clean"
+            )
+            _prune_orphan_shells(lit_id)
     except HTTPException:
         raise
     except Exception as e:

@@ -121,54 +121,72 @@ export function FeedCard({
             {(paper.authors || '').split(',').length > 1 && ' 等'}
           </div>
         )}
-        {paper.figure_url ? (
-          <div className="mt-3 overflow-hidden rounded-[10px] border border-[color:var(--wb-border)] bg-white">
-            <img
-              src={figSrc(paper)}
-              alt=""
-              className="mx-auto max-h-[240px] w-auto max-w-full object-contain"
-              onError={(e) => {
-                ;(e.target as HTMLImageElement).style.display = 'none'
-              }}
-            />
-          </div>
-        ) : (
-          // 无论文自有配图：以纸感文档占位块填满，绝不渲染 PDF 截图
-          <div className="mt-3 overflow-hidden rounded-[10px] border border-[color:var(--wb-border)] bg-white">
-            <div className="relative flex h-[200px] w-full items-center justify-center bg-[color:var(--wb-surface-alt)]">
-              <svg
-                className="absolute inset-0 h-full w-full"
-                viewBox="0 0 400 200"
-                preserveAspectRatio="xMidYMid slice"
-                aria-hidden
-              >
-                <rect x="262" y="24" width="110" height="150" rx="8" fill="var(--wb-border)" opacity=".35" />
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <rect
-                    key={i}
-                    x="276"
-                    y={40 + i * 22}
-                    width={i % 2 ? 64 : 82}
-                    height="5"
-                    rx="2.5"
-                    fill="var(--wb-text)"
-                    opacity=".14"
-                  />
-                ))}
-                <circle cx="54" cy="150" r="28" fill="var(--wb-accent)" opacity=".1" />
-                <rect x="20" y="22" width="84" height="5" rx="2.5" fill="var(--wb-accent)" opacity=".22" />
-              </svg>
-              <div className="relative z-10 flex flex-col items-center gap-1.5">
-                <Icon name="file" size={30} className="text-[color:var(--wb-muted)]" />
-                {paper.arxiv_id && (
-                  <span className="font-mono text-[11.5px] text-[color:var(--wb-muted)]">
-                    arXiv:{paper.arxiv_id}
-                  </span>
-                )}
+        {(() => {
+          // 图：figure_url 有了直接出；还没抓到但可重试（非 none）的论文也
+          // 请求 /fig/{pid}，后端现场懒补图——纸感占位垫底，图到位自然盖上来
+          const src = figSrc(paper)
+          const pending = !paper.figure_url && !!src
+          if (!paper.figure_url && !pending) {
+            // 无论文自有配图：以纸感文档占位块填满，绝不渲染 PDF 截图
+            return (
+              <div className="mt-3 overflow-hidden rounded-[10px] border border-[color:var(--wb-border)] bg-white">
+                <div className="relative flex h-[200px] w-full items-center justify-center bg-[color:var(--wb-surface-alt)]">
+                  <svg
+                    className="absolute inset-0 h-full w-full"
+                    viewBox="0 0 400 200"
+                    preserveAspectRatio="xMidYMid slice"
+                    aria-hidden
+                  >
+                    <rect x="262" y="24" width="110" height="150" rx="8" fill="var(--wb-border)" opacity=".35" />
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <rect
+                        key={i}
+                        x="276"
+                        y={40 + i * 22}
+                        width={i % 2 ? 64 : 82}
+                        height="5"
+                        rx="2.5"
+                        fill="var(--wb-text)"
+                        opacity=".14"
+                      />
+                    ))}
+                    <circle cx="54" cy="150" r="28" fill="var(--wb-accent)" opacity=".1" />
+                    <rect x="20" y="22" width="84" height="5" rx="2.5" fill="var(--wb-accent)" opacity=".22" />
+                  </svg>
+                  <div className="relative z-10 flex flex-col items-center gap-1.5">
+                    <Icon name="file" size={30} className="text-[color:var(--wb-muted)]" />
+                    {paper.arxiv_id && (
+                      <span className="font-mono text-[11.5px] text-[color:var(--wb-muted)]">
+                        arXiv:{paper.arxiv_id}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
+            )
+          }
+          return (
+            <div className="relative mt-3 overflow-hidden rounded-[10px] border border-[color:var(--wb-border)] bg-white">
+              {pending && (
+                <div className="flex h-[200px] w-full items-center justify-center bg-[color:var(--wb-surface-alt)] text-[11.5px] text-[color:var(--wb-muted)]">
+                  正在抓取论文配图…
+                </div>
+              )}
+              <img
+                src={src}
+                alt=""
+                className={
+                  pending
+                    ? 'absolute inset-0 z-10 mx-auto h-full w-full object-contain'
+                    : 'mx-auto max-h-[240px] w-auto max-w-full object-contain'
+                }
+                onError={(e) => {
+                  ;(e.target as HTMLImageElement).style.display = 'none'
+                }}
+              />
             </div>
-          </div>
-        )}
+          )
+        })()}
         {/* 中文摘要 */}
         {needZh && absZh && (
           <div

@@ -9,6 +9,7 @@ import { Btn, IconBtn, Input, Loading, Pill, Spinner, usePresence } from '../../
 import { Icon } from '../../components/Icon'
 import PdfViewer from '../../components/PdfViewer'
 import { get, patch } from '../../lib/api'
+import { LM_BORDER, LM_BORDER_STRONG, LM_CHIP_BG, LM_FAINT, LM_TEXT, LM_TITLE } from './litColors'
 
 export default function PdfModal({
   item: _item,
@@ -100,19 +101,19 @@ export default function PdfModal({
         onClick={onClose}
       />
       <div
-        className={`relative flex h-[94vh] w-[min(1500px,96vw)] flex-col overflow-hidden rounded-[16px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)] shadow-[var(--wb-shadow-lg)] ${presence.leaving ? 'wb-dialog-out' : 'wb-dialog-in'}`}
+        className={`relative flex h-[94vh] w-[min(1500px,96vw)] flex-col overflow-hidden rounded-[16px] border border-${LM_BORDER} bg-white shadow-[var(--wb-shadow-lg)] ${presence.leaving ? 'wb-dialog-out' : 'wb-dialog-in'}`}
       >
         {/* 标题栏 */}
-        <header className="flex shrink-0 items-center gap-2 border-b border-[color:var(--wb-border)] bg-[color:var(--wb-surface-alt)] px-3 py-2">
+        <header className={`flex shrink-0 items-center gap-2 border-b border-${LM_BORDER} bg-white px-3 py-2`}>
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[color:var(--wb-danger-soft)] text-[11.5px] font-semibold text-[color:var(--wb-danger)]">
             PDF
           </span>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold text-[color:var(--wb-text)]" title={item.title}>
+            <div className={`truncate text-[13px] font-semibold text-${LM_TITLE}`} title={item.title}>
               {item.title}
             </div>
             {subtitle && (
-              <div className="truncate text-[11.5px] text-[color:var(--wb-muted)]">{subtitle}</div>
+              <div className={`truncate text-[11.5px] text-${LM_FAINT}`}>{subtitle}</div>
             )}
           </div>
           {!loading && info?.ok && (
@@ -124,7 +125,7 @@ export default function PdfModal({
             href={`/api/literature/${item.id}/pdf`}
             target="_blank"
             rel="noreferrer"
-            className="shrink-0 rounded-[9px] border border-[color:var(--wb-border-strong)] bg-[color:var(--wb-surface)] px-2.5 py-[5px] text-[12px] text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-bg-subtle)]"
+            className={`shrink-0 rounded-[9px] border border-${LM_BORDER_STRONG} bg-white px-2.5 py-[5px] text-[12px] text-${LM_TEXT} transition hover:bg-${LM_CHIP_BG}`}
           >
             新标签打开
           </a>
@@ -171,16 +172,16 @@ export default function PdfModal({
 
               {info?.candidates?.length > 0 && (
                 <div className="flex flex-col gap-1">
-                  <div className="text-[11.5px] text-[color:var(--wb-muted)]">
+                  <div className={`text-[11.5px] text-${LM_FAINT}`}>
                     按标题在本地找到的候选（点一下直接用）：
                   </div>
-                  <div className="max-h-72 overflow-y-auto rounded-[10px] border border-[color:var(--wb-border)]">
+                  <div className={`max-h-72 overflow-y-auto rounded-[10px] border border-${LM_BORDER}`}>
                     {info.candidates.map((c: any) => (
                       <button
                         key={c.path}
                         onClick={() => choose(c.path)}
                         title={c.path}
-                        className="block w-full truncate px-2.5 py-1.5 text-left text-[11.5px] text-[color:var(--wb-text-soft)] transition hover:bg-[color:var(--wb-bg-subtle)] hover:text-[color:var(--wb-text)]"
+                        className={`block w-full truncate px-2.5 py-1.5 text-left text-[11.5px] text-${LM_TEXT} transition hover:bg-${LM_CHIP_BG} hover:text-${LM_TITLE}`}
                       >
                         {c.name}
                       </button>
@@ -190,12 +191,12 @@ export default function PdfModal({
               )}
 
               {info?.dirs?.length > 0 && (
-                <div className="text-[11.5px] leading-relaxed text-[color:var(--wb-muted)]">
+                <div className={`text-[11.5px] leading-relaxed text-${LM_FAINT}`}>
                   搜索目录：{info.dirs.join(' , ')}
                 </div>
               )}
               {busy === 'save' && (
-                <div className="flex items-center gap-2 text-[11.5px] text-[color:var(--wb-muted)]">
+                <div className={`flex items-center gap-2 text-[11.5px] text-${LM_FAINT}`}>
                   <Spinner /> 正在重新定位…
                 </div>
               )}

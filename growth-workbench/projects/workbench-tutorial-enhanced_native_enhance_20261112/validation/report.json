@@ -1,0 +1,15 @@
+{
+  "schema": "native_pptx_enhancement_validation.v1",
+  "slide_count": 14,
+  "plan_status": "confirmed",
+  "enabled_modules": [
+    "notes",
+    "transitions"
+  ],
+  "notes_required": true,
+  "audio_required": false,
+  "notes_count": 14,
+  "audio_count": 0,
+  "missing_notes": [],
+  "missing_audio": []
+}

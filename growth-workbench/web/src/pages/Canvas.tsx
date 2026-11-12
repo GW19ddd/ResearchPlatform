@@ -25,6 +25,7 @@ import { toast } from '../components/toast'
 import { Icon, type IconName } from '../components/Icon'
 import { ResizeHandle } from '../components/ResizeHandle'
 import { api, get, patch, post } from '../lib/api'
+import { postSse } from '../lib/sse'
 import { usePersist } from '../lib/state'
 import SkillPalette from '../features/canvas/SkillPalette'
 import FixedFlow from '../features/canvas/FixedFlow'
@@ -282,6 +283,8 @@ function CanvasBoard() {
   const [chatInput, setChatInput] = usePersist('canvas.chatInput', '')
   const [messages, setMessages] = usePersist<ChatMsg[]>('canvas.chatMsgs.v2', [])
   const [chatBusy, setChatBusy] = useState(false)
+  /** 画布对话的 SSE 阶段文本（解析画布 / AI 生成操作 / 应用改动），点亮在忙碌态里 */
+  const [chatStage, setChatStage] = useState('')
   // 输出展开成居中大窗（侧栏 23rem 装不下长文本）
   const [bigOut, setBigOut] = useState(false)
   // 底部「查看缓存」：把当前画布所有节点的真实输出集中看一遍
@@ -851,6 +854,7 @@ function CanvasBoard() {
   const run = async (nodeKey?: string) => {
     if (!cid) return
     if (!nodes.length) return flash('画布是空的', 'error')
+    if (running) return
     await save()
     setRunning(true)
     setRunErr(null)
@@ -1122,9 +1126,20 @@ function CanvasBoard() {
     setMessages((ms) => [...ms, { role: 'user', content: text, skillTag: tag }])
     setChatInput('')
     setChatBusy(true)
+    setChatStage('')
     const t0 = Date.now()
     try {
-      const r = await post<any>(`/canvas/${cid}/chat`, { instruction: text, history, ...chatEnvelope() }, { ok: false })
+      // 流式：阶段事件实时反馈（解析画布 → AI 生成操作 → 应用改动）
+      let done: any = null
+      await postSse(`/api/canvas/${cid}/chat/stream`, { instruction: text, history, ...chatEnvelope() }, (ev: any) => {
+        if (ev.type === 'stage') {
+          setChatStage(`${ev.label}${ev.detail ? ` · ${ev.detail}` : ''}`)
+        } else if (ev.type === 'done') {
+          done = ev
+        }
+      })
+      if (!done) throw new Error('流已结束，但没有收到完成事件')
+      const r = done
       setMessages((ms) => [
         ...ms,
         {
@@ -1148,6 +1163,7 @@ function CanvasBoard() {
       flash('对话操作失败：' + (e?.message || e), 'error')
     } finally {
       setChatBusy(false)
+      setChatStage('')
     }
   }
 
@@ -1744,7 +1760,8 @@ function CanvasBoard() {
               />
             </ReactFlowProvider>
           )}
-          {nodes.length === 0 && !chatOpen && (
+          {/* 空态浮层只属于自由画布：固定框有自己内置的「还没有步骤」空态，别叠在一起 */}
+          {layout !== 'fixed' && nodes.length === 0 && !chatOpen && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div className="pointer-events-auto max-w-md rounded-[16px] border border-[color:var(--wb-border)] bg-[color:var(--wb-surface)]/95 p-5 text-center shadow-[var(--wb-shadow-md)]">
                 <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-[10px] bg-[color:var(--wb-accent-soft)] text-[color:var(--wb-accent)]">
@@ -1828,6 +1845,7 @@ function CanvasBoard() {
           title={name ? `画布对话 · ${name}` : '画布对话'}
           messages={messages}
           busy={chatBusy}
+          busyNote={chatStage || undefined}
           input={chatInput}
           onInput={setChatInput}
           onSend={sendChat}
